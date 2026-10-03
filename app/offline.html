@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#5c3d2e">
+<title>Nema veze · Farmerkop</title>
+<style>
+    :root { --bg: #f3e8d2; --kartica: #fffaf0; --tekst: #2a2018; --granica: #d8c6a2; --zelena: #4a6b2a; --na-zelenom: #fff; }
+    @media (prefers-color-scheme: dark) {
+        :root { --bg: #1a1612; --kartica: #262019; --tekst: #f1e7d3; --granica: #43382b; --zelena: #8db557; --na-zelenom: #14190b; }
+    }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; box-sizing: border-box;
+           background: var(--bg); color: var(--tekst); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .k { max-width: 440px; background: var(--kartica); border: 1px solid var(--granica); border-radius: 18px; padding: 24px; text-align: center; }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; }
+    a { display: inline-block; margin-top: 8px; padding: 16px 28px; border-radius: 14px; background: var(--zelena); color: var(--na-zelenom);
+        font-weight: 700; font-size: 1.1rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="k">
+    <h1>Nema internet veze</h1>
+    <p>Unosi se ne mogu sačuvati bez veze. Proverite mobilne podatke ili Wi-Fi, pa pokušajte ponovo.</p>
+    <a href="./">Pokušaj ponovo</a>
+</div>
+</body>
+</html>

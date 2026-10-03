@@ -1,0 +1,46 @@
+# Farmerkop – podešavanja Apache/LiteSpeed servera (cPanel)
+
+Options -Indexes
+DirectoryIndex index.php
+
+# ── HTTPS: aplikacija (i instalacija na telefon) radi samo preko https ──
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ── Ispravni tipovi fajlova za PWA ──
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+    AddType application/javascript .js
+    AddType image/svg+xml .svg
+    AddDefaultCharset UTF-8
+</IfModule>
+
+# ── Ne dozvoli otvaranje pomoćnih fajlova ──
+<FilesMatch "\.(log|sql|md|lock|bak|sh|ini)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ── Keširanje: service worker nikad, ostali statični fajlovi dugo (imaju ?v= verziju) ──
+<IfModule mod_headers.c>
+    <FilesMatch "^(sw\.js|manifest\.webmanifest)$">
+        Header set Cache-Control "no-cache, max-age=0"
+    </FilesMatch>
+    <FilesMatch "\.(css|js|png|svg|ico)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+    <FilesMatch "^sw\.js$">
+        Header set Cache-Control "no-cache, max-age=0"
+    </FilesMatch>
+    Header always set X-Content-Type-Options "nosniff"
+</IfModule>
