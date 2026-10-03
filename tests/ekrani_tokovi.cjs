@@ -254,4 +254,60 @@ module.exports = {
         await page.goto(p.base + '/admin/sifra.php');
         await p.slika('58-sifra', false);
     },
+
+    async pwa(page, p) {
+        // Posrednik ispred servera: gašenjem posrednika simuliramo da je telefon izgubio vezu.
+        const http = require('http');
+        const cilj = new URL(p.base);
+        const server = http.createServer((req, res) => {
+            const preq = http.request({ host: cilj.hostname, port: cilj.port, path: req.url, method: req.method, headers: { ...req.headers, host: cilj.host } }, (pres) => {
+                res.writeHead(pres.statusCode, pres.headers);
+                pres.pipe(res);
+            });
+            preq.on('error', () => { res.statusCode = 502; res.end(); });
+            req.pipe(preq);
+        });
+        await new Promise((r) => server.listen(0, '127.0.0.1', r));
+        const baza = 'http://127.0.0.1:' + server.address().port;
+        try {
+            await page.goto(baza + '/login.php');
+            const href = await page.locator('link[rel="manifest"]').getAttribute('href');
+            const odgovor = await page.request.get(baza + href);
+            tvrdi(odgovor.status() === 200, 'manifest se učitava');
+            const m = await odgovor.json();
+            tvrdi(m.display === 'standalone' && m.short_name === 'Farmerkop' && m.lang === 'sr-Latn', 'manifest: standalone, Farmerkop, sr-Latn');
+            tvrdi(m.icons.some((i) => i.sizes === '192x192') && m.icons.some((i) => i.sizes === '512x512') && m.icons.some((i) => i.purpose === 'maskable'), 'manifest: ikone 192, 512 i maskable');
+            for (const ikona of m.icons) {
+                const r = await page.request.get(baza + '/' + ikona.src);
+                tvrdi(r.status() === 200 && r.headers()['content-type'] === 'image/png', 'ikona se učitava: ' + ikona.src);
+            }
+            tvrdi(m.theme_color === '#5c3d2e' && !!m.background_color, 'boje u manifestu');
+
+            await page.evaluate(() => navigator.serviceWorker.ready);
+            const stanje = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return r && r.active ? r.active.state : null; });
+            tvrdi(stanje === 'activated', 'service worker je aktivan: ' + stanje);
+
+            const cdp = await page.context().newCDPSession(page);
+            const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
+            tvrdi(installabilityErrors.length === 0, 'instalabilna aplikacija, greške: ' + JSON.stringify(installabilityErrors));
+            const man = await cdp.send('Page.getAppManifest');
+            tvrdi((man.errors || []).length === 0, 'manifest bez grešaka: ' + JSON.stringify(man.errors));
+
+            // stranica sa stilovima ide u keš dok ima veze
+            await page.reload();
+            await page.waitForLoadState('load');
+            tvrdi(await page.evaluate(() => !!navigator.serviceWorker.controller), 'stranicom upravlja service worker');
+
+            // veza nestaje
+            server.close();
+            server.closeAllConnections();
+            await page.goto(baza + '/login.php').catch(() => {});
+            const tekst = await page.locator('body').innerText();
+            tvrdi(tekst.includes('Nema internet veze'), 'bez veze se prikazuje stranica "Nema internet veze": ' + tekst.slice(0, 80));
+            tvrdi(!tekst.includes('Ko si ti'), 'bez veze se ne prikazuju stari podaci iz keša');
+            await p.slika('60-nema-veze');
+        } finally {
+            try { server.close(); server.closeAllConnections(); } catch (e) { /* već ugašen */ }
+        }
+    },
 };
