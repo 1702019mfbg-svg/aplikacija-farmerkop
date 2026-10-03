@@ -194,7 +194,7 @@ try:
     o = w.get("/admin/stanje.php", slediti=False)
     R.provera(o.status == 302 and o.lanac[0][1].endswith("/radnik/index.php"), "radnik ne može na admin stranice – vraća se na svoju", o.lanac)
     o = w.get("/radnik/index.php")
-    R.provera("Zdravo, Jelena" in o.text, "radnik vidi svoju stranicu")
+    R.provera("Farmerkop · Jelena" in o.text and "Novi unos" in o.text, "radnik vidi svoju stranicu")
     R.provera("Kućna prodaja" in o.text and "Proizvodnja" in o.text, "radnik ima navigaciju: Proizvodnja i Kućna prodaja")
     R.provera("Stanje" not in o.text.split("<nav")[1] if "<nav" in o.text else True, "radnik nema karticu Stanje")
     o = Client(site.base).get("/radnik/index.php", slediti=False)

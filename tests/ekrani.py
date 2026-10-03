@@ -13,13 +13,7 @@ from fk import *  # noqa
 
 
 def pripremi(site):
-    """Instalira aplikaciju i ubacuje radnike."""
-    c = Client(site.base)
-    c.get("/install.php")
-    c.post("/install.php", {"kljuc": INSTALL_KLJUC, "ime": "Vlasnik", "korisnicko_ime": ADMIN_USER,
-                            "sifra": ADMIN_PASS, "sifra2": ADMIN_PASS, "katalog": "1"})
-    for ime, pin in [("Marko", "1234"), ("Jelena", "4321"), ("Dragan", "1111")]:
-        sql("INSERT INTO korisnici (uloga, ime, hes, aktivan, napravljen) VALUES ('radnik','%s','%s',1,'2026-01-01 00:00:00')" % (ime, php_hes(pin)))
+    pripremi_sajt(site)
 
 
 if __name__ == "__main__":
@@ -31,10 +25,15 @@ if __name__ == "__main__":
     try:
         pripremi(site)
         env = dict(os.environ, NODE_PATH="/opt/node-tools/node_modules")
-        r = subprocess.run(["node", str(Path(__file__).parent / "ekrani.cjs"), site.base, izlaz, tokovi], env=env)
+        kod = 0
+        for tema in ("light", "dark"):
+            # svaki režim kreće od istih podataka
+            sql("DELETE FROM dnevnik; DELETE FROM unosi; DELETE FROM kupci")
+            r = subprocess.run(["node", str(Path(__file__).parent / "ekrani.cjs"), site.base, izlaz, tokovi, tema], env=env)
+            kod = kod or r.returncode
         problemi = site.php_problemi()
         if problemi:
             print("PHP problemi:", *problemi, sep="\n  ")
-        sys.exit(r.returncode or (1 if problemi else 0))
+        sys.exit(kod or (1 if problemi else 0))
     finally:
         site.stop()

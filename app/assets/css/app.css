@@ -188,7 +188,7 @@ textarea.polje { min-height: 96px; resize: vertical; }
 .red-polja-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* ── Izbor artikla / varijante / pakovanja ── */
-.korak { margin-bottom: 18px; }
+.korak { margin-bottom: 18px; scroll-margin-top: 88px; }
 .korak-naslov { font-size: .95rem; text-transform: uppercase; letter-spacing: .05em; color: var(--tekst-bled); margin: 0 0 8px; }
 .kat-naslov { font-size: .85rem; color: var(--kraft-tamno); margin: 12px 0 6px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .izbor-mreza { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -204,7 +204,7 @@ textarea.polje { min-height: 96px; resize: vertical; }
 .izbor-dugme[aria-pressed="true"] { background: var(--zelena); border-color: var(--zelena); color: var(--zelena-tekst); }
 .izbor-dugme[aria-pressed="true"] small { color: inherit; opacity: .9; }
 .izbor-dugme.prazno { opacity: .55; }
-.izbor-dugme .znacka { position: absolute; top: 4px; right: 4px; }
+.izbor-dugme .znacka { margin-top: 3px; }
 
 /* ── Količina ── */
 .segment { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--povrsina-2); padding: 6px; border-radius: 16px; margin-bottom: 12px; }
@@ -229,6 +229,7 @@ textarea.polje { min-height: 96px; resize: vertical; }
 .koraci button:active { background: var(--zelena-svetla); }
 .zbir { font-size: 1.15rem; font-weight: 700; text-align: center; min-height: 1.7rem; margin: 0 0 14px; }
 .zbir .velik { font-size: 1.5rem; }
+.zbir.greska-tekst { color: var(--crvena); }
 
 /* ── Krupni brojevi i pločice ── */
 .stat-mreza { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }

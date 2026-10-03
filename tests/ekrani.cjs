@@ -2,7 +2,8 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
-const [base, izlaz, spisak] = process.argv.slice(2);
+const [base, izlaz, spisak, temeArg] = process.argv.slice(2);
+const TEME = (temeArg || 'light,dark').split(',').filter(Boolean);
 const zeljeni = (spisak || '').split(',').filter(Boolean);
 const TELEFON = { width: 390, height: 844 };
 
@@ -32,7 +33,7 @@ async function slika(page, ime, tema, celaStranica = true) {
 
 async function prijavaRadnik(page, ime, pin) {
     await page.goto(base + '/login.php');
-    await page.getByText(ime, { exact: true }).click();
+    await page.locator('label.ime', { hasText: ime }).click();
     for (const c of pin) {
         await page.locator(`[data-cifra="${c}"]`).click();
     }
@@ -50,12 +51,13 @@ async function prijavaAdmin(page, korisnik, sifra) {
     const browser = await chromium.launch();
     const sveGreske = [];
     const tokovi = require('./ekrani_tokovi.cjs');
-    for (const tema of ['light', 'dark']) {
+    for (const tema of TEME) {
         const { ctx, page, greske } = await novaStranica(browser, tema);
         const pom = { base, slika: (ime, cela) => slika(page, ime, tema, cela), prijavaRadnik: (i, p) => prijavaRadnik(page, i, p), prijavaAdmin: (k, s) => prijavaAdmin(page, k, s), tema, browser, novaStranica: (t) => novaStranica(browser, t) };
         for (const [naziv, tok] of Object.entries(tokovi)) {
             if (zeljeni.length && !zeljeni.includes(naziv)) { continue; }
             try {
+                await ctx.clearCookies();
                 await tok(page, pom);
             } catch (e) {
                 sveGreske.push(`${naziv} (${tema}): ${e.message}`);

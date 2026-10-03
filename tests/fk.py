@@ -236,3 +236,56 @@ class Rezultat:
             for g in self.greske:
                 print("  - " + g)
         return 0 if not self.greske else 1
+
+
+# ─── Priprema sajta za testove ─────────────────────────────────────────────
+
+def pripremi_sajt(site, radnici=(("Marko", "1234"), ("Jelena", "4321"), ("Dragan", "1111"))):
+    """Instalira aplikaciju (sa početnim katalogom) i dodaje radnike. Vraća {ime: id}."""
+    c = Client(site.base)
+    c.get("/install.php")
+    o = c.post("/install.php", {"kljuc": INSTALL_KLJUC, "ime": "Vlasnik", "korisnicko_ime": ADMIN_USER,
+                                "sifra": ADMIN_PASS, "sifra2": ADMIN_PASS, "katalog": "1"})
+    assert "Instalacija je uspešno završena" in o.text, o.text[:500]
+    ids = {}
+    for ime, pin in radnici:
+        sql("INSERT INTO korisnici (uloga, ime, hes, aktivan, napravljen) VALUES ('radnik','%s','%s',1,'2026-01-01 00:00:00')" % (ime, php_hes(pin)))
+        ids[ime] = sql_int("SELECT id FROM korisnici WHERE ime='%s'" % ime)
+    return ids
+
+
+def sku_id(artikal, kolicina, jedinica="l", varijanta=None):
+    """ID SKU-a po nazivu artikla, pakovanju i (opciono) varijanti."""
+    q = ("SELECT s.id FROM sku s JOIN artikli a ON a.id=s.artikal_id JOIN pakovanja p ON p.id=s.pakovanje_id "
+         "LEFT JOIN varijante v ON v.id=s.varijanta_id WHERE a.naziv='%s' AND p.kolicina=%s AND p.jedinica='%s'" % (artikal, kolicina, jedinica))
+    if varijanta:
+        q += " AND v.naziv='%s'" % varijanta
+    r = sql(q)
+    if not r:
+        raise KeyError("nema SKU: %s %s %s %s" % (artikal, kolicina, jedinica, varijanta))
+    return int(r.split()[0])
+
+
+def stanje(sku):
+    return sql_int("SELECT COALESCE(SUM(CASE WHEN tip IN ('prodaja','kucna_prodaja') THEN -kolicina ELSE kolicina END),0) FROM unosi WHERE sku_id=%d AND obrisan=0" % sku)
+
+
+def prijavi_radnika(site, ime_id, pin):
+    c = Client(site.base)
+    c.get("/login.php")
+    o = c.post("/login.php", {"tip": "radnik", "radnik_id": ime_id, "pin": pin}, slediti=False)
+    assert o.status == 302, "prijava radnika nije uspela: " + o.text[:300]
+    return c
+
+
+def prijavi_admina(site):
+    c = Client(site.base)
+    c.get("/login.php?admin=1")
+    o = c.post("/login.php", {"tip": "admin", "korisnicko_ime": ADMIN_USER, "sifra": ADMIN_PASS}, slediti=False)
+    assert o.status == 302, "prijava admina nije uspela: " + o.text[:300]
+    return c
+
+
+def nov_kljuc():
+    import secrets
+    return secrets.token_hex(16)
