@@ -173,6 +173,8 @@ class Client:
         return r.status if hasattr(r, "status") else r.code, r.headers, r.read().decode("utf-8", "replace")
 
     def zahtev(self, metoda, putanja, podaci=None, headers=None, slediti=True):
+        if not putanja.startswith("http"):
+            putanja = urllib.parse.quote(putanja, safe="/?&=%:#[]@!$'()*+,;~-._")   # kvačice u adresi
         url = putanja if putanja.startswith("http") else self.base + putanja
         lanac = []
         for _ in range(8):

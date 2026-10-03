@@ -155,16 +155,18 @@ function promet_danas(): array
 /**
  * Aktivni katalog u obliku za biranje (kategorija → artikal → varijanta/pakovanje).
  * Sa $sa_stanjem = true svaki SKU nosi i trenutno stanje (samo za administratora!).
+ * $uz_sku: dodatni SKU koji se prikazuje i kad je isključen (za ispravku starog unosa).
  */
-function katalog_za_izbor(bool $sa_stanjem = false): array
+function katalog_za_izbor(bool $sa_stanjem = false, int $uz_sku = 0): array
 {
     $redovi = db_all(
         'SELECT s.id AS sku_id, s.varijanta_id, s.po_paleti, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'k.id AS kat_id, k.naziv AS kategorija, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id '
         . 'JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id '
-        . 'WHERE ' . SQL_AKTIVAN_SKU . ' '
-        . 'ORDER BY k.redosled, k.id, a.redosled, a.id, v.redosled, v.id, p.jedinica, p.kolicina'
+        . 'WHERE (' . SQL_AKTIVAN_SKU . ' OR s.id = ?) '
+        . 'ORDER BY k.redosled, k.id, a.redosled, a.id, v.redosled, v.id, p.jedinica, p.kolicina',
+        [$uz_sku]
     );
     $stanja = $sa_stanjem ? stanja_svih() : [];
 

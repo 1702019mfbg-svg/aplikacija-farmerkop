@@ -383,3 +383,18 @@ a.stat-link { text-decoration: none; color: inherit; font-weight: inherit; }
 .stat-mreza.tri .stat { padding: 10px 12px; }
 .stat-mreza.tri .broj { font-size: 1.85rem; }
 .stat-mreza.tri .opis { font-size: .78rem; line-height: 1.25; }
+
+/* ── Istorija: čipovi za brzi izbor i stranice ── */
+.cipovi { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; -webkit-overflow-scrolling: touch; }
+.cip {
+    flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px;
+    border: 2px solid var(--granica); background: var(--povrsina); color: var(--tekst); text-decoration: none; font-weight: 700; font-size: .98rem;
+}
+.cip[aria-current="true"] { background: var(--braon); border-color: var(--braon); color: var(--zagl-tekst); }
+.stranice { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+details.kartica > summary { cursor: pointer; list-style: none; }
+details.kartica > summary::-webkit-details-marker { display: none; }
+details.kartica > summary.kartica-naslov::after { content: "▾"; color: var(--tekst-bled); }
+details.kartica:not([open]) > summary.kartica-naslov { margin-bottom: 0; }
+details.kartica:not([open]) > summary.kartica-naslov::after { content: "▸"; }
+.promene { margin: 4px 0 0; padding-left: 18px; color: var(--tekst-bled); font-size: .92rem; }

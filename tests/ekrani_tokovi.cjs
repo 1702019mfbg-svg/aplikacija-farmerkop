@@ -157,4 +157,45 @@ module.exports = {
         tvrdi((await page.locator('#kupac').inputValue()) === 'Agrocentar Novi Sad', 'kupac ostaje za sledeću stavku');
         await p.slika('34-admin-prodaja-posle');
     },
+
+    async istorija(page, p) {
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.goto(p.base + '/admin/istorija.php');
+        tvrdi((await page.locator('.lista li').count()) >= 14, 'istorija prikazuje demo unose');
+        await p.slika('40-istorija');
+        await page.locator('.cip', { hasText: /^Prodaja$/ }).click();
+        tvrdi(page.url().includes('tip=prodaja'), 'čip Prodaja menja filter');
+        tvrdi((await page.locator('.lista li').count()) === 2, 'dve prodaje (admin), kućna se ne računa');
+        await page.locator('a.btn', { hasText: 'Ispravi' }).first().click();
+        await page.waitForURL('**/admin/unos.php**');
+        tvrdi((await page.locator('[data-sku-polje]').inputValue()) !== '', 'ispravka: artikal je unapred izabran');
+        tvrdi((await page.locator('#kupac').inputValue()) !== '', 'ispravka: kupac je upisan');
+        await p.slika('41-ispravka');
+        await page.locator('[data-nacin-vrednost="komadi"]').click();
+        await page.fill('[name="kolicina"]', '7');
+        await page.locator('[data-sacuvaj]').click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Izmena je sačuvana'), 'izmena sačuvana');
+        tvrdi(page.url().includes('/admin/istorija.php'), 'posle izmene se vraća na istoriju (sa istim filterom)');
+        tvrdi(page.url().includes('tip=prodaja'), 'filter ostaje: ' + page.url());
+        tvrdi((await page.locator('.znacka', { hasText: 'izmenjeno ×1' }).count()) === 1, 'oznaka izmenjeno ×1');
+        await page.locator('.znacka', { hasText: 'izmenjeno' }).click();
+        await page.waitForURL('**/admin/unos.php**');
+        tvrdi((await page.locator('.promene li').first().innerText()).includes('→'), 'prikazana je istorija izmena');
+        await p.slika('42-ispravka-istorija');
+        // brisanje i vraćanje
+        await page.goBack();
+        page.once('dialog', (d) => d.accept());
+        await page.locator('form[data-potvrda] button', { hasText: 'Obriši' }).first().click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.lista li').count()) === 1, 'posle brisanja ostaje jedna prodaja');
+        await page.goto(p.base + '/admin/istorija.php?tip=prodaja&obrisani=1');
+        tvrdi((await page.locator('.unos-obrisan').count()) === 1, 'obrisani unos je precrtan');
+        await p.slika('43-istorija-obrisani');
+        await page.locator('button', { hasText: 'Vrati unos' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        await page.goto(p.base + '/admin/dnevnik.php');
+        tvrdi((await page.locator('.lista > li').count()) === 3, 'dnevnik: izmena, brisanje, vraćanje');
+        await p.slika('44-dnevnik');
+    },
 };
