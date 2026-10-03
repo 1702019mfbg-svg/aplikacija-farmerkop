@@ -259,3 +259,28 @@ function unos_vrati(int $unos_id): array
         return ['ok' => true];
     });
 }
+
+/**
+ * Popis: postavlja stanje SKU-a na prebrojanu vrednost upisom korekcije (razlike).
+ * Razlika se računa u trenutku čuvanja, pod zaključanim redom, pa je stanje posle popisa tačno
+ * koliko je prebrojano, čak i ako je u međuvremenu bilo novih unosa.
+ * Vraća ['ok' => true, 'promena' => bool, 'bilo' => n, 'razlika' => n].
+ */
+function popis_postavi(int $sku_id, int $prebrojano, string $napomena, int $korisnik_id): array
+{
+    return db_trans(static function () use ($sku_id, $prebrojano, $napomena, $korisnik_id): array {
+        sku_zakljucaj($sku_id);
+        $bilo = stanje_sku($sku_id);
+        $razlika = $prebrojano - $bilo;
+        if ($razlika === 0) {
+            return ['ok' => true, 'promena' => false, 'bilo' => $bilo, 'razlika' => 0];
+        }
+        $sad = sada();
+        db_run(
+            "INSERT INTO unosi (tip, sku_id, kolicina, palete, korisnik_id, kupac_id, napomena, nastalo, uneto, kljuc)
+             VALUES ('korekcija', ?, ?, NULL, ?, NULL, ?, ?, ?, NULL)",
+            [$sku_id, $razlika, $korisnik_id, mb_substr(trim($napomena), 0, 200) . ' [bilo ' . $bilo . ', prebrojano ' . $prebrojano . ']', $sad, $sad]
+        );
+        return ['ok' => true, 'promena' => true, 'bilo' => $bilo, 'razlika' => $razlika];
+    });
+}

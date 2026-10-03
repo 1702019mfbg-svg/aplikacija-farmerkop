@@ -26,6 +26,11 @@ async function novaStranica(browser, tema) {
 }
 
 async function slika(page, ime, tema, celaStranica = true) {
+    // Stranica ne sme da bude šira od ekrana (nema vodoravnog pomeranja).
+    const sirina = await page.evaluate(() => ({ strana: document.documentElement.scrollWidth, prozor: window.innerWidth }));
+    if (sirina.strana > sirina.prozor + 1) {
+        throw new Error(`PROVERA PALA: ${ime} je šira od ekrana (${sirina.strana} > ${sirina.prozor})`);
+    }
     const putanja = `${izlaz}/${ime}-${tema === 'dark' ? 'tamno' : 'svetlo'}.png`;
     await page.screenshot({ path: putanja, fullPage: celaStranica });
     console.log('snimljeno', putanja);

@@ -244,6 +244,7 @@ class Rezultat:
 
 def pripremi_sajt(site, radnici=(("Marko", "1234"), ("Jelena", "4321"), ("Dragan", "1111"))):
     """Instalira aplikaciju (sa početnim katalogom) i dodaje radnike. Vraća {ime: id}."""
+    shutil.copy(APP / "install.php", site.dir / "install.php")      # instalacija se posle uspeha sama briše
     c = Client(site.base)
     c.get("/install.php")
     o = c.post("/install.php", {"kljuc": INSTALL_KLJUC, "ime": "Vlasnik", "korisnicko_ime": ADMIN_USER,

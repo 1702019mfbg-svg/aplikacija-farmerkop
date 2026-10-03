@@ -109,6 +109,7 @@ const AKCIJE_DNEVNIKA = [
     'brisanje'        => 'Obrisano',
     'brisanje_radnik' => 'Obrisao radnik',
     'povracaj'        => 'Vraćeno',
+    'podesavanje'     => 'Podešavanje',
 ];
 
 /** Opis promene u obliku liste rečenica ("Količina: 100 → 120 kom"). */
@@ -116,7 +117,7 @@ function dnevnik_promene(?string $detalji): array
 {
     $d = $detalji === null ? null : json_decode($detalji, true);
     if (!is_array($d)) {
-        return [];
+        return $detalji !== null && $detalji !== '' ? [$detalji] : [];     // obična rečenica (podešavanja)
     }
     $pre = $d['pre'] ?? null;
     $posle = $d['posle'] ?? null;

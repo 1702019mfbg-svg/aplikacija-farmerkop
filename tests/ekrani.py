@@ -4,6 +4,7 @@ Pravi test sajt sa uzorkom podataka i snima ekrane kao telefon.
 Upotreba: python3 tests/ekrani.py IZLAZNI_FOLDER [tok1,tok2,...]
 """
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -49,26 +50,36 @@ def demo_podaci(ids):
     sql("UPDATE sku SET min_zaliha=100 WHERE id=%d" % sku_id("Idea", 10))
 
 
+def nazivi_tokova():
+    """Nazivi tokova iz ekrani_tokovi.cjs, redom."""
+    tekst = (Path(__file__).parent / "ekrani_tokovi.cjs").read_text(encoding="utf-8")
+    return re.findall(r"^    async (\w+)\(page, p\)", tekst, re.M)
+
+
 if __name__ == "__main__":
     izlaz = sys.argv[1] if len(sys.argv) > 1 else "/tmp/ekrani"
-    tokovi = sys.argv[2] if len(sys.argv) > 2 else ""
+    trazeni = [t for t in (sys.argv[2] if len(sys.argv) > 2 else "").split(",") if t] or nazivi_tokova()
     os.makedirs(izlaz, exist_ok=True)
-    reset_db()
-    site = Site()
+    kod = 0
+    site = None
     try:
-        ids = pripremi(site)
+        reset_db()
+        site = Site()
         env = dict(os.environ, NODE_PATH="/opt/node-tools/node_modules")
-        kod = 0
-        for tema in ("light", "dark"):
-            # svaki režim kreće od istih podataka
-            sql("DELETE FROM dnevnik; DELETE FROM unosi; DELETE FROM kupci")
-            if os.environ.get("DEMO", "1") == "1" and any(t in (tokovi or "admin") for t in ("admin", "")):
-                demo_podaci(ids)
-            r = subprocess.run(["node", str(Path(__file__).parent / "ekrani.cjs"), site.base, izlaz, tokovi, tema], env=env)
-            kod = kod or r.returncode
+        for tok in trazeni:
+            for tema in ("light", "dark"):
+                # svaki tok i režim kreće od čiste baze sa istim podacima
+                reset_db()
+                ids = pripremi(site)
+                if os.environ.get("DEMO", "1") == "1":
+                    demo_podaci(ids)
+                print("▶ tok %s (%s)" % (tok, tema), flush=True)
+                r = subprocess.run(["node", str(Path(__file__).parent / "ekrani.cjs"), site.base, izlaz, tok, tema], env=env)
+                kod = kod or r.returncode
         problemi = site.php_problemi()
         if problemi:
             print("PHP problemi:", *problemi, sep="\n  ")
         sys.exit(kod or (1 if problemi else 0))
     finally:
-        site.stop()
+        if site:
+            site.stop()
