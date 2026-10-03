@@ -279,9 +279,9 @@ textarea.polje { min-height: 96px; resize: vertical; }
 .nav-stavka {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     min-height: 56px; border-radius: 14px; text-decoration: none; color: var(--tekst-bled);
-    font-size: .74rem; font-weight: 700; padding: 4px 2px; min-width: 0;
+    font-size: .7rem; font-weight: 700; padding: 4px 0; min-width: 0; letter-spacing: -.01em;
 }
-.nav-stavka span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-stavka span { max-width: 100%; white-space: nowrap; }
 .nav-stavka .ikona { width: 1.65rem; height: 1.65rem; }
 .nav-stavka.aktivna { color: var(--zelena-tekst); background: var(--zelena); }
 
@@ -289,16 +289,17 @@ textarea.polje { min-height: 96px; resize: vertical; }
 .artikal-kartica { padding: 0; overflow: hidden; }
 .artikal-glava { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; background: var(--povrsina-2); border-bottom: 1px solid var(--granica); }
 .artikal-glava h3 { margin: 0; }
-.artikal-glava .ukupno { text-align: right; font-weight: 800; font-size: 1.15rem; }
+.artikal-glava .ukupno { text-align: right; font-weight: 800; font-size: 1.1rem; white-space: nowrap; }
 .sku-red { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 16px; border-bottom: 1px solid var(--granica); align-items: center; }
 .sku-red:last-child { border-bottom: 0; }
-.sku-red .sku-ime { font-weight: 700; }
-.sku-red .sku-stanje { font-size: 1.9rem; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.sku-red .sku-pod { color: var(--tekst-bled); font-size: .88rem; }
-.sku-red .sku-pod-d { color: var(--tekst-bled); font-size: .88rem; text-align: right; }
+.sku-red .sku-ime { font-weight: 700; font-size: 1.1rem; }
+.sku-red .sku-pal { color: var(--tekst-bled); font-size: .9rem; }
+.sku-red .sku-stanje { font-size: 2rem; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.sku-red .sku-meta { grid-column: 1 / -1; color: var(--tekst-bled); font-size: .85rem; }
+.sku-red .sku-upoz { color: var(--crvena); font-weight: 700; font-size: .92rem; }
 .sku-red.nisko { background: var(--crvena-svetla); box-shadow: inset 5px 0 0 var(--crvena); }
 .sku-red.nisko .sku-stanje { color: var(--crvena); }
-.sku-red.nisko .sku-pod-d { color: var(--crvena); font-weight: 700; }
+.sku-red.nisko .sku-meta { color: var(--tekst); }
 
 /* ── Tabele (istorija na širem ekranu) ── */
 .tabela-omot { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -364,3 +365,21 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: .95rem; }
 @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
 }
+
+/* ── Stanje: sklopive kartice artikala ── */
+.artikal-kartica summary { cursor: pointer; list-style: none; }
+.artikal-kartica summary::-webkit-details-marker { display: none; }
+.artikal-kartica summary::after { content: "▾"; margin-left: 8px; color: var(--tekst-bled); }
+.artikal-kartica:not([open]) summary::after { content: "▸"; }
+.artikal-kartica:not([open]) .artikal-glava { border-bottom: 0; }
+.kat-naslov + .kartica { margin-top: 6px; }
+h2.kat-naslov { font-size: .95rem; margin: 18px 0 6px; }
+.ikona-mala { width: 1em; height: 1em; vertical-align: -0.12em; }
+a.stat-link { text-decoration: none; color: inherit; font-weight: inherit; }
+.stat-upozorenje.stat-link .opis { color: var(--crvena); }
+
+/* tri pločice u jednom redu */
+.stat-mreza.tri { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat-mreza.tri .stat { padding: 10px 12px; }
+.stat-mreza.tri .broj { font-size: 1.85rem; }
+.stat-mreza.tri .opis { font-size: .78rem; line-height: 1.25; }

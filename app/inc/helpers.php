@@ -148,6 +148,23 @@ function dan_u_nedelji(string $dt): string
     return $t === false ? '' : $dani[(int)date('w', $t)];
 }
 
+/** "danas 14:05", "juče 09:30" ili "02.10. 16:00". */
+function datum_kratko(string $dt): string
+{
+    $t = strtotime($dt);
+    if ($t === false) {
+        return '';
+    }
+    $dan = date('Y-m-d', $t);
+    if ($dan === date('Y-m-d')) {
+        return 'danas ' . date('H:i', $t);
+    }
+    if ($dan === date('Y-m-d', strtotime('-1 day'))) {
+        return 'juče ' . date('H:i', $t);
+    }
+    return date('d.m. H:i', $t);
+}
+
 function sada(): string
 {
     return date('Y-m-d H:i:s');

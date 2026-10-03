@@ -128,4 +128,33 @@ module.exports = {
         tvrdi(g.includes('Nema dovoljno na stanju'), 'prodaja bez zaliha je odbijena: ' + g);
         await p.slika('22-kucna-prodaja-nema-zalihe');
     },
+
+    async admin(page, p) {
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await p.slika('30-admin-stanje');
+        // sklapanje kartice artikla
+        const prvi = page.locator('details.artikal-kartica').first();
+        await prvi.locator('summary').click();
+        tvrdi(!(await prvi.getAttribute('open')) !== undefined, 'kartica se sklapa');
+        await prvi.locator('summary').click();
+        await page.goto(p.base + '/admin/stanje.php?nisko=1');
+        tvrdi((await page.locator('.sku-red.nisko').count()) === 2, 'dva reda ispod minimuma');
+        await p.slika('31-admin-nisko', false);
+
+        await page.goto(p.base + '/admin/prodaja.php');
+        await p.slika('32-admin-prodaja');
+        await page.locator('[data-kupac]', { hasText: 'Agrocentar Novi Sad' }).click();
+        tvrdi((await page.locator('#kupac').inputValue()) === 'Agrocentar Novi Sad', 'dugme sa kupcem popunjava polje');
+        await page.locator('[data-artikal]', { hasText: /^Humovit$/ }).click();
+        tvrdi((await page.locator('[data-pakovanja] .izbor-dugme', { hasText: /^5 l/ }).innerText()).includes('na stanju: 780'), 'uz pakovanje piše stanje');
+        await page.locator('[data-pakovanja] .izbor-dugme', { hasText: /^5 l/ }).click();
+        await page.locator('[data-nacin-vrednost="komadi"]').click();
+        await page.fill('[name="kolicina"]', '100');
+        await p.slika('33-admin-prodaja-izbor', false);
+        await page.locator('[data-sacuvaj]').click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Agrocentar Novi Sad'), 'poruka o prodaji');
+        tvrdi((await page.locator('#kupac').inputValue()) === 'Agrocentar Novi Sad', 'kupac ostaje za sledeću stavku');
+        await p.slika('34-admin-prodaja-posle');
+    },
 };

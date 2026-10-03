@@ -158,3 +158,22 @@ function radnik_sme_da_obrise(int $radnik_id): ?array
     $proslo = time() - (int)strtotime((string)$u['uneto']);
     return $proslo <= BRISANJE_RADNIK_MIN * 60 ? $u : null;
 }
+
+/** ID kupca po nazivu; ako ga nema, pravi se novi (veličina slova i kvačice se ne razlikuju). */
+function kupac_id_za(string $naziv): int
+{
+    $naziv = mb_substr(trim($naziv), 0, 120);
+    $id = db_val('SELECT id FROM kupci WHERE naziv = ?', [$naziv]);
+    if ($id !== null) {
+        return (int)$id;
+    }
+    try {
+        db_run('INSERT INTO kupci (naziv, napravljen) VALUES (?, ?)', [$naziv, sada()]);
+        return db_id();
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+            return (int)db_val('SELECT id FROM kupci WHERE naziv = ?', [$naziv]);
+        }
+        throw $e;
+    }
+}
