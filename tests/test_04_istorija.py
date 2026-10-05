@@ -259,7 +259,7 @@ try:
     sql("UPDATE unosi SET kolicina=50 WHERE id=%d" % a4)
     o = sacuvaj(adm, a4, sku_id=idea10, kolicina="300")        # idea10 ima 225
     R.provera("nema dovoljno na stanju" in poruke(o).lower() and db_unos(a4)["sku_id"] == str(hum10), "prodaja prebačena na artikal sa manjim stanjem je odbijena", poruke(o))
-    o = sacuvaj(adm, a2, sku_id=sku_id("Čmana supstrat", 10))
+    o = sacuvaj(adm, a2, sku_id=sku_id("Cmana supstrat", 10))
     R.provera("Izaberite artikal" in poruke(o), "ne može se prebaciti na isključen artikal")
     o = sacuvaj(adm, a2, kolicina="0")
     R.provera("količinu" in poruke(o).lower(), "količina 0 je odbijena")
@@ -356,6 +356,7 @@ try:
     tabela = list(csv.reader(io.StringIO(sirovo.lstrip("﻿")), delimiter=";"))
     zag = tabela[0]
     R.provera(zag[:9] == ["ID", "Datum", "Vreme", "Dan", "Vrsta", "Artikal", "Boja / granulacija", "Pakovanje", "Količina (kom)"], "zaglavlje na srpskom", zag)
+    R.provera(zag[zag.index("Palete") + 1] == "Paketi", "CSV ima kolonu 'Paketi' odmah posle 'Palete'", zag)
     R.provera(len(tabela) - 1 == sql_int("SELECT COUNT(*) FROM unosi WHERE obrisan=0"), "broj redova = broj neobrisanih unosa", (len(tabela) - 1, sql_int("SELECT COUNT(*) FROM unosi WHERE obrisan=0")))
     R.provera(all(len(r) == len(zag) for r in tabela), "svaki red ima isti broj kolona (i sa ; i novim redom u napomeni)")
     po_id = {int(r[0]): dict(zip(zag, r)) for r in tabela[1:]}
@@ -385,10 +386,11 @@ try:
     R.provera({int(r[0]) for r in t[1:]} == {b1, b2}, "period juče izvozi samo juče")
     o = adm.get("/admin/izvoz.php?radnik=%d&artikal=%d&od=&do=" % (J, art_hum))
     t = list(csv.reader(io.StringIO(o.body.lstrip("﻿")), delimiter=";"))
-    R.provera({r[12] for r in t[1:]} == {"Jelena"} and {r[5] for r in t[1:]} == {"Humovit"}, "radnik + artikal")
+    ir, ia = t[0].index("Radnik / unos"), t[0].index("Artikal")
+    R.provera({r[ir] for r in t[1:]} == {"Jelena"} and {r[ia] for r in t[1:]} == {"Humovit"}, "radnik + artikal")
     o = adm.get("/admin/izvoz.php?q=bašta&od=&do=")
     t = list(csv.reader(io.StringIO(o.body.lstrip("﻿")), delimiter=";"))
-    R.provera(len(t) == 2 and t[1][13] == "Vrt i bašta Kraljevo", "pretraga po kupcu")
+    R.provera(len(t) == 2 and t[1][t[0].index("Kupac")] == "Vrt i bašta Kraljevo", "pretraga po kupcu")
     o = adm.get("/admin/izvoz.php?obrisani=1&od=&do=")
     t = list(csv.reader(io.StringIO(o.body.lstrip("﻿")), delimiter=";"))
     R.provera(t[0][-1] == "Obrisano" and any(r[-1] == "da" for r in t[1:]) and len(t) - 1 == sql_int("SELECT COUNT(*) FROM unosi"), "sa obrisanim: dodatna kolona 'Obrisano' (da/ne)")

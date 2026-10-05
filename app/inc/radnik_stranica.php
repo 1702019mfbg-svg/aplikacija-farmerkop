@@ -59,12 +59,12 @@ function radnik_obradi_dodavanje(array $radnik, string $tip, array $cfg): void
     }
 
     $napomena = $cfg['napomena'] ? post_str('napomena', 255) : null;
-    $rez = unos_dodaj($tip, $sku_id, $kol['komadi'], $kol['palete'], (int)$radnik['id'], null, $napomena, post_str('kljuc', 32));
+    $rez = unos_dodaj($tip, $sku_id, $kol['komadi'], $kol['palete'], (int)$radnik['id'], null, $napomena, post_str('kljuc', 32), null, $kol['paketi']);
 
     if ($rez['ok'] && !empty($rez['duplikat'])) {
         flash_dodaj('info', 'Ovaj unos je već sačuvan.');
     } elseif ($rez['ok']) {
-        flash_dodaj('uspeh', $cfg['uspeh'] . ': ' . sku_naziv($sku) . ' – ' . kolicina_tekst($kol['komadi'], $kol['palete']));
+        flash_dodaj('uspeh', $cfg['uspeh'] . ': ' . sku_naziv($sku) . ' – ' . kolicina_tekst($kol['komadi'], $kol['palete'], $kol['paketi']));
     } elseif (!empty($rez['nedovoljno'])) {
         // Radnik ne vidi stanje, pa mu se ne otkrivaju ni brojevi.
         flash_dodaj('greska', 'Nema dovoljno na stanju za tu količinu. Proverite broj ili se javite administratoru.');
@@ -108,7 +108,7 @@ function radnik_stranica(string $tip): void
     }
 
     $unosi = db_all(
-        'SELECT u.id, u.kolicina, u.palete, u.napomena, u.nastalo, u.uneto, ' . SKU_POLJA . ' FROM unosi u ' . SKU_SPOJ
+        'SELECT u.id, u.kolicina, u.palete, u.paketi, u.napomena, u.nastalo, u.uneto, ' . SKU_POLJA . ' FROM unosi u ' . SKU_SPOJ
         . ' WHERE u.korisnik_id = ? AND u.tip = ? AND u.obrisan = 0 AND u.nastalo >= ? AND u.nastalo < ? ORDER BY u.id DESC',
         [(int)$radnik['id'], $tip, danas_od(), danas_do()]
     );
@@ -167,7 +167,7 @@ function radnik_stranica(string $tip): void
                             <span class="naziv"><?= e(sku_naziv($u)) ?><?php if ($u['oznaka']): ?> <span class="znacka znacka-pl"><?= e($u['oznaka']) ?></span><?php endif; ?></span>
                             <span class="kol"><?= e(broj((int)$u['kolicina'])) ?> kom</span>
                             <span class="pod"><?= e(vreme_srp((string)$u['nastalo'])) ?><?= $u['napomena'] ? ' · ' . e($u['napomena']) : '' ?></span>
-                            <span class="kol-pod"><?= $u['palete'] ? e(palete_tekst((int)$u['palete'])) : '' ?></span>
+                            <span class="kol-pod"><?= e(nacin_unosa_tekst($u)) ?></span>
                             <?php if ((int)$u['id'] === $sme_id):
                                 $ostalo = max(1, (int)ceil((BRISANJE_RADNIK_MIN * 60 - (time() - (int)strtotime((string)$u['uneto']))) / 60)); ?>
                                 <div class="akcije">

@@ -61,7 +61,7 @@ try:
 
     R.odeljak("Početni katalog")
     R.provera(sql_int("SELECT COUNT(*) FROM kategorije") == 3, "3 kategorije")
-    R.provera(sql_int("SELECT COUNT(*) FROM artikli") == 8, "8 artikala (Humovit, Humovit premium, Floris, Idea, Čmana, Malč x2, Oblutak)")
+    R.provera(sql_int("SELECT COUNT(*) FROM artikli") == 8, "8 artikala (Humovit, Humovit premium, Floris, Idea, Cmana, Malč x2, Oblutak)")
     R.provera(sql_int("SELECT COUNT(*) FROM pakovanja") == 6, "6 pakovanja (5,10,20,25,50 l i 20 kg)")
     R.provera(sql_int("SELECT COUNT(*) FROM varijante") == 15, "15 varijanti (7 + 3 boje malča, 5 granulacija)")
     R.provera(sql_int("SELECT COUNT(*) FROM sku") == 17 + 10 + 5, "32 SKU-a")
@@ -78,13 +78,13 @@ try:
         ("Humovit premium", 20, "120"), ("Humovit premium", 50, "40"),
         ("Floris Savacoop", 5, "450"), ("Floris Savacoop", 10, "270"), ("Floris Savacoop", 20, "120"), ("Floris Savacoop", 50, "40"),
         ("Idea", 5, "450"), ("Idea", 10, "225"), ("Idea", 20, "120"), ("Idea", 25, "120"),
-        ("Čmana supstrat", 10, "270"),
+        ("Cmana supstrat", 10, "270"),
     ]:
         R.provera(po_paleti(art, kol) == ocekivano, "%s %s l: %s komada na paleti" % (art, kol, ocekivano), po_paleti(art, kol))
     R.provera(po_paleti("Malč Farmerkop", 50, varijanta="Crveni") == "40", "Malč Farmerkop 50 l: 40 na paleti")
     R.provera(po_paleti("Beli oblutak", 20, "kg", "1-3 cm") == "50", "Beli oblutak 20 kg: 50 na paleti")
     R.provera(sql("SELECT COUNT(*) FROM sku s JOIN artikli a ON a.id=s.artikal_id WHERE a.naziv='Humovit' AND s.pakovanje_id=(SELECT id FROM pakovanja WHERE kolicina=20 AND jedinica='l')") == "0", "Humovit nema pakovanje 20 l")
-    R.provera(sql("SELECT aktivan FROM artikli WHERE naziv='Čmana supstrat'") == "0", "Čmana supstrat je isključena")
+    R.provera(sql("SELECT aktivan FROM artikli WHERE naziv='Cmana supstrat'") == "0", "Cmana supstrat je isključena")
     R.provera(sql("SELECT oznaka FROM artikli WHERE naziv='Idea'") == "PL", "Idea ima oznaku PL")
     R.provera(sql("SELECT GROUP_CONCAT(naziv ORDER BY redosled SEPARATOR '|') FROM varijante WHERE artikal_id=(SELECT id FROM artikli WHERE naziv='Malč Farmerkop')") == "Crveni|Braon|Žuti|Crni|Narandžasti|Zeleni|Neobojeni", "boje malča Farmerkop")
     R.provera(sql("SELECT GROUP_CONCAT(naziv ORDER BY redosled SEPARATOR '|') FROM varijante WHERE artikal_id=(SELECT id FROM artikli WHERE naziv='Beli oblutak')") == "1-3 cm|2-4 cm|4-6 cm|4-7 cm (krupnija)|6-10 cm", "granulacije oblutka u cm")

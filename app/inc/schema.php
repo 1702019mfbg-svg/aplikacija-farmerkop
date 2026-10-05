@@ -4,7 +4,7 @@
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 1;
+require_once __DIR__ . '/migracije.php';     // SCHEMA_VERZIJA i DDL tabele za uvoz
 
 function schema_sql(): array
 {
@@ -92,13 +92,14 @@ function schema_sql(): array
             UNIQUE KEY uq_pakovanja (kolicina, jedinica)
         ) $tabela",
 
-        // SKU = artikal + varijanta (0 = nema) + pakovanje; ovde je i minimum zalihe i broj komada po paleti.
+        // SKU = artikal + varijanta (0 = nema) + pakovanje; ovde su i minimum zalihe, komada po paleti i komada u paketu.
         "CREATE TABLE IF NOT EXISTS sku (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,
             artikal_id INT UNSIGNED NOT NULL,
             varijanta_id INT UNSIGNED NOT NULL DEFAULT 0,
             pakovanje_id INT UNSIGNED NOT NULL,
             po_paleti SMALLINT UNSIGNED NULL DEFAULT NULL,
+            po_paketu SMALLINT UNSIGNED NULL DEFAULT NULL,
             min_zaliha INT UNSIGNED NOT NULL DEFAULT 0,
             aktivan TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY (id),
@@ -117,6 +118,8 @@ function schema_sql(): array
             UNIQUE KEY uq_kupci_naziv (naziv)
         ) $tabela",
 
+        DDL_UVOZ_MAPIRANJE,
+
         // Svi unosi: proizvodnja, prodaja, kućna prodaja (radnik) i korekcija stanja (popis).
         // kolicina je u komadima; kod korekcije može biti negativna. "palete" je samo podatak
         // da je unos urađen preko paleta (kolicina je već preračunata u komade).
@@ -126,6 +129,7 @@ function schema_sql(): array
             sku_id INT UNSIGNED NOT NULL,
             kolicina INT NOT NULL,
             palete INT UNSIGNED NULL DEFAULT NULL,
+            paketi INT UNSIGNED NULL DEFAULT NULL,
             korisnik_id INT UNSIGNED NOT NULL,
             kupac_id INT UNSIGNED NULL DEFAULT NULL,
             napomena VARCHAR(255) NULL DEFAULT NULL,
@@ -165,18 +169,18 @@ function schema_sql(): array
 
 /**
  * Početni katalog: kategorija => spisak artikala.
- * pak = [količina, jedinica, komada po paleti]; var = varijante (boje / granulacije).
+ * pak = [količina, jedinica, komada po paleti, (komada u paketu)]; var = varijante (boje / granulacije).
  */
 function pocetni_katalog(): array
 {
     return [
         'Zemlja za cveće' => [
-            ['naziv' => 'Humovit', 'pak' => [[5, 'l', 450], [10, 'l', 270], [25, 'l', 120], [50, 'l', 40]]],
+            ['naziv' => 'Humovit', 'pak' => [[5, 'l', 450, 10], [10, 'l', 270, 6], [25, 'l', 120], [50, 'l', 40]]],
             ['naziv' => 'Humovit premium', 'pak' => [[20, 'l', 120], [50, 'l', 40]]],
             ['naziv' => 'Floris Savacoop', 'oznaka' => 'PL', 'pak' => [[5, 'l', 450], [10, 'l', 270], [20, 'l', 120], [50, 'l', 40]]],
-            ['naziv' => 'Idea', 'oznaka' => 'PL', 'pak' => [[5, 'l', 450], [10, 'l', 225], [20, 'l', 120], [25, 'l', 120]]],
+            ['naziv' => 'Idea', 'oznaka' => 'PL', 'pak' => [[5, 'l', 450, 10], [10, 'l', 225, 5], [20, 'l', 120], [25, 'l', 120]]],
             // Još nije u proizvodnji – isključen je dok se ne uključi u Podešavanjima.
-            ['naziv' => 'Čmana supstrat', 'oznaka' => 'PL', 'aktivan' => 0, 'pak' => [[10, 'l', 270], [20, 'l', 120], [50, 'l', 40]]],
+            ['naziv' => 'Cmana supstrat', 'oznaka' => 'PL', 'aktivan' => 0, 'pak' => [[10, 'l', 270], [20, 'l', 120], [50, 'l', 40]]],
         ],
         'Malč' => [
             ['naziv' => 'Malč Farmerkop', 'nv' => 'Boja',
@@ -232,12 +236,14 @@ function ubaci_pocetni_katalog(): void
                 }
             }
 
-            foreach ($a['pak'] as [$kolicina, $jedinica, $po_paleti]) {
+            foreach ($a['pak'] as $pak) {
+                [$kolicina, $jedinica, $po_paleti] = $pak;
+                $po_paketu = $pak[3] ?? null;
                 $pakovanje_id = (int)db_val('SELECT id FROM pakovanja WHERE kolicina = ? AND jedinica = ?', [$kolicina, $jedinica]);
                 foreach ($varijante as $varijanta_id) {
                     db_run(
-                        'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, min_zaliha, aktivan) VALUES (?, ?, ?, ?, 0, 1)',
-                        [$artikal_id, $varijanta_id, $pakovanje_id, $po_paleti]
+                        'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, po_paketu, min_zaliha, aktivan) VALUES (?, ?, ?, ?, ?, 0, 1)',
+                        [$artikal_id, $varijanta_id, $pakovanje_id, $po_paleti, $po_paketu]
                     );
                 }
             }

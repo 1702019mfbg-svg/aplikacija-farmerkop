@@ -157,6 +157,7 @@ ui_start('Artikli', ['nav' => 'admin', 'aktivno' => 'podesavanja']);
                     <strong><?= e($a['naziv']) ?></strong>
                     <?php if ($a['oznaka']): ?><span class="znacka znacka-pl"><?= e($a['oznaka']) ?></span><?php endif; ?>
                     <?php if (!(int)$a['aktivan']): ?><span class="znacka">isključen</span><?php endif; ?>
+                    <?php if ((int)$a['aktivan'] && (int)$a['broj_sku'] === 0): ?><span class="znacka znacka-nisko">nema pakovanja – ne nudi se za unos</span><?php endif; ?>
                     <div class="pomoc">
                         <?= (int)$a['broj_sku'] ?> pakovanja
                         <?php if ((int)$a['broj_var'] > 0): ?>· <?= (int)$a['broj_var'] ?> × <?= e(mb_strtolower($a['naziv_varijante'] ?: 'varijanti')) ?><?php endif; ?>
@@ -164,7 +165,7 @@ ui_start('Artikli', ['nav' => 'admin', 'aktivno' => 'podesavanja']);
                 </div>
                 <div class="grupa-dugmica">
                     <a class="btn btn-mali btn-primary" href="<?= e(url('admin/artikal.php?id=' . (int)$a['id'])) ?>"><?= ikona('olovka') ?> Uredi</a>
-                    <?= dugme_forma('art_status', (int)$a['id'], (int)$a['aktivan'] ? 'Isključi' : 'Uključi', 'btn btn-mali') ?>
+                    <?= dugme_forma('art_status', (int)$a['id'], (int)$a['aktivan'] ? 'Isključi' : 'Uključi', 'btn btn-mali', [], (int)$a['aktivan'] ? 'Isključiti artikal „' . $a['naziv'] . '“? Neće se nuditi za unos (stanje ostaje vidljivo dok ga ima).' : '') ?>
                     <?= dugme_forma('art_pomeri', (int)$a['id'], '↑', 'btn btn-mali', ['smer' => 'gore']) ?>
                     <?= dugme_forma('art_pomeri', (int)$a['id'], '↓', 'btn btn-mali', ['smer' => 'dole']) ?>
                 </div>
@@ -187,7 +188,7 @@ ui_start('Artikli', ['nav' => 'admin', 'aktivno' => 'podesavanja']);
                 </div>
             </form>
             <div class="razmak-gore">
-                <?= dugme_forma('kat_status', (int)$k['id'], (int)$k['aktivan'] ? 'Isključi kategoriju' : 'Uključi kategoriju', 'btn btn-mali') ?>
+                <?= dugme_forma('kat_status', (int)$k['id'], (int)$k['aktivan'] ? 'Isključi kategoriju' : 'Uključi kategoriju', 'btn btn-mali', [], (int)$k['aktivan'] ? 'Isključiti celu kategoriju „' . $k['naziv'] . '“ sa svim njenim artiklima? Neće se nuditi za unos.' : '') ?>
             </div>
         </details>
     </div>

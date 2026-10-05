@@ -211,9 +211,9 @@ try:
     R.provera("Izaberite artikal" in poruke(o), "radnik ne može da unese isključen artikal ni direktnim slanjem")
     adm.post("/admin/artikli.php", {"akcija": "art_status", "id": idea_id})
     R.provera("Idea" in redosled_artikala(jelena), "uključen artikal se vraća u izbor")
-    cm_id = sql_int("SELECT id FROM artikli WHERE naziv='Čmana supstrat'")
+    cm_id = sql_int("SELECT id FROM artikli WHERE naziv='Cmana supstrat'")
     adm.post("/admin/artikli.php", {"akcija": "art_status", "id": cm_id})
-    R.provera("Čmana supstrat" in redosled_artikala(jelena) and katalog(jelena)["Čmana supstrat"]["pakovanja"] == ["10 l", "20 l", "50 l"], "Čmana se uključuje jednim klikom, sa pakovanjima 10, 20, 50 l")
+    R.provera("Cmana supstrat" in redosled_artikala(jelena) and katalog(jelena)["Cmana supstrat"]["pakovanja"] == ["10 l", "20 l", "50 l"], "Cmana se uključuje jednim klikom, sa pakovanjima 10, 20, 50 l")
     adm.post("/admin/artikli.php", {"akcija": "art_status", "id": cm_id})
     sql("DELETE FROM unosi WHERE kolicina=33")
 
@@ -397,7 +397,7 @@ try:
     sql("INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, nastalo, uneto) VALUES ('proizvodnja', %d, 35, %d, NOW(), NOW())" % (prem20, J))
     o = adm.get("/admin/popis.php")
     R.provera(o.status == 200 and "Prebrojano stanje" in o.text and "Napomena (obavezna)" in o.text, "ekran Popis se otvara")
-    R.provera(len(re.findall(r'name="prebrojano\[\d+\]"', o.text)) == sql_int("SELECT COUNT(*) FROM sku s JOIN artikli a ON a.id=s.artikal_id JOIN pakovanja p ON p.id=s.pakovanje_id WHERE s.aktivan=1 AND a.aktivan=1 AND p.aktivan=1 AND (s.varijanta_id=0 OR s.varijanta_id IN (SELECT id FROM varijante WHERE aktivan=1))"), "polje za svaki aktivan artikal i pakovanje", len(re.findall(r'name="prebrojano\[\d+\]"', o.text)))
+    R.provera(len(re.findall(r'name="kom\[\d+\]"', o.text)) == sql_int("SELECT COUNT(*) FROM sku s JOIN artikli a ON a.id=s.artikal_id JOIN pakovanja p ON p.id=s.pakovanje_id WHERE s.aktivan=1 AND a.aktivan=1 AND p.aktivan=1 AND (s.varijanta_id=0 OR s.varijanta_id IN (SELECT id FROM varijante WHERE aktivan=1))"), "polje za komade za svaki aktivan artikal i pakovanje", len(re.findall(r'name="kom\[\d+\]"', o.text)))
     R.provera("sada: <strong>540</strong>" in o.text.replace("\n", ""), "uz svako polje piše trenutno stanje")
 
     def popis(napomena, **vrednosti):
@@ -433,10 +433,10 @@ try:
     R.provera("Poslednje korekcije" in o.text and "Trka" in o.text and "Oštećene vreće" in o.text, "lista poslednjih korekcija")
     o = adm.get("/admin/istorija.php?tip=korekcija&od=&do=")
     R.provera("Korekcija" in o.text and o.text.count('znacka-korekcija') >= 5, "korekcije su u Istoriji kao posebna vrsta")
-    cm10 = sku_id("Čmana supstrat", 10)
+    cm10 = sku_id("Cmana supstrat", 10)
     sql("INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, nastalo, uneto) VALUES ('proizvodnja', %d, 12, %d, NOW(), NOW())" % (cm10, J))
     o = adm.get("/admin/popis.php")
-    R.provera('name="prebrojano[%d]"' % cm10 in o.text, "isključen artikal sa stanjem se može popisati")
+    R.provera('name="kom[%d]"' % cm10 in o.text, "isključen artikal sa stanjem se može popisati")
     o = popis("Popis", **{"99999": "5"})
     R.provera(sql_int("SELECT COUNT(*) FROM unosi WHERE sku_id=99999") == 0 and o.status == 200, "nepostojeći SKU se ignoriše")
     o = adm.post("/admin/popis.php", {"napomena": "Popis", "prebrojano[%d]" % hum10: "1"}, csrf=False)

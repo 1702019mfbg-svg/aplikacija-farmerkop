@@ -45,7 +45,8 @@ function unos_dodaj(
     ?int $kupac_id = null,
     ?string $napomena = null,
     ?string $kljuc = null,
-    ?string $nastalo = null
+    ?string $nastalo = null,
+    ?int $paketi = null
 ): array {
     if (!array_key_exists($tip, TIPOVI_UNOSA)) {
         return ['ok' => false, 'greska' => 'Nepoznata vrsta unosa.'];
@@ -71,7 +72,7 @@ function unos_dodaj(
     }
 
     try {
-        return db_trans(static function () use ($tip, $sku_id, $kolicina, $palete, $korisnik_id, $kupac_id, $napomena, $kljuc, $nastalo): array {
+        return db_trans(static function () use ($tip, $sku_id, $kolicina, $palete, $paketi, $korisnik_id, $kupac_id, $napomena, $kljuc, $nastalo): array {
             sku_zakljucaj($sku_id);
             $stanje = stanje_sku($sku_id);
             if (je_prodaja($tip) && $kolicina > $stanje) {
@@ -82,9 +83,9 @@ function unos_dodaj(
             }
             $sad = sada();
             db_run(
-                'INSERT INTO unosi (tip, sku_id, kolicina, palete, korisnik_id, kupac_id, napomena, nastalo, uneto, kljuc)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$tip, $sku_id, $kolicina, $palete, $korisnik_id, $kupac_id, $napomena, $nastalo ?? $sad, $sad, $kljuc]
+                'INSERT INTO unosi (tip, sku_id, kolicina, palete, paketi, korisnik_id, kupac_id, napomena, nastalo, uneto, kljuc)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$tip, $sku_id, $kolicina, $palete, $paketi, $korisnik_id, $kupac_id, $napomena, $nastalo ?? $sad, $sad, $kljuc]
             );
             return ['ok' => true, 'id' => db_id(), 'duplikat' => false];
         });
@@ -110,6 +111,7 @@ function unos_snimak(array $u): array
         'sku_id'   => (int)$u['sku_id'],
         'kolicina' => (int)$u['kolicina'],
         'palete'   => $u['palete'] === null ? null : (int)$u['palete'],
+        'paketi'   => $u['paketi'] === null ? null : (int)$u['paketi'],
         'kupac_id' => $u['kupac_id'] === null ? null : (int)$u['kupac_id'],
         'napomena' => $u['napomena'],
         'nastalo'  => $u['nastalo'],
@@ -181,7 +183,7 @@ function kupac_id_za(string $naziv): int
 /**
  * Ispravka unosa (samo administrator). Vrsta unosa se ne menja.
  * Kod korekcije (popisa) menjaju se samo vreme i napomena.
- * $nova: sku_id, kolicina, palete, kupac_id, napomena, nastalo.
+ * $nova: sku_id, kolicina, palete, paketi, kupac_id, napomena, nastalo.
  * Stanje ni jednog SKU-a ne sme da padne ispod nule.
  */
 function unos_izmeni(int $id, array $nova, int $korisnik_id): array
@@ -197,6 +199,7 @@ function unos_izmeni(int $id, array $nova, int $korisnik_id): array
         $novi_sku = $korekcija ? $stari_sku : (int)$nova['sku_id'];
         $nova_kol = $korekcija ? (int)$stari['kolicina'] : (int)$nova['kolicina'];
         $nove_palete = $korekcija ? null : ($nova['palete'] ?? null);
+        $nove_paketi = $korekcija ? null : ($nova['paketi'] ?? null);
         $kupac_id = $tip === 'prodaja' ? ($nova['kupac_id'] ?? null) : ($stari['kupac_id'] === null ? null : (int)$stari['kupac_id']);
         $napomena = isset($nova['napomena']) ? mb_substr(trim((string)$nova['napomena']), 0, 255) : null;
         if ($napomena === '') {
@@ -229,8 +232,8 @@ function unos_izmeni(int $id, array $nova, int $korisnik_id): array
 
         $pre = unos_snimak($stari);
         db_run(
-            'UPDATE unosi SET sku_id = ?, kolicina = ?, palete = ?, kupac_id = ?, napomena = ?, nastalo = ? WHERE id = ?',
-            [$novi_sku, $nova_kol, $nove_palete, $kupac_id, $napomena, $nova['nastalo'], $id]
+            'UPDATE unosi SET sku_id = ?, kolicina = ?, palete = ?, paketi = ?, kupac_id = ?, napomena = ?, nastalo = ? WHERE id = ?',
+            [$novi_sku, $nova_kol, $nove_palete, $nove_paketi, $kupac_id, $napomena, $nova['nastalo'], $id]
         );
         $posle_snimak = unos_snimak(db_one('SELECT * FROM unosi WHERE id = ?', [$id]));
         if ($pre == $posle_snimak) {

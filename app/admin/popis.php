@@ -12,28 +12,37 @@ $admin = zahtevaj_ulogu('admin');
 if (je_post()) {
     csrf_proveri();
     $napomena = post_str('napomena', 150);
-    $unos = $_POST['prebrojano'] ?? [];
     $stavke = [];
     $greska = null;
 
     if (mb_strlen($napomena) < 3) {
         $greska = 'Upišite napomenu (npr. „Popis 30.09.“). Obavezna je da bi se znalo zašto je stanje menjano.';
-    } elseif (!is_array($unos)) {
-        $greska = 'Nema unetih vrednosti.';
     } else {
-        foreach ($unos as $sid => $vrednost) {
-            $vrednost = is_string($vrednost) ? trim($vrednost) : '';
-            if ($vrednost === '') {
-                continue;       // prazno polje = ne menjaj
+        $polja = [];
+        foreach (['prebrojano', 'pal', 'pak', 'kom'] as $ime) {
+            $polja[$ime] = is_array($_POST[$ime] ?? null) ? $_POST[$ime] : [];
+        }
+        $ids = [];
+        foreach ($polja as $niz) {
+            foreach (array_keys($niz) as $k) {
+                if (ctype_digit((string)$k)) {
+                    $ids[(int)$k] = true;
+                }
             }
-            if (!ctype_digit($vrednost) || (int)$vrednost > 99999999) {
-                $greska = 'Prebrojano stanje mora biti ceo broj (0 ili veći).';
-                break;
-            }
-            if (!is_int($sid) && !ctype_digit((string)$sid)) {
+        }
+        foreach (array_keys($ids) as $sid) {
+            $sku = sku_podaci($sid);
+            if ($sku === null) {
                 continue;
             }
-            $stavke[(int)$sid] = (int)$vrednost;
+            $r = popis_vrednost($polja['prebrojano'][$sid] ?? '', $polja['pal'][$sid] ?? '', $polja['pak'][$sid] ?? '', $polja['kom'][$sid] ?? '', $sku);
+            if (isset($r['greska'])) {
+                $greska = $r['greska'];
+                break;
+            }
+            if ($r['komadi'] !== null) {
+                $stavke[$sid] = $r['komadi'];
+            }
         }
         if ($greska === null && !$stavke) {
             $greska = 'Niste upisali nijedno prebrojano stanje.';
@@ -73,7 +82,7 @@ if (je_post()) {
 }
 
 $redovi = db_all(
-    'SELECT s.id AS sku_id, s.po_paleti, s.aktivan AS sku_aktivan, a.naziv AS artikal, a.oznaka, a.aktivan AS artikal_aktivan,
+    'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.aktivan AS sku_aktivan, a.naziv AS artikal, a.oznaka, a.aktivan AS artikal_aktivan,
             k.aktivan AS kat_aktivna, v.naziv AS varijanta, v.aktivan AS var_aktivna, p.kolicina AS pak_kolicina, p.jedinica, p.aktivan AS pak_aktivno
      FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id
      JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id
@@ -97,15 +106,16 @@ $poslednji = db_all(
      WHERE u.tip = 'korekcija' AND u.obrisan = 0 ORDER BY u.nastalo DESC, u.id DESC LIMIT 15"
 );
 
-ui_start('Popis stanja', ['nav' => 'admin', 'aktivno' => 'podesavanja']);
+ui_start('Popis stanja', ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['assets/js/popis.js']]);
 ?>
-<p><a class="btn btn-mali" href="<?= e(url('admin/podesavanja.php')) ?>"><?= ikona('nazad') ?> Podešavanja</a></p>
+<p><a class="btn btn-mali" href="<?= e(url('admin/podesavanja.php')) ?>"><?= ikona('nazad') ?> Podešavanja</a>
+   <a class="btn btn-mali" href="<?= e(url('admin/uvoz.php')) ?>"><?= ikona('otpremi') ?> Uvoz stanja iz fajla</a></p>
 
 <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/popis.php')) ?>"
       data-potvrda="Sačuvati popis? Stanje izabranih artikala biće postavljeno na prebrojano.">
     <?= csrf_polje() ?>
     <div class="kartica-naslov"><h2>Prebrojano stanje</h2></div>
-    <p class="pomoc">Upišite koliko ste <strong>stvarno prebrojali</strong> (u komadima) samo za artikle koje želite da ispravite; prazna polja ostaju kako jesu. Razlika se upisuje u istoriju kao korekcija.</p>
+    <p class="pomoc">Upišite koliko ste <strong>stvarno prebrojali</strong> (palete, paketi i/ili komadi) samo za artikle koje želite da ispravite; prazna polja ostaju kako jesu. Program sam sabere ukupno, a razlika se upisuje u istoriju kao korekcija. Primer: 3 palete + 2 paketa + 4 komada.</p>
     <div class="red-polja">
         <label for="napomena">Napomena (obavezna)</label>
         <input class="polje" id="napomena" name="napomena" type="text" maxlength="150" required placeholder="npr. Popis 30.09.">
@@ -113,15 +123,27 @@ ui_start('Popis stanja', ['nav' => 'admin', 'aktivno' => 'podesavanja']);
 
     <?php foreach ($po_artiklu as $naziv => $grupa): ?>
         <h3 class="popis-artikal"><?= e($naziv) ?><?php if ($grupa['oznaka']): ?> <span class="znacka znacka-pl"><?= e($grupa['oznaka']) ?></span><?php endif; ?></h3>
-        <?php foreach ($grupa['redovi'] as $r): ?>
-            <div class="popis-red<?= $r['aktivan'] ? '' : ' radnik-ugasen' ?>">
-                <label for="p-<?= (int)$r['sku_id'] ?>">
-                    <?= e(($r['varijanta'] !== null ? $r['varijanta'] . ' · ' : '') . pakovanje_naziv($r['pak_kolicina'], (string)$r['jedinica'])) ?>
+        <?php foreach ($grupa['redovi'] as $r):
+            $po = $r['po_paleti'] === null ? 0 : (int)$r['po_paleti'];
+            $pp = $r['po_paketu'] === null ? 0 : (int)$r['po_paketu'];
+            $sid = (int)$r['sku_id'];
+            $raz = razlaganje($r['stanje'], $po ?: null, $pp ?: null); ?>
+            <div class="popis-red<?= $r['aktivan'] ? '' : ' radnik-ugasen' ?>" data-popis data-po="<?= $po ?>" data-pp="<?= $pp ?>" data-sada="<?= (int)$r['stanje'] ?>">
+                <div class="popis-naziv">
+                    <strong><?= e(($r['varijanta'] !== null ? $r['varijanta'] . ' · ' : '') . pakovanje_naziv($r['pak_kolicina'], (string)$r['jedinica'])) ?></strong>
                     <?php if (!$r['aktivan']): ?><span class="znacka">isključen</span><?php endif; ?>
-                    <small class="pomoc">sada: <strong><?= e(broj($r['stanje'])) ?></strong><?php $pal = paletni_prikaz($r['stanje'], $r['po_paleti'] === null ? null : (int)$r['po_paleti']); echo $pal !== '' ? ' (' . e($pal) . ')' : ''; ?></small>
-                </label>
-                <input class="polje" id="p-<?= (int)$r['sku_id'] ?>" name="prebrojano[<?= (int)$r['sku_id'] ?>]" type="text" inputmode="numeric"
-                       pattern="[0-9]*" maxlength="8" placeholder="—" aria-label="Prebrojano">
+                    <small class="pomoc">sada: <strong><?= e(broj($r['stanje'])) ?></strong> kom<?= $raz !== '' ? ' (' . e($raz) . ')' : '' ?></small>
+                </div>
+                <div class="popis-polja">
+                    <?php if ($po > 0): ?>
+                        <label class="mala-oznaka">paleta<input class="polje" name="pal[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="—" data-p="pal"></label>
+                    <?php endif; ?>
+                    <?php if ($pp > 0): ?>
+                        <label class="mala-oznaka">paketa<input class="polje" name="pak[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="—" data-p="pak"></label>
+                    <?php endif; ?>
+                    <label class="mala-oznaka">komada<input class="polje" name="kom[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="—" data-p="kom"></label>
+                </div>
+                <div class="popis-zbir" data-zbir aria-live="polite"></div>
             </div>
         <?php endforeach; ?>
     <?php endforeach; ?>

@@ -37,7 +37,8 @@
     /* ── Potvrda pre opasne radnje: <form data-potvrda="Pitanje?"> ── */
     document.addEventListener('submit', function (e) {
         var forma = e.target;
-        var pitanje = forma.getAttribute && forma.getAttribute('data-potvrda');
+        var pitanje = (e.submitter && e.submitter.getAttribute && e.submitter.getAttribute('data-potvrda'))
+            || (forma.getAttribute && forma.getAttribute('data-potvrda'));
         if (pitanje && !window.confirm(pitanje)) {
             e.preventDefault();
             e.stopImmediatePropagation();

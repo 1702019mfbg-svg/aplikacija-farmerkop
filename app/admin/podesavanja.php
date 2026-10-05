@@ -11,6 +11,7 @@ $stavke = [
     ['admin/artikli.php', 'kutija', 'Artikli, boje i granulacije', 'Dodavanje i izmena artikala, kategorija, boja, granulacija, minimuma i broja komada po paleti.'],
     ['admin/pakovanja.php', 'stanje', 'Pakovanja', 'Litraža i težina (5 l, 10 l, 20 kg…).'],
     ['admin/popis.php', 'kvacica', 'Popis i korekcija stanja', 'Upišite prebrojano stanje; razlika se upisuje sa napomenom.'],
+    ['admin/uvoz.php', 'otpremi', 'Uvoz stanja iz fajla', 'CSV ili tabela iz Bluesofta / Excela: stanje svih artikala odjednom.'],
     ['admin/sifra.php', 'upozorenje', 'Promena administratorske šifre', 'Nova šifra za prijavu administratora.'],
     ['admin/dnevnik.php', 'istorija', 'Dnevnik izmena', 'Ko je i kad menjao unose i podešavanja.'],
     ['admin/izvoz.php?od=&do=', 'preuzmi', 'Izvoz svih unosa (CSV)', 'Kompletna istorija za Excel.'],

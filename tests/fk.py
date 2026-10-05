@@ -69,10 +69,10 @@ def slobodan_port():
 
 
 class Site:
-    def __init__(self, config_extra="", placeholder_config=False):
+    def __init__(self, config_extra="", placeholder_config=False, app_dir=None):
         self.tmp = Path(tempfile.mkdtemp(prefix="fk_site_"))
         self.dir = self.tmp / "site"
-        shutil.copytree(APP, self.dir)
+        shutil.copytree(app_dir or APP, self.dir)
         if not placeholder_config:
             (self.dir / "config.php").write_text(
                 "<?php\n"
@@ -163,7 +163,9 @@ class Client:
 
     def _jedan(self, metoda, url, podaci, headers):
         body = None
-        if podaci is not None:
+        if isinstance(podaci, bytes):
+            body = podaci
+        elif podaci is not None:
             body = urllib.parse.urlencode(podaci, doseq=True).encode()
         req = urllib.request.Request(url, data=body, method=metoda, headers=headers or {})
         try:
@@ -204,6 +206,25 @@ class Client:
                 self.get("/login.php")
             podaci["csrf"] = self.token
         return self.zahtev("POST", putanja, podaci=podaci, **kw)
+
+    def post_fajl(self, putanja, polja, fajl=None, csrf=True, **kw):
+        """POST multipart/form-data. fajl = (ime_polja, ime_fajla, bajtovi)."""
+        polja = dict(polja)
+        if csrf and "csrf" not in polja:
+            if self.token is None:
+                self.get("/login.php")
+            polja["csrf"] = self.token
+        granica = "----fk" + os.urandom(8).hex()
+        delovi = []
+        for k, v in polja.items():
+            delovi.append(('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n' % (granica, k, v)).encode("utf-8"))
+        if fajl:
+            polje, ime, bajtovi = fajl
+            delovi.append(('--%s\r\nContent-Disposition: form-data; name="%s"; filename="%s"\r\nContent-Type: application/octet-stream\r\n\r\n'
+                           % (granica, polje, ime)).encode("utf-8") + bajtovi + b"\r\n")
+        delovi.append(("--%s--\r\n" % granica).encode())
+        return self.zahtev("POST", putanja, podaci=b"".join(delovi),
+                           headers={"Content-Type": "multipart/form-data; boundary=" + granica}, **kw)
 
     def kopiraj_sesiju(self):
         n = Client(self.base)

@@ -20,7 +20,7 @@ const TIPOVI_UNOSA = [
 const SQL_PROMENA = "CASE WHEN u.tip IN ('prodaja','kucna_prodaja') THEN -u.kolicina ELSE u.kolicina END";
 
 /** Polja koja opisuju SKU; koristi se uz SKU_SPOJ nad tabelom unosi (alias "u"). */
-const SKU_POLJA = 's.id AS sku_id, s.po_paleti, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, '
+const SKU_POLJA = 's.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, '
     . 'a.naziv_varijante, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica';
 
 const SKU_SPOJ = 'JOIN sku s ON s.id = u.sku_id '
@@ -61,28 +61,62 @@ function palete_tekst(int $n): string
     return broj($n) . ' ' . $rec;
 }
 
-/** Kako je unos prikazan: "360 kom (3 palete)" ili "35 kom". */
-function kolicina_tekst(int $komadi, ?int $palete = null): string
+/** Oblik množine za "paket": 1 paket, 2 paketa, 5 paketa, 21 paket. */
+function paketi_tekst(int $n): string
 {
-    $t = broj($komadi) . ' kom';
-    return $palete ? $t . ' (' . palete_tekst($palete) . ')' : $t;
+    return broj($n) . ((($n % 10) === 1 && ($n % 100) !== 11) ? ' paket' : ' paketa');
 }
 
-/** Stanje razloženo na palete: "10 pal + 40 kom"; prazan tekst ako paleta nije podešena. */
-function paletni_prikaz(int $komadi, ?int $po_paleti): string
+/** Kako je unos prikazan: "360 kom (3 palete)", "72 kom (12 paketa)" ili "35 kom". */
+function kolicina_tekst(int $komadi, ?int $palete = null, ?int $paketi = null): string
 {
-    if (!$po_paleti || $po_paleti <= 0) {
+    $t = broj($komadi) . ' kom';
+    if ($palete) {
+        return $t . ' (' . palete_tekst($palete) . ')';
+    }
+    return $paketi ? $t . ' (' . paketi_tekst($paketi) . ')' : $t;
+}
+
+/** Kako je unos upisan, ako nije u komadima: "3 palete", "12 paketa" ili prazan tekst. */
+function nacin_unosa_tekst(array $u): string
+{
+    if (!empty($u['palete'])) {
+        return palete_tekst((int)$u['palete']);
+    }
+    return !empty($u['paketi']) ? paketi_tekst((int)$u['paketi']) : '';
+}
+
+/**
+ * Stanje razloženo na palete, pakete i komade: "1 pal + 31 pak + 4 kom".
+ * Prazan tekst ako nema ni cele palete ni celog paketa (nema šta da se razlaže).
+ */
+function razlaganje(int $komadi, ?int $po_paleti, ?int $po_paketu): string
+{
+    $po_paleti = $po_paleti && $po_paleti > 0 ? $po_paleti : null;
+    $po_paketu = $po_paketu && $po_paketu > 0 ? $po_paketu : null;
+    if ($po_paleti === null && $po_paketu === null) {
         return '';
     }
-    $neg = $komadi < 0;
-    $a = abs($komadi);
-    $pal = intdiv($a, $po_paleti);
-    $ost = $a % $po_paleti;
-    if ($pal === 0) {
+    $znak = $komadi < 0 ? '−' : '';
+    $ostalo = abs($komadi);
+    $pal = $po_paleti ? intdiv($ostalo, $po_paleti) : 0;
+    $ostalo -= $pal * ($po_paleti ?? 0);
+    $pak = $po_paketu ? intdiv($ostalo, $po_paketu) : 0;
+    $ostalo -= $pak * ($po_paketu ?? 0);
+    if ($pal === 0 && $pak === 0) {
         return '';
     }
-    $t = ($neg ? '−' : '') . $pal . ' pal' . ($ost > 0 ? ' + ' . broj($ost) . ' kom' : '');
-    return $t;
+    $delovi = [];
+    if ($pal > 0) {
+        $delovi[] = $znak . $pal . ' pal';
+    }
+    if ($pak > 0) {
+        $delovi[] = ($pal === 0 ? $znak : '') . $pak . ' pak';
+    }
+    if ($ostalo > 0) {
+        $delovi[] = broj($ostalo) . ' kom';
+    }
+    return implode(' + ', $delovi);
 }
 
 // ─── Čitanje kataloga ──────────────────────────────────────────────────────
@@ -93,7 +127,7 @@ const SQL_AKTIVAN_SKU = 's.aktivan = 1 AND a.aktivan = 1 AND k.aktivan = 1 AND p
 function sku_aktivan(int $sku_id): ?array
 {
     return db_one(
-        'SELECT s.id AS sku_id, s.po_paleti, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id '
         . 'JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id '
@@ -106,7 +140,7 @@ function sku_aktivan(int $sku_id): ?array
 function sku_podaci(int $sku_id): ?array
 {
     return db_one(
-        'SELECT s.id AS sku_id, s.po_paleti, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN pakovanja p ON p.id = s.pakovanje_id '
         . 'LEFT JOIN varijante v ON v.id = s.varijanta_id WHERE s.id = ?',
@@ -160,7 +194,7 @@ function promet_danas(): array
 function katalog_za_izbor(bool $sa_stanjem = false, int $uz_sku = 0): array
 {
     $redovi = db_all(
-        'SELECT s.id AS sku_id, s.varijanta_id, s.po_paleti, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.varijanta_id, s.po_paleti, s.po_paketu, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'k.id AS kat_id, k.naziv AS kategorija, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id '
         . 'JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id '
@@ -196,6 +230,7 @@ function katalog_za_izbor(bool $sa_stanjem = false, int $uz_sku = 0): array
             'v'  => $vid,
             'p'  => pakovanje_naziv($r['pak_kolicina'], (string)$r['jedinica']),
             'po' => $r['po_paleti'] === null ? 0 : (int)$r['po_paleti'],
+            'pp' => $r['po_paketu'] === null ? 0 : (int)$r['po_paketu'],
         ];
         if ($sa_stanjem) {
             $sku['st'] = $stanja[(int)$r['sku_id']] ?? 0;
@@ -218,8 +253,8 @@ function katalog_za_izbor(bool $sa_stanjem = false, int $uz_sku = 0): array
 // ─── Količina iz forme ─────────────────────────────────────────────────────
 
 /**
- * Čita količinu iz POST-a ("kolicina" + "nacin" = komadi|palete) i pretvara u komade.
- * Vraća ['komadi' => int, 'palete' => ?int] ili ['greska' => tekst].
+ * Čita količinu iz POST-a ("kolicina" + "nacin" = komadi|paketi|palete) i pretvara u komade.
+ * Vraća ['komadi' => int, 'palete' => ?int, 'paketi' => ?int] ili ['greska' => tekst].
  */
 function procitaj_kolicinu(array $sku): array
 {
@@ -229,16 +264,25 @@ function procitaj_kolicinu(array $sku): array
         return ['greska' => 'Upišite količinu (ceo broj veći od nule).'];
     }
     $palete = null;
-    if (($_POST['nacin'] ?? 'komadi') === 'palete') {
+    $paketi = null;
+    $nacin = $_POST['nacin'] ?? 'komadi';
+    if ($nacin === 'palete') {
         $po = (int)($sku['po_paleti'] ?? 0);
         if ($po <= 0) {
-            return ['greska' => 'Za ovaj artikal nije podešeno koliko komada ide na paletu. Unesite komade.'];
+            return ['greska' => 'Za ovaj artikal nije podešeno koliko komada ide na paletu. Unesite pakete ili komade.'];
         }
         $palete = $broj;
         $broj = $broj * $po;
+    } elseif ($nacin === 'paketi') {
+        $pp = (int)($sku['po_paketu'] ?? 0);
+        if ($pp <= 0) {
+            return ['greska' => 'Za ovaj artikal nije podešeno koliko komada ima u paketu. Unesite palete ili komade.'];
+        }
+        $paketi = $broj;
+        $broj = $broj * $pp;
     }
     if ($broj > MAX_KOLICINA_UNOS) {
         return ['greska' => 'Količina je prevelika (najviše ' . broj(MAX_KOLICINA_UNOS) . ' komada u jednom unosu). Proverite broj.'];
     }
-    return ['komadi' => $broj, 'palete' => $palete];
+    return ['komadi' => $broj, 'palete' => $palete, 'paketi' => $paketi];
 }

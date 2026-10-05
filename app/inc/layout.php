@@ -20,6 +20,7 @@ function ikona(string $ime, string $klasa = 'ikona'): string
         'kanta'        => '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m6 6 1 14h10l1-14"/><path d="M10 10v6M14 10v6"/>',
         'olovka'       => '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/>',
         'preuzmi'      => '<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>',
+        'otpremi'      => '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 21h16"/>',
         'upozorenje'   => '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v5"/><path d="M12 18v.01"/>',
         'kvacica'      => '<path d="m4 12.5 5 5L20 6.5"/>',
         'nazad'        => '<path d="m15 5-7 7 7 7"/>',

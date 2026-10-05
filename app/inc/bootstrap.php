@@ -100,6 +100,12 @@ require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/katalog.php';
 require_once __DIR__ . '/unosi.php';
+require_once __DIR__ . '/migracije.php';
 require_once __DIR__ . '/layout.php';
 
 posalji_zaglavlja();
+
+// Posle ažuriranja fajlova baza se nadograđuje sama (jednom).
+if (!defined('INSTALL_RUN')) {
+    migriraj_ako_treba();
+}

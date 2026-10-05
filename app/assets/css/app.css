@@ -208,7 +208,7 @@ textarea.polje { min-height: 96px; resize: vertical; }
 .izbor-dugme .znacka { margin-top: 3px; }
 
 /* ── Količina ── */
-.segment { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--povrsina-2); padding: 6px; border-radius: 16px; margin-bottom: 12px; }
+.segment { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; background: var(--povrsina-2); padding: 6px; border-radius: 16px; margin-bottom: 12px; }
 .segment button {
     min-height: 52px; border: 0; border-radius: 12px; background: transparent; color: var(--tekst);
     font: inherit; font-size: 1.1rem; font-weight: 700; cursor: pointer; touch-action: manipulation;
@@ -429,18 +429,38 @@ details > summary { cursor: pointer; }
 .izbor-mreza .ime input[type="checkbox"] { cursor: pointer; }
 .matrica-grupa { border: 1px solid var(--granica); border-radius: 14px; margin-bottom: 10px; padding: 0 12px 10px; background: var(--povrsina-2); }
 .matrica-naslov { font-weight: 800; padding: 12px 0; }
-.matrica-zaglavlje, .matrica-red { display: grid; grid-template-columns: 70px 1fr 1fr; gap: 8px; align-items: center; }
+.matrica-zaglavlje, .matrica-red { display: grid; grid-template-columns: 54px 1fr 1fr 1fr; gap: 6px; align-items: center; }
 .matrica-zaglavlje { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--tekst-bled); margin-bottom: 4px; }
 .matrica-red { margin-bottom: 8px; }
-.matrica-red .polje { min-height: 50px; text-align: right; }
+.matrica-red .polje { min-height: 50px; text-align: right; padding: 6px 8px; font-size: 1rem; }
 input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--zelena); }
 .ime input[type="checkbox"] { width: 100%; height: 100%; }
 
 /* ── Popis ── */
 .popis-artikal { margin: 18px 0 6px; font-size: 1.05rem; }
-.popis-red { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--granica); }
-.popis-red label { margin: 0; font-weight: 700; }
-.popis-red label small { display: block; font-weight: 400; }
-.popis-red .polje { text-align: right; font-weight: 800; font-size: 1.25rem; }
+
+/* ── Popis: palete + paketi + komadi ── */
+.popis-red { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 12px 0; border-top: 1px solid var(--granica); }
+.popis-naziv small { display: block; font-weight: 400; }
+.popis-polja { display: flex; gap: 8px; }
+.popis-polja .mala-oznaka { flex: 1; min-width: 0; margin: 0; font-size: .75rem; font-weight: 700; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
+.popis-polja .polje { margin-top: 3px; text-align: center; font-weight: 800; font-size: 1.25rem; min-height: 52px; padding: 6px; }
+.popis-zbir { min-height: 1.3em; font-weight: 700; font-size: .95rem; }
+.popis-zbir.razlika { color: var(--zelena-tamno); }
 
 input[type="date"].polje, input[type="datetime-local"].polje { min-width: 0; -webkit-appearance: none; appearance: none; }
+
+/* ── Uvoz stanja ── */
+.uvoz-red { display: grid; gap: 8px; padding: 12px 10px 12px 12px; margin-top: 8px; border: 1px solid var(--granica); border-left-width: 5px; border-radius: 10px; background: var(--povrsina); }
+.uvoz-izvor { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.uvoz-izvor strong { overflow-wrap: anywhere; }
+.uvoz-kol { margin-left: auto; font-weight: 800; white-space: nowrap; }
+.uvoz-izbor { display: flex; align-items: center; gap: 8px; }
+.uvoz-izbor .polje { flex: 1; min-width: 0; min-height: 48px; font-size: .95rem; }
+.uvoz-izbor .znacka { flex: none; }
+.uvoz-red p { margin: 0; }
+.uvoz-greska { color: var(--crvena); font-weight: 700; }
+.uvoz-prepoznato, .uvoz-memorija, .uvoz-rucno { border-left-color: var(--zelena); }
+.uvoz-proveri { border-left-color: var(--upozorenje); background: var(--upozorenje-svetla); }
+.uvoz-nema, .uvoz-pogresno { border-left-color: var(--crvena); }
+.uvoz-preskoceno { border-left-color: var(--granica); opacity: .8; }

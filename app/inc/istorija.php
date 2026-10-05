@@ -85,7 +85,7 @@ const ISTORIJA_IZ = 'FROM unosi u JOIN sku s ON s.id = u.sku_id JOIN artikli a O
     . 'JOIN korisnici r ON r.id = u.korisnik_id LEFT JOIN kupci ku ON ku.id = u.kupac_id '
     . 'LEFT JOIN korisnici ob ON ob.id = u.obrisao_id ';
 
-const ISTORIJA_POLJA = 'u.id, u.tip, u.kolicina, u.palete, u.napomena, u.nastalo, u.obrisan, u.obrisan_u, '
+const ISTORIJA_POLJA = 'u.id, u.tip, u.kolicina, u.palete, u.paketi, u.napomena, u.nastalo, u.obrisan, u.obrisan_u, '
     . 'r.ime AS radnik, r.uloga AS radnik_uloga, ku.naziv AS kupac, ob.ime AS obrisao, '
     . 's.id AS sku_id, s.po_paleti, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta, '
     . 'p.kolicina AS pak_kolicina, p.jedinica';
@@ -131,6 +131,9 @@ function dnevnik_promene(?string $detalji): array
         }
         if (($pre['palete'] ?? null) !== ($posle['palete'] ?? null)) {
             $rez[] = 'Palete: ' . ($pre['palete'] ?? '—') . ' → ' . ($posle['palete'] ?? '—');
+        }
+        if (($pre['paketi'] ?? null) !== ($posle['paketi'] ?? null)) {
+            $rez[] = 'Paketi: ' . ($pre['paketi'] ?? '—') . ' → ' . ($posle['paketi'] ?? '—');
         }
         if (($pre['kupac_id'] ?? null) !== ($posle['kupac_id'] ?? null)) {
             $ime = static fn($id) => $id ? (string)db_val('SELECT naziv FROM kupci WHERE id = ?', [(int)$id]) : '—';

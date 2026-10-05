@@ -32,6 +32,7 @@
         korakKol: koren.querySelector('[data-korak="kolicina"]'),
         zbir: koren.querySelector('[data-zbir]'),
         koraci: koren.querySelectorAll('[data-delta]'),
+        segment: koren.querySelector('[data-segment]'),
         nacinDugmad: koren.querySelectorAll('[data-nacin-vrednost]')
     };
 
@@ -50,6 +51,21 @@
         var m10 = n % 10, m100 = n % 100;
         var rec = (m10 === 1 && m100 !== 11) ? 'paleta' : ((m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'palete' : 'paleta');
         return broj(n) + ' ' + rec;
+    }
+    function paketiTekst(n) {
+        return broj(n) + (((n % 10) === 1 && (n % 100) !== 11) ? ' paket' : ' paketa');
+    }
+    function razlozi(kom, po, pp) {
+        if (!(po > 0) && !(pp > 0)) { return ''; }
+        var ost = kom, pal = 0, pak = 0;
+        if (po > 0) { pal = Math.floor(ost / po); ost -= pal * po; }
+        if (pp > 0) { pak = Math.floor(ost / pp); ost -= pak * pp; }
+        if (pal === 0 && pak === 0) { return ''; }
+        var d = [];
+        if (pal) { d.push(pal + ' pal'); }
+        if (pak) { d.push(pak + ' pak'); }
+        if (ost) { d.push(broj(ost) + ' kom'); }
+        return d.join(' + ');
     }
     function pomeri(n) {
         var smanjeno = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -73,7 +89,9 @@
     }
     function ukupnoKomada() {
         var q = kolicina();
-        if (st.nacin === 'palete' && st.sku) { return q * st.sku.po; }
+        if (!st.sku) { return q; }
+        if (st.nacin === 'palete') { return q * st.sku.po; }
+        if (st.nacin === 'paketi') { return q * st.sku.pp; }
         return q;
     }
 
@@ -90,12 +108,15 @@
             } else if (st.nacin === 'palete') {
                 el.zbir.appendChild(document.createTextNode(paleteTekst(q) + ' × ' + broj(st.sku.po) + ' = '));
                 el.zbir.appendChild(napravi('span', 'velik', broj(kom) + ' kom'));
+            } else if (st.nacin === 'paketi') {
+                el.zbir.appendChild(document.createTextNode(paketiTekst(q) + ' × ' + broj(st.sku.pp) + ' = '));
+                el.zbir.appendChild(napravi('span', 'velik', broj(kom) + ' kom'));
+                var r1 = razlozi(kom, st.sku.po, 0);
+                if (r1) { el.zbir.appendChild(document.createTextNode('  = ' + r1)); }
             } else {
                 el.zbir.appendChild(napravi('span', 'velik', broj(kom) + ' kom'));
-                if (st.sku.po > 0 && kom >= st.sku.po) {
-                    var pal = Math.floor(kom / st.sku.po), ost = kom % st.sku.po;
-                    el.zbir.appendChild(document.createTextNode('  = ' + pal + ' pal' + (ost ? ' + ' + broj(ost) + ' kom' : '')));
-                }
+                var r2 = razlozi(kom, st.sku.po, st.sku.pp);
+                if (r2) { el.zbir.appendChild(document.createTextNode('  = ' + r2)); }
             }
         }
         if (dugme) {
@@ -104,13 +125,15 @@
         }
     }
 
+    var KORACI = { palete: [-5, -1, 1, 5], paketi: [-10, -1, 1, 10], komadi: [-10, -1, 1, 10] };
+
     function postaviNacin(n, zapamti) {
         st.nacin = n;
         polje.nacin.value = n;
         for (var i = 0; i < el.nacinDugmad.length; i++) {
             el.nacinDugmad[i].setAttribute('aria-pressed', el.nacinDugmad[i].getAttribute('data-nacin-vrednost') === n ? 'true' : 'false');
         }
-        var delte = n === 'palete' ? [-5, -1, 1, 5] : [-10, -1, 1, 10];
+        var delte = KORACI[n] || KORACI.komadi;
         for (var j = 0; j < el.koraci.length; j++) {
             el.koraci[j].setAttribute('data-delta', String(delte[j]));
             el.koraci[j].textContent = (delte[j] > 0 ? '+' : '−') + Math.abs(delte[j]);
@@ -119,15 +142,23 @@
         osvezi();
     }
 
+    /* Koji načini unosa postoje za izabrani artikal: palete (ako je podešena paleta), paketi (ako je podešen paket), komadi (uvek). */
+    function dostupniNacini() {
+        var d = [];
+        if (st.sku && st.sku.po > 0) { d.push('palete'); }
+        if (st.sku && st.sku.pp > 0) { d.push('paketi'); }
+        d.push('komadi');
+        return d;
+    }
+
     function podesiNacinZaSku(zeljeni) {
-        var imaPaletu = st.sku && st.sku.po > 0;
+        var dostupni = dostupniNacini();
         for (var i = 0; i < el.nacinDugmad.length; i++) {
-            if (el.nacinDugmad[i].getAttribute('data-nacin-vrednost') === 'palete') {
-                el.nacinDugmad[i].disabled = !imaPaletu;
-            }
+            el.nacinDugmad[i].hidden = dostupni.indexOf(el.nacinDugmad[i].getAttribute('data-nacin-vrednost')) === -1;
         }
+        if (el.segment) { el.segment.hidden = dostupni.length < 2; }
         var trazeni = zeljeni || citaj('fk_nacin') || 'palete';
-        postaviNacin(trazeni === 'palete' && imaPaletu ? 'palete' : 'komadi', false);
+        postaviNacin(dostupni.indexOf(trazeni) !== -1 ? trazeni : dostupni[0], false);
     }
 
     /* ── izbor ── */
@@ -233,7 +264,7 @@
             return;
         }
         var n = e.target.closest ? e.target.closest('[data-nacin-vrednost]') : null;
-        if (n && !n.disabled) { postaviNacin(n.getAttribute('data-nacin-vrednost'), true); }
+        if (n && !n.hidden) { postaviNacin(n.getAttribute('data-nacin-vrednost'), true); }
     });
     if (forma) {
         forma.addEventListener('submit', function (e) {

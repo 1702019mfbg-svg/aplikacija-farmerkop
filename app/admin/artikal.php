@@ -56,9 +56,9 @@ if (je_post()) {
             flash_dodaj('greska', '„' . $naziv . '“ već postoji kod ovog artikla.');
         } else {
             $upozorenje = db_trans(static function () use ($id, $naziv, $nv, $a): string {
-                $imao = (int)db_val('SELECT COUNT(*) FROM varijante WHERE artikal_id = ?', [$id]) > 0;
+                $imao = (int)db_val('SELECT COUNT(*) FROM varijante WHERE artikal_id = ? AND aktivan = 1', [$id]) > 0;
                 // pakovanja koja artikal već ima – nova varijanta ih dobija odmah, sa istom paletom
-                $sablon = db_all('SELECT pakovanje_id, MAX(po_paleti) AS po FROM sku WHERE artikal_id = ? AND aktivan = 1 GROUP BY pakovanje_id', [$id]);
+                $sablon = db_all('SELECT pakovanje_id, MAX(po_paleti) AS po, MAX(po_paketu) AS pp FROM sku WHERE artikal_id = ? AND aktivan = 1 GROUP BY pakovanje_id', [$id]);
                 $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM varijante WHERE artikal_id = ?', [$id]) + 10;
                 db_run('INSERT INTO varijante (artikal_id, naziv, redosled, aktivan) VALUES (?, ?, ?, 1)', [$id, $naziv, $red]);
                 $vid = db_id();
@@ -78,8 +78,8 @@ if (je_post()) {
                 }
                 foreach ($sablon as $s) {
                     db_run(
-                        'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, min_zaliha, aktivan) VALUES (?, ?, ?, ?, 0, 1)',
-                        [$id, $vid, (int)$s['pakovanje_id'], $s['po'] === null ? null : (int)$s['po']]
+                        'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, po_paketu, min_zaliha, aktivan) VALUES (?, ?, ?, ?, ?, 0, 1)',
+                        [$id, $vid, (int)$s['pakovanje_id'], $s['po'] === null ? null : (int)$s['po'], $s['pp'] === null ? null : (int)$s['pp']]
                     );
                 }
                 return $upoz;
@@ -121,18 +121,22 @@ if (je_post()) {
                 $zeljena[] = (int)$p;
             }
         }
+        if (!$zeljena) {
+            flash_dodaj('greska', 'Artikal mora imati bar jedno pakovanje, inače se ne nudi za unos. Označite pakovanja, ili isključite ceo artikal ako ga više ne pravite. Ništa nije promenjeno.');
+            preusmeri($stranica);
+        }
         db_trans(static function () use ($id, $zeljena): void {
             $varijante = array_map(static fn(array $r): int => (int)$r['id'], db_all('SELECT id FROM varijante WHERE artikal_id = ? AND aktivan = 1', [$id]));
-            $ima_varijanti = (int)db_val('SELECT COUNT(*) FROM varijante WHERE artikal_id = ?', [$id]) > 0;
-            $grupe = $ima_varijanti ? $varijante : [0];
+            $grupe = $varijante ?: [0];
             foreach ($zeljena as $pid) {
                 $po = db_val('SELECT MAX(po_paleti) FROM sku WHERE artikal_id = ? AND pakovanje_id = ?', [$id, $pid]);
+                $pp = db_val('SELECT MAX(po_paketu) FROM sku WHERE artikal_id = ? AND pakovanje_id = ?', [$id, $pid]);
                 foreach ($grupe as $vid) {
                     $sku = db_one('SELECT id FROM sku WHERE artikal_id = ? AND varijanta_id = ? AND pakovanje_id = ?', [$id, $vid, $pid]);
                     if ($sku === null) {
                         db_run(
-                            'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, min_zaliha, aktivan) VALUES (?, ?, ?, ?, 0, 1)',
-                            [$id, $vid, $pid, $po === null ? null : (int)$po]
+                            'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, po_paketu, min_zaliha, aktivan) VALUES (?, ?, ?, ?, ?, 0, 1)',
+                            [$id, $vid, $pid, $po === null ? null : (int)$po, $pp === null ? null : (int)$pp]
                         );
                     } else {
                         db_run('UPDATE sku SET aktivan = 1 WHERE id = ?', [$sku['id']]);
@@ -146,40 +150,60 @@ if (je_post()) {
             }
         });
         dnevnik_podesavanje('Izmenjena pakovanja artikla ' . $a['naziv'], 'podesavanje', $id);
-        flash_dodaj('uspeh', 'Pakovanja su sačuvana. Dole podesite broj komada po paleti i minimum.');
+        flash_dodaj('uspeh', 'Pakovanja su sačuvana. Dole podesite komada u paketu, komada po paleti i minimum.');
     } elseif ($akcija === 'vrednosti') {
         $po_unos = (array)($_POST['po'] ?? []);
+        $pp_unos = (array)($_POST['pp'] ?? []);
         $min_unos = (array)($_POST['min'] ?? []);
         $greske = [];
         $izmene = [];
-        foreach (db_all('SELECT id FROM sku WHERE artikal_id = ?', [$id]) as $s) {
+        $upozorenja = [];
+        foreach (db_all('SELECT s.id, s.po_paleti, s.po_paketu, s.min_zaliha, p.kolicina AS pak_kolicina, p.jedinica FROM sku s JOIN pakovanja p ON p.id = s.pakovanje_id WHERE s.artikal_id = ?', [$id]) as $s) {
             $sid = (int)$s['id'];
-            if (!array_key_exists($sid, $po_unos) && !array_key_exists($sid, $min_unos)) {
+            if (!array_key_exists($sid, $po_unos) && !array_key_exists($sid, $pp_unos) && !array_key_exists($sid, $min_unos)) {
                 continue;
             }
-            $po = trim((string)($po_unos[$sid] ?? ''));
-            $mn = trim((string)($min_unos[$sid] ?? ''));
+            $po = array_key_exists($sid, $po_unos) ? trim((string)$po_unos[$sid]) : ($s['po_paleti'] === null ? '' : (string)$s['po_paleti']);
+            $pp = array_key_exists($sid, $pp_unos) ? trim((string)$pp_unos[$sid]) : ($s['po_paketu'] === null ? '' : (string)$s['po_paketu']);
+            $mn = array_key_exists($sid, $min_unos) ? trim((string)$min_unos[$sid]) : (string)$s['min_zaliha'];
             if ($po !== '' && (!ctype_digit($po) || (int)$po < 1 || (int)$po > 65535)) {
                 $greske[] = 'Komada po paleti mora biti ceo broj od 1 do 65535.';
+                continue;
+            }
+            if ($pp !== '' && (!ctype_digit($pp) || (int)$pp < 1 || (int)$pp > 65535)) {
+                $greske[] = 'Komada u paketu mora biti ceo broj od 1 do 65535.';
                 continue;
             }
             if ($mn !== '' && (!ctype_digit($mn) || (int)$mn > 99999999)) {
                 $greske[] = 'Minimum mora biti ceo broj (0 ili veći).';
                 continue;
             }
-            $izmene[] = [$sid, $po === '' ? null : (int)$po, $mn === '' ? 0 : (int)$mn];
+            if ($po !== '' && $pp !== '' && (int)$po % (int)$pp !== 0) {
+                $upozorenja[] = pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica']) . ': paleta (' . (int)$po . ' kom) nije deljiva sa paketom (' . (int)$pp . ' kom)';
+            }
+            $izmene[] = [$sid, $po === '' ? null : (int)$po, $pp === '' ? null : (int)$pp, $mn === '' ? 0 : (int)$mn];
         }
         if ($greske) {
             flash_dodaj('greska', $greske[0]);
         } else {
             db_trans(static function () use ($izmene): void {
-                foreach ($izmene as [$sid, $po, $mn]) {
-                    db_run('UPDATE sku SET po_paleti = ?, min_zaliha = ? WHERE id = ?', [$po, $mn, $sid]);
+                foreach ($izmene as [$sid, $po, $pp, $mn]) {
+                    db_run('UPDATE sku SET po_paleti = ?, po_paketu = ?, min_zaliha = ? WHERE id = ?', [$po, $pp, $mn, $sid]);
                 }
             });
-            dnevnik_podesavanje('Izmenjeni minimumi i broj komada po paleti za artikal ' . $a['naziv'], 'podesavanje', $id);
+            dnevnik_podesavanje('Izmenjeni minimumi, komada po paleti i u paketu za artikal ' . $a['naziv'], 'podesavanje', $id);
             flash_dodaj('uspeh', 'Sačuvano.');
+            if ($upozorenja) {
+                flash_dodaj('upozorenje', 'Proverite brojeve: ' . implode('; ', $upozorenja) . '. Sačuvano je kako ste upisali.');
+            }
         }
+    } elseif ($akcija === 'bez_varijanti') {
+        db_trans(static function () use ($id): void {
+            db_run('UPDATE varijante SET aktivan = 0 WHERE artikal_id = ?', [$id]);
+            db_run('UPDATE sku s JOIN pakovanja p ON p.id = s.pakovanje_id SET s.aktivan = 1 WHERE s.artikal_id = ? AND s.varijanta_id = 0 AND p.aktivan = 1', [$id]);
+        });
+        dnevnik_podesavanje('Artikal ' . $a['naziv'] . ' vraćen na stanje bez varijanti', 'podesavanje', $id);
+        flash_dodaj('uspeh', 'Artikal je vraćen na stanje bez varijanti: stara pakovanja se ponovo nude za unos, a varijante su isključene (nisu obrisane).');
     }
     preusmeri($stranica);
 }
@@ -208,11 +232,19 @@ foreach ($sku_redovi as $s) {
     $grupe[(int)$s['varijanta_id']][] = $s;
 }
 ksort($grupe);
-$imam_stara = isset($grupe[0]) && $varijante;
+$aktivnih_varijanti = count(array_filter($varijante, static fn(array $v): bool => (int)$v['aktivan'] === 1));
+$imam_stara = isset($grupe[0]) && $aktivnih_varijanti > 0;
+$ima_stara_pakovanja = (int)db_val('SELECT COUNT(*) FROM sku WHERE artikal_id = ? AND varijanta_id = 0', [$id]) > 0;
 
 ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['assets/js/artikal.js']]);
 ?>
 <p><a class="btn btn-mali" href="<?= e(url('admin/artikli.php')) ?>"><?= ikona('nazad') ?> Svi artikli</a></p>
+
+<?php if ((int)$a['aktivan'] === 1 && !$sku_redovi): ?>
+    <div class="poruka poruka-greska" role="alert"><strong>Ovaj artikal se ne nudi za unos</strong> jer nema nijedno pakovanje<?= $aktivnih_varijanti === 0 && $varijante ? ' (sve varijante su isključene)' : '' ?>. Označite pakovanja u delu „Pakovanja“ ispod.</div>
+<?php elseif ((int)$a['aktivan'] === 0): ?>
+    <div class="poruka poruka-upozorenje" role="status">Artikal je <strong>isključen</strong> i ne nudi se za unos. Uključite ga dugmetom ispod „Osnovno“.</div>
+<?php endif; ?>
 
 <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/artikal.php')) ?>">
     <?= csrf_polje() ?>
@@ -283,6 +315,16 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
         </div>
     <?php endforeach; ?>
 
+    <?php if ($varijante && $ima_stara_pakovanja && ($aktivnih_varijanti > 0 || !$sku_redovi)): ?>
+        <form method="post" class="razmak-gore" action="<?= e(url('admin/artikal.php')) ?>"
+              data-potvrda="Vratiti artikal na stanje bez varijanti? Varijante se isključuju (ne brišu), a stara pakovanja se ponovo nude za unos.">
+            <?= csrf_polje() ?>
+            <input type="hidden" name="akcija" value="bez_varijanti">
+            <input type="hidden" name="id" value="<?= $id ?>">
+            <button class="btn btn-mali" type="submit">Vrati artikal na stanje bez varijanti</button>
+        </form>
+    <?php endif; ?>
+
     <form method="post" autocomplete="off" class="razmak-gore" action="<?= e(url('admin/artikal.php')) ?>">
         <?= csrf_polje() ?>
         <input type="hidden" name="akcija" value="var_nova">
@@ -324,11 +366,11 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
     <?= csrf_polje() ?>
     <input type="hidden" name="akcija" value="vrednosti">
     <input type="hidden" name="id" value="<?= $id ?>">
-    <div class="kartica-naslov"><h2>Paleta i minimum zalihe</h2></div>
+    <div class="kartica-naslov"><h2>Paket, paleta i minimum zalihe</h2></div>
     <?php if (!$grupe): ?>
         <p class="pomoc bez-margine">Prvo izaberite pakovanja iznad.</p>
     <?php else: ?>
-        <p class="pomoc"><strong>Komada po paleti</strong> koristi se kad radnik unosi palete. <strong>Minimum</strong> je broj komada ispod kog se na Stanju pali crveno upozorenje (0 = bez upozorenja).</p>
+        <p class="pomoc"><strong>Komada u paketu</strong> (transportno pakovanje) i <strong>komada po paleti</strong> koriste se kad se unosi po paketima ili paletama; prazno = ne nudi se taj način unosa. <strong>Minimum</strong> je broj komada ispod kog se na Stanju pali crveno upozorenje (0 = bez upozorenja).</p>
         <?php if (count($grupe) > 1): ?>
             <button type="button" class="btn btn-mali razmak-dole" data-kopiraj-sve>Prepiši vrednosti iz prvog na sve ostale</button>
         <?php endif; ?>
@@ -340,10 +382,12 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
                 <?php if ($vid === 0 && $imam_stara): ?>
                     <p class="poruka poruka-upozorenje">Ovo su stara pakovanja bez izbora. Ne nude se za unos jer artikal sad ima varijante.</p>
                 <?php endif; ?>
-                <div class="matrica-zaglavlje" aria-hidden="true"><span>Pakovanje</span><span>Komada po paleti</span><span>Minimum (kom)</span></div>
+                <div class="matrica-zaglavlje" aria-hidden="true"><span>Pakovanje</span><span>U paketu</span><span>Po paleti</span><span>Minimum</span></div>
                 <?php foreach ($redovi as $s): ?>
                     <div class="matrica-red" data-pak="<?= (int)$s['pakovanje_id'] ?>">
                         <strong><?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?></strong>
+                        <input class="polje" name="pp[<?= (int)$s['id'] ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
+                               value="<?= $s['po_paketu'] === null ? '' : (int)$s['po_paketu'] ?>" placeholder="—" aria-label="Komada u paketu, <?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?>" data-polje="pp">
                         <input class="polje" name="po[<?= (int)$s['id'] ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
                                value="<?= $s['po_paleti'] === null ? '' : (int)$s['po_paleti'] ?>" placeholder="—" aria-label="Komada po paleti, <?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?>" data-polje="po">
                         <input class="polje" name="min[<?= (int)$s['id'] ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8"
@@ -352,7 +396,7 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
                 <?php endforeach; ?>
             </details>
         <?php $prva = false; endforeach; ?>
-        <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj paletu i minimum</button>
+        <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj pakete, palete i minimum</button>
     <?php endif; ?>
 </form>
 <?php

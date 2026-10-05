@@ -23,7 +23,7 @@ $izlaz = fopen('php://output', 'w');
 fwrite($izlaz, "\xEF\xBB\xBF");
 
 $kolone = ['ID', 'Datum', 'Vreme', 'Dan', 'Vrsta', 'Artikal', 'Boja / granulacija', 'Pakovanje', 'Količina (kom)', 'Promena stanja (kom)',
-    'Palete', 'Ukupno (l ili kg)', 'Radnik / unos', 'Kupac', 'Napomena'];
+    'Palete', 'Paketi', 'Ukupno (l ili kg)', 'Radnik / unos', 'Kupac', 'Napomena'];
 if ($f['obrisani']) {
     $kolone[] = 'Obrisano';
 }
@@ -45,6 +45,7 @@ while (($r = $st->fetch()) !== false) {
         (string)$kom,
         (string)$promena,
         $r['palete'] === null ? '' : (string)(int)$r['palete'],
+        $r['paketi'] === null ? '' : (string)(int)$r['paketi'],
         str_replace('.', ',', rtrim(rtrim(number_format($ukupno, 2, '.', ''), '0'), '.')),
         csv_tekst((string)$r['radnik']),
         csv_tekst((string)($r['kupac'] ?? '')),

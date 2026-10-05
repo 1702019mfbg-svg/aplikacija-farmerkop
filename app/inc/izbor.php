@@ -10,7 +10,7 @@ declare(strict_types=1);
  * @param array $katalog    rezultat katalog_za_izbor()
  * @param int   $sku_id     unapred izabran SKU (0 = ništa)
  * @param bool  $stanje     prikaži stanje uz pakovanja (samo za administratora)
- * @param array $pocetno    unapred popunjena količina: ['kolicina' => n, 'nacin' => 'komadi'|'palete']
+ * @param array $pocetno    unapred popunjena količina: ['kolicina' => n, 'nacin' => 'komadi'|'paketi'|'palete']
  */
 function izbor_html(array $katalog, int $sku_id = 0, bool $stanje = false, array $pocetno = []): string
 {
@@ -39,8 +39,9 @@ function izbor_html(array $katalog, int $sku_id = 0, bool $stanje = false, array
 
         <div class="korak" data-korak="kolicina" hidden>
             <h3 class="korak-naslov">Količina</h3>
-            <div class="segment" role="group" aria-label="Način unosa količine">
+            <div class="segment" role="group" aria-label="Način unosa količine" data-segment>
                 <button type="button" data-nacin-vrednost="palete" aria-pressed="false">Palete</button>
+                <button type="button" data-nacin-vrednost="paketi" aria-pressed="false">Paketi</button>
                 <button type="button" data-nacin-vrednost="komadi" aria-pressed="true">Komadi</button>
             </div>
             <input class="kolicina-polje" name="kolicina" type="text" inputmode="numeric" pattern="[0-9]*"

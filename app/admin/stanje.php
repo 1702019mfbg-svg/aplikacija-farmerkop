@@ -11,7 +11,7 @@ zahtevaj_ulogu('admin');
 $samo_nisko = get_int('nisko') === 1;
 
 $redovi = db_all(
-    'SELECT s.id AS sku_id, s.po_paleti, s.min_zaliha, s.aktivan AS sku_aktivan, '
+    'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, s.aktivan AS sku_aktivan, '
     . 'a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.aktivan AS artikal_aktivan, '
     . 'k.id AS kat_id, k.naziv AS kategorija, k.aktivan AS kat_aktivna, '
     . 'v.naziv AS varijanta, v.aktivan AS var_aktivna, p.kolicina AS pak_kolicina, p.jedinica, p.aktivan AS pak_aktivno '
@@ -63,6 +63,7 @@ foreach ($redovi as $r) {
         'min'      => $min,
         'nisko'    => $nisko,
         'po'       => $r['po_paleti'] === null ? null : (int)$r['po_paleti'],
+        'pp'       => $r['po_paketu'] === null ? null : (int)$r['po_paketu'],
         'proizv'   => $proizv,
         'prodato'  => $prodato,
         'ukupno_kolicina' => $st * (float)$r['pak_kolicina'],
@@ -116,7 +117,7 @@ ui_start('Stanje', ['nav' => 'admin', 'aktivno' => 'stanje']);
                 <div class="sku-red<?= $s['nisko'] ? ' nisko' : '' ?>">
                     <div class="sku-glavno">
                         <div class="sku-ime"><?= e($s['naziv']) ?><?php if (!$s['aktivan']): ?> <span class="znacka">isključen</span><?php endif; ?></div>
-                        <?php $pal = paletni_prikaz($s['stanje'], $s['po']); ?>
+                        <?php $pal = razlaganje($s['stanje'], $s['po'], $s['pp']); ?>
                         <?php if ($pal !== ''): ?><div class="sku-pal">= <?= e($pal) ?></div><?php endif; ?>
                         <?php if ($s['nisko']): ?>
                             <div class="sku-upoz"><?= ikona('upozorenje', 'ikona ikona-mala') ?> ispod minimuma (<?= e(broj($s['min'])) ?>)</div>

@@ -70,6 +70,7 @@ if (je_post()) {
             $nova['sku_id'] = $sku_id;
             $nova['kolicina'] = $kol['komadi'];
             $nova['palete'] = $kol['palete'];
+            $nova['paketi'] = $kol['paketi'];
             if ($tip === 'prodaja') {
                 $kupac = post_str('kupac', 120);
                 if ($kupac === '') {
@@ -97,6 +98,7 @@ $dnevnik = db_all(
     [$id]
 );
 $palete = $u['palete'] === null ? 0 : (int)$u['palete'];
+$paketi = $u['paketi'] === null ? 0 : (int)$u['paketi'];
 
 ui_start('Ispravka unosa', ['nav' => 'admin', 'aktivno' => 'istorija', 'js' => $tip === 'korekcija' ? [] : ['assets/js/unos.js']]);
 ?>
@@ -115,7 +117,7 @@ ui_start('Ispravka unosa', ['nav' => 'admin', 'aktivno' => 'istorija', 'js' => $
 
 <?php if ($u['obrisan']): ?>
     <div class="kartica">
-        <p><?= e($sku_info ? sku_naziv($sku_info) : '') ?> – <?= e(kolicina_tekst((int)$u['kolicina'], $palete ?: null)) ?></p>
+        <p><?= e($sku_info ? sku_naziv($sku_info) : '') ?> – <?= e(kolicina_tekst((int)$u['kolicina'], $palete ?: null, $paketi ?: null)) ?></p>
         <form method="post" action="<?= e(url('admin/unos.php')) ?>">
             <?= csrf_polje() ?>
             <input type="hidden" name="id" value="<?= $id ?>">
@@ -143,8 +145,8 @@ ui_start('Ispravka unosa', ['nav' => 'admin', 'aktivno' => 'istorija', 'js' => $
                 </div>
             <?php endif; ?>
             <?= izbor_html(katalog_za_izbor(true, (int)$u['sku_id']), (int)$u['sku_id'], true, [
-                'kolicina' => $palete ?: (int)$u['kolicina'],
-                'nacin'    => $palete ? 'palete' : 'komadi',
+                'kolicina' => $palete ?: ($paketi ?: (int)$u['kolicina']),
+                'nacin'    => $palete ? 'palete' : ($paketi ? 'paketi' : 'komadi'),
             ]) ?>
         <?php endif; ?>
 

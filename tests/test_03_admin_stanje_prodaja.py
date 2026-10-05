@@ -67,7 +67,7 @@ try:
     R.odeljak("Stanje – prazno")
     o = adm.get("/admin/stanje.php")
     R.provera(o.status == 200 and "Farmerkop · Vlasnik" in o.text, "stranica Stanje se otvara")
-    R.provera(o.text.count('<div class="sku-red') == 29, "prikazano je 29 aktivnih SKU-ova (bez isključene Čmane)", o.text.count('<div class="sku-red'))
+    R.provera(o.text.count('<div class="sku-red') == 29, "prikazano je 29 aktivnih SKU-ova (bez isključene Cmane)", o.text.count('<div class="sku-red'))
     st = stanje_redovi(o.text)
     R.provera(list(st.keys()) == ["Humovit", "Humovit premium", "Floris Savacoop", "Idea", "Malč Farmerkop", "Malč Floris Savacoop", "Beli oblutak"], "artikli idu redom iz kataloga", list(st.keys()))
     R.provera(list(st["Humovit"]["redovi"].keys()) == ["5 l", "10 l", "25 l", "50 l"], "Humovit po pakovanju: 5, 10, 25, 50 l", list(st["Humovit"]["redovi"].keys()))
@@ -75,7 +75,7 @@ try:
     R.provera(list(st["Idea"]["redovi"].keys()) == ["5 l", "10 l", "20 l", "25 l"], "Idea: 5, 10, 20, 25 l")
     R.provera(len(st["Malč Farmerkop"]["redovi"]) == 7 and "Crveni · 50 l" in st["Malč Farmerkop"]["redovi"], "malč po bojama", list(st["Malč Farmerkop"]["redovi"].keys()))
     R.provera("1-3 cm · 20 kg" in st["Beli oblutak"]["redovi"] and "4-7 cm (krupnija) · 20 kg" in st["Beli oblutak"]["redovi"], "oblutak po granulaciji u cm")
-    R.provera("Čmana" not in o.text, "isključena Čmana se ne prikazuje")
+    R.provera("Cmana" not in o.text, "isključena Cmana se ne prikazuje")
     R.provera('znacka-pl">PL' in o.text, "PL oznaka se vidi")
     R.provera(all(r["stanje"] == "0" for a in st.values() for r in a["redovi"].values()), "sva stanja su 0")
     R.provera(all(not r["nisko"] for a in st.values() for r in a["redovi"].values()), "nema crvenih upozorenja (minimumi su 0)")
@@ -109,7 +109,7 @@ try:
 
     sql("UPDATE unosi SET kolicina=600 WHERE tip='proizvodnja' AND sku_id=%d" % hum10)
     o = adm.get("/admin/stanje.php")
-    R.provera(stanje_redovi(o.text)["Humovit"]["redovi"]["10 l"]["pod"] == ["= 1 pal + 190 kom"], "razlaganje na palete i ostatak: 460 kom = 1 pal + 190 kom", stanje_redovi(o.text)["Humovit"]["redovi"]["10 l"]["pod"])
+    R.provera(stanje_redovi(o.text)["Humovit"]["redovi"]["10 l"]["pod"] == ["= 1 pal + 31 pak + 4 kom"], "razlaganje na palete, pakete i ostatak: 460 kom = 1 pal + 31 pak + 4 kom (6 u paketu)", stanje_redovi(o.text)["Humovit"]["redovi"]["10 l"]["pod"])
     sql("UPDATE unosi SET kolicina=540 WHERE tip='proizvodnja' AND sku_id=%d" % hum10)
 
     # ── 3. Minimum zalihe ────────────────────────────────────────────────────
@@ -136,11 +136,11 @@ try:
 
     # ── 4. Isključeni artikli sa stanjem ─────────────────────────────────────
     R.odeljak("Isključeni artikli koji imaju stanje")
-    cm = sku_id("Čmana supstrat", 10)
+    cm = sku_id("Cmana supstrat", 10)
     sql("INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, nastalo, uneto) VALUES ('proizvodnja', %d, 12, %d, NOW(), NOW())" % (cm, ids["Jelena"]))
     o = adm.get("/admin/stanje.php")
-    R.provera("Čmana supstrat" in o.text and ">12<" in o.text and "isključen" in o.text, "isključena Čmana sa stanjem 12 se prikazuje sa oznakom 'isključen'")
-    R.provera(o.text.count('<div class="sku-red') == 30, "30 redova (29 + Čmana 10 l)", o.text.count('<div class="sku-red'))
+    R.provera("Cmana supstrat" in o.text and ">12<" in o.text and "isključen" in o.text, "isključena Cmana sa stanjem 12 se prikazuje sa oznakom 'isključen'")
+    R.provera(o.text.count('<div class="sku-red') == 30, "30 redova (29 + Cmana 10 l)", o.text.count('<div class="sku-red'))
     sql("DELETE FROM unosi WHERE sku_id=%d" % cm)
 
     # ── 5. Prodaja: ekran ────────────────────────────────────────────────────

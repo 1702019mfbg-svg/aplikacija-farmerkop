@@ -31,12 +31,12 @@ if (je_post()) {
                     . ' kom, a na stanju je ' . broj($stanje) . ' kom.');
             } else {
                 $kupac_id = kupac_id_za($kupac);
-                $rez = unos_dodaj('prodaja', $sku_id, $kol['komadi'], $kol['palete'], (int)$admin['id'], $kupac_id, post_str('napomena', 255), post_str('kljuc', 32));
+                $rez = unos_dodaj('prodaja', $sku_id, $kol['komadi'], $kol['palete'], (int)$admin['id'], $kupac_id, post_str('napomena', 255), post_str('kljuc', 32), null, $kol['paketi']);
                 if ($rez['ok'] && !empty($rez['duplikat'])) {
                     flash_dodaj('info', 'Ova prodaja je već sačuvana.');
                 } elseif ($rez['ok']) {
                     db_run('UPDATE kupci SET poslednja_prodaja = ? WHERE id = ?', [sada(), $kupac_id]);
-                    flash_dodaj('uspeh', 'Prodaja sačuvana: ' . $kupac . ' – ' . sku_naziv($sku) . ' – ' . kolicina_tekst($kol['komadi'], $kol['palete']));
+                    flash_dodaj('uspeh', 'Prodaja sačuvana: ' . $kupac . ' – ' . sku_naziv($sku) . ' – ' . kolicina_tekst($kol['komadi'], $kol['palete'], $kol['paketi']));
                     $nazad = 'admin/prodaja.php?' . http_build_query(['kupac' => $kupac]);
                 } elseif (!empty($rez['nedovoljno'])) {
                     flash_dodaj('greska', 'Nema dovoljno na stanju: na stanju je ' . broj((int)$rez['stanje']) . ' kom.');
@@ -53,7 +53,7 @@ $kupci = db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), p
 $nedavni = array_slice(array_column($kupci, 'naziv'), 0, 6);
 
 $prodaje = db_all(
-    "SELECT u.id, u.tip, u.kolicina, u.palete, u.napomena, u.nastalo, ku.naziv AS kupac, r.ime AS radnik, " . SKU_POLJA . "
+    "SELECT u.id, u.tip, u.kolicina, u.palete, u.paketi, u.napomena, u.nastalo, ku.naziv AS kupac, r.ime AS radnik, " . SKU_POLJA . "
      FROM unosi u " . SKU_SPOJ . "
      JOIN korisnici r ON r.id = u.korisnik_id
      LEFT JOIN kupci ku ON ku.id = u.kupac_id
@@ -130,7 +130,7 @@ ui_start('Prodaja', ['nav' => 'admin', 'aktivno' => 'prodaja', 'js' => ['assets/
                             <?php endif; ?>
                             <?= $u['napomena'] ? ' · ' . e($u['napomena']) : '' ?>
                         </span>
-                        <span class="kol-pod"><?= $u['palete'] ? e(palete_tekst((int)$u['palete'])) : '' ?></span>
+                        <span class="kol-pod"><?= e(nacin_unosa_tekst($u)) ?></span>
                     </div>
                 </li>
             <?php endforeach; ?>

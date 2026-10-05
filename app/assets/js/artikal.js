@@ -10,6 +10,7 @@
         var prvi = grupe[0].querySelectorAll('[data-pak]');
         for (var i = 0; i < prvi.length; i++) {
             izvor[prvi[i].getAttribute('data-pak')] = {
+                pp: prvi[i].querySelector('[data-polje="pp"]').value,
                 po: prvi[i].querySelector('[data-polje="po"]').value,
                 min: prvi[i].querySelector('[data-polje="min"]').value
             };
@@ -19,6 +20,7 @@
             for (var r = 0; r < redovi.length; r++) {
                 var v = izvor[redovi[r].getAttribute('data-pak')];
                 if (v) {
+                    redovi[r].querySelector('[data-polje="pp"]').value = v.pp;
                     redovi[r].querySelector('[data-polje="po"]').value = v.po;
                     redovi[r].querySelector('[data-polje="min"]').value = v.min;
                 }

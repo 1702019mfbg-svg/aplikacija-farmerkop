@@ -138,7 +138,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
                             <?= e($u['radnik']) ?><?= $u['kupac'] ? ' → <strong>' . e($u['kupac']) . '</strong>' : '' ?>
                             <?= $u['napomena'] ? ' · ' . e($u['napomena']) : '' ?>
                         </span>
-                        <span class="kol-pod"><?= $u['palete'] ? e(palete_tekst((int)$u['palete'])) : '' ?></span>
+                        <span class="kol-pod"><?= e(nacin_unosa_tekst($u)) ?></span>
                         <div class="akcije">
                             <?php if ($u['obrisan']): ?>
                                 <span class="pomoc">Obrisao: <?= e($u['obrisao'] ?? '—') ?>, <?= e(datum_vreme_srp((string)$u['obrisan_u'])) ?></span>

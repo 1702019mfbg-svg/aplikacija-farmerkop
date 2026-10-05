@@ -79,3 +79,42 @@ function pomeri_red(string $tabela, int $id, string $smer): void
         db_run("UPDATE $tabela SET redosled = ? WHERE id = ?", [($poz + 1) * 10, $sid]);
     }
 }
+
+/**
+ * Prebrojana količina jednog SKU-a iz forme Popisa: ili ukupno komada ("prebrojano"),
+ * ili palete + paketi + komadi (preračunava se po podešavanju SKU-a).
+ * Vraća ['komadi' => ?int] (null = polje nije popunjeno) ili ['greska' => tekst].
+ */
+function popis_vrednost(mixed $ukupno, mixed $pal, mixed $pak, mixed $kom, array $sku): array
+{
+    $ocisti = static fn(mixed $v): string => is_string($v) ? trim($v) : '';
+    [$ukupno, $pal, $pak, $kom] = [$ocisti($ukupno), $ocisti($pal), $ocisti($pak), $ocisti($kom)];
+
+    if ($ukupno !== '') {
+        if (!ctype_digit($ukupno) || (int)$ukupno > 99999999) {
+            return ['greska' => 'Prebrojano stanje mora biti ceo broj (0 ili veći).'];
+        }
+        return ['komadi' => (int)$ukupno];
+    }
+    if ($pal === '' && $pak === '' && $kom === '') {
+        return ['komadi' => null];
+    }
+    foreach ([$pal, $pak, $kom] as $v) {
+        if ($v !== '' && (!ctype_digit($v) || strlen($v) > 8)) {
+            return ['greska' => 'Palete, paketi i komadi moraju biti celi brojevi (0 ili veći).'];
+        }
+    }
+    $po_paleti = (int)($sku['po_paleti'] ?? 0);
+    $po_paketu = (int)($sku['po_paketu'] ?? 0);
+    if ((int)$pal > 0 && $po_paleti <= 0) {
+        return ['greska' => sku_naziv($sku) . ': nije podešeno koliko komada ide na paletu.'];
+    }
+    if ((int)$pak > 0 && $po_paketu <= 0) {
+        return ['greska' => sku_naziv($sku) . ': nije podešeno koliko komada ima u paketu.'];
+    }
+    $ukupno_komada = (int)$pal * $po_paleti + (int)$pak * $po_paketu + (int)$kom;
+    if ($ukupno_komada > 99999999) {
+        return ['greska' => 'Količina je prevelika. Proverite brojeve.'];
+    }
+    return ['komadi' => $ukupno_komada];
+}

@@ -111,7 +111,7 @@ Sada imate tri podatka:
 3. **Podešavanja → Artikli:** proverite katalog.
    - Humovit, Humovit premium, Floris Savacoop, Idea, malč (po bojama), beli oblutak (po granulaciji) su već unesena.
    - Kliknite **Uredi** pored artikla da podesite **komada po paleti** i **minimum zalihe** (ispod njega se pali crveno upozorenje).
-   - **Čmana supstrat** je isključena, jednim klikom **Uključi** kad krene proizvodnja.
+   - **Cmana supstrat** je isključena, jednim klikom **Uključi** kad krene proizvodnja.
 4. Ako već imate zalihu u magacinu: **Podešavanja → Popis** i upišite prebrojano stanje.
 
 ---
@@ -131,7 +131,8 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 ## Kako se koristi
 
 ### Radnik
-- **Proizvodnja:** dodirni artikal → (boju ili granulaciju, ako je ima) → pakovanje → izaberi **Palete** ili **Komadi** → upiši broj ili koristi dugmiće **−10 / −1 / +1 / +10** (kod paleta −5 / −1 / +1 / +5) → **Sačuvaj**.
+- **Proizvodnja:** dodirni artikal → (boju ili granulaciju, ako je ima) → pakovanje → izaberi **Palete**, **Pakete** ili **Komade** → upiši broj ili koristi dugmiće **−10 / −1 / +1 / +10** (kod paleta −5 / −1 / +1 / +5) → **Sačuvaj**.
+  Dugme **Paketi** postoji samo za pakovanja kojima je podešeno koliko komada ide u paket (Humovit 5 l = 10, Humovit 10 l = 6, Idea 5 l = 10, Idea 10 l = 5). Program sam preračuna u komade (npr. 12 paketa × 6 = 72 kom).
 - Na dnu je lista njegovih današnjih unosa i ukupan broj za danas.
 - **Pogrešan unos?** Dugme **Obriši** stoji uz poslednji unos još 10 minuta.
 - **Kućna prodaja:** prodaja na licu mesta, isto kao proizvodnja. Radnik ne vidi koliko robe ima; ako unese više nego što ima, program ga odbija.
@@ -143,9 +144,29 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 | **Prodaja** | Unos prodaje (kupac, artikal, količina). Program ne dozvoljava da se proda više nego što ima. Raniji kupci se pamte |
 | **Istorija** | Svi unosi sa filterima; ispravka i brisanje (uz zapis ko i kad); **Izvoz u Excel (CSV)** |
 | **Radnici** | Dodavanje, PIN, gašenje i vraćanje pristupa, pregled ko je koliko proizveo po danima |
-| **Podešavanja** | Artikli i varijante, pakovanja, minimum i paleta, popis stanja, promena šifre, dnevnik izmena |
+| **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
 
-**Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa.
+**Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa. Sve se čuva u komadima; palete i paketi su samo način unosa.
+
+### Početno stanje (popis) – kako krenuti sa praćenjem
+Pre nego što radnici počnu da unose, upišite koliko trenutno imate. Postoje dva načina, oba u **Podešavanja**:
+
+**A) Popis – ručno (Podešavanja → Popis i korekcija stanja)**
+1. Upišite napomenu, npr. „Početno stanje 06.10.“ (obavezna).
+2. Kod svakog artikla upišite koliko ste **prebrojali**: **paleta**, **paketa** i/ili **komada** (npr. 3 palete + 2 paketa + 4 komada). Ispod polja program odmah ispiše ukupno komada i razliku u odnosu na sadašnje stanje.
+3. Polja koja ostavite prazna ostaju kako jesu → **Sačuvaj popis**. Razlika se upisuje u Istoriju kao „Korekcija (popis)“.
+
+**B) Uvoz stanja iz fajla (Podešavanja → Uvoz stanja iz fajla)** – za stanje iz Bluesofta ili Excela
+1. U Bluesoftu izvezite stanje zaliha u **CSV** (ili Excel pa *Sačuvaj kao → CSV*). Može i bez fajla: označite tabelu, kopirajte je i **nalepite** u polje.
+2. Otvorite *Uvoz stanja iz fajla* → izaberite fajl ili nalepite tabelu → **Učitaj**. (Dugme „Preuzmi primer fajla“ pokazuje kako izgleda.)
+3. **Kolone:** program sam pogodi koja je kolona naziv, a koja količina (po zaglavlju). Ako pogodi pogrešno, izaberite pravu pa kliknite **Osveži pregled**. Izaberite i u čemu je količina u fajlu: **komadima, paketima ili paletama**. Brojevi: „1.250,00“ je srpski format (podrazumevano), „1,250.00“ engleski.
+4. **Pregled redova:** svaki red iz fajla je upareno sa jednim vašim artiklom (npr. „HUMOVIT 10L“ → Humovit · 10 l). Oznake: **prepoznato**, **zapamćeno** (ranije ste ga ručno izabrali), **proveri!** (delimično poklapanje – proverite!), **nije prepoznato**. Pogrešno uparen ili neprepoznat red ispravite izborom artikla u listi; red koji ne treba izaberite **preskoči**. Ispod svakog reda piše šta je stanje sada i kakvo će biti posle uvoza.
+5. Upišite napomenu → **Uvezi stanje** → potvrda. Stanje svakog uparenog artikla postaje tačno ono iz fajla (isto kao popis). Artikli kojih nema u fajlu ostaju kako jesu. Ako se isti artikal pojavi u više redova (npr. više skladišta), količine se sabiraju.
+6. Kvačica **Zapamti uparivanja** čini da sledeći put isti nazivi iz Bluesofta budu odmah upareni.
+
+Najviše 600 redova odjednom: ako izvoz ima mnogo drugih artikala, izvezite samo Farmerkop proizvode ili obrišite suvišne redove u Excelu. Excel fajlove (.xlsx) program ne čita direktno – koristite CSV ili nalepite tabelu.
+
+> Posle uvoza otvorite **Stanje** i proverite nekoliko artikala. Greška se ispravlja novim popisom ili uvozom; ništa se ne briše – sve je u Istoriji i Dnevniku izmena.
 
 **Ništa se ne briše zauvek:** obrisan unos ostaje u bazi, može da se vrati, a u dnevniku izmena piše ko ga je i kada obrisao.
 
@@ -180,7 +201,10 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 *Radnici* → **Isključi pristup**. Odjavljuje se odmah, a njegovi unosi ostaju u istoriji.
 
 ### Ažuriranje aplikacije (kad dobijete novu verziju)
-Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** – on **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi. Baza i svi unosi ostaju netaknuti.
+Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
+Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
+
+**Šta je novo u ovoj verziji:** paketi (transportno pakovanje) kao treći način unosa, popis u paletama + paketima + komadima, uvoz stanja iz fajla, naziv „Cmana supstrat“, i zaštite u Podešavanjima artikala (potvrda pre „Isključi“, ne može da se sačuva artikal bez ijednog pakovanja, crvena oznaka „nema pakovanja“, dugme „Vrati artikal na stanje bez varijanti“). Komada u paketu se podešava po pakovanju: *Podešavanja → Artikli → Uredi → pakete, palete i minimum*.
 
 ---
 
