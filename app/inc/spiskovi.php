@@ -223,6 +223,7 @@ function spisak_promeni_status(int $id, string $ocekivan, string $novi, int $kor
     $dozvoljeno = [
         'nacrt'     => ['za_utovar', 'otkazano'],
         'za_utovar' => ['nacrt', 'otkazano'],
+        'utovareno' => ['otkazano'],
         'otkazano'  => ['nacrt'],
     ];
     return db_trans(static function () use ($id, $ocekivan, $novi, $korisnik_id, $dozvoljeno): array {
@@ -243,6 +244,9 @@ function spisak_promeni_status(int $id, string $ocekivan, string $novi, int $kor
             return ['ok' => false, 'greska' => 'Spisak nema nijednu stavku.'];
         }
         $sad = sada();
+        if ($novi === 'otkazano' && $ocekivan === 'utovareno') {
+            spisak_vrati_robu($sp, $korisnik_id);
+        }
         if ($novi === 'otkazano') {
             db_run('UPDATE spiskovi SET status = ?, otkazao_id = ?, otkazano_u = ?, izmenjen = ? WHERE id = ?', [$novi, $korisnik_id, $sad, $sad, $id]);
         } elseif ($novi === 'nacrt' && $ocekivan === 'otkazano') {
@@ -252,4 +256,168 @@ function spisak_promeni_status(int $id, string $ocekivan, string $novi, int $kor
         }
         return ['ok' => true, 'greska' => null];
     });
+}
+
+/**
+ * Otkazivanje utovarenog spiska: sve što je skinuto sa stanja vraća se kao "povrat" (ništa se ne briše).
+ * Poziva se unutar transakcije, sa zaključanim spiskom.
+ */
+function spisak_vrati_robu(array $sp, int $korisnik_id): void
+{
+    $redovi = db_all(
+        "SELECT sku_id, SUM(CASE WHEN tip = 'utovar' THEN kolicina ELSE -kolicina END) AS kom
+         FROM unosi WHERE spisak_id = ? AND obrisan = 0 AND tip IN ('utovar', 'povrat') GROUP BY sku_id ORDER BY sku_id",
+        [(int)$sp['id']]
+    );
+    $sad = sada();
+    foreach ($redovi as $r) {
+        if ((int)$r['kom'] <= 0) {
+            continue;
+        }
+        sku_zakljucaj((int)$r['sku_id']);
+        db_run(
+            "INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
+             VALUES ('povrat', ?, ?, ?, ?, ?, ?, ?, ?)",
+            [(int)$r['sku_id'], (int)$r['kom'], $korisnik_id, (int)$sp['kupac_id'], (int)$sp['id'], 'Otkazan spisak #' . (int)$sp['id'], $sad, $sad]
+        );
+    }
+}
+
+/**
+ * Stvarno utovarena količina iz forme potvrde, po stavkama.
+ * Vraća [[stavka_id => ['kolicina' => n, 'palete' => n|null, 'paketi' => n|null]], greška|null].
+ * Svaka stavka mora biti štiklirana; količina može da se ispravi (i na 0 ako nije utovareno ništa).
+ */
+function utovar_iz_posta(array $stavke): array
+{
+    $niz = static fn(string $k): array => is_array($_POST[$k] ?? null) ? $_POST[$k] : [];
+    [$ok, $pal, $pak, $kom, $okol] = [$niz('ok'), $niz('pal'), $niz('pak'), $niz('kom'), $niz('o_kol')];
+    $rez = [];
+    $neoznaceno = [];
+    foreach ($stavke as $st) {
+        $sid = (int)$st['stavka_id'];
+        if (($ok[$sid] ?? '') !== '1') {
+            $neoznaceno[] = stavka_naziv($st);
+            continue;
+        }
+        if ($st['sku_id'] === null) {
+            $v = is_string($okol[$sid] ?? null) ? trim($okol[$sid]) : (string)$st['kolicina'];
+            if ($v === '' || !ctype_digit($v) || strlen($v) > 8) {
+                return [[], stavka_naziv($st) . ': količina mora biti ceo broj (0 ili veći).'];
+            }
+            $rez[$sid] = ['kolicina' => (int)$v, 'palete' => null, 'paketi' => null];
+            continue;
+        }
+        $ima_unos = isset($pal[$sid]) || isset($pak[$sid]) || isset($kom[$sid]);
+        if (!$ima_unos) {
+            $rez[$sid] = ['kolicina' => (int)$st['kolicina'], 'palete' => (int)$st['u_palete'] ?: null, 'paketi' => (int)$st['u_paketi'] ?: null];
+            continue;
+        }
+        $r = popis_vrednost('', $pal[$sid] ?? '', $pak[$sid] ?? '', $kom[$sid] ?? '', $st);
+        if (isset($r['greska'])) {
+            return [[], $r['greska']];
+        }
+        $rez[$sid] = [
+            'kolicina' => (int)($r['komadi'] ?? 0),
+            'palete'   => is_string($pal[$sid] ?? null) && (int)$pal[$sid] > 0 ? (int)$pal[$sid] : null,
+            'paketi'   => is_string($pak[$sid] ?? null) && (int)$pak[$sid] > 0 ? (int)$pak[$sid] : null,
+        ];
+    }
+    if ($neoznaceno) {
+        return [[], 'Štiklirajte svaku stavku kad je utovarena (nedostaje: ' . implode(', ', array_slice($neoznaceno, 0, 4))
+            . (count($neoznaceno) > 4 ? ' …' : '') . '). Ako nešto nije utovareno, upišite količinu 0.'];
+    }
+    return [$rez, null];
+}
+
+/**
+ * Potvrda utovara – jedna nedeljiva operacija: zaključa spisak, proveri da još čeka utovar,
+ * upiše stvarno utovarene količine, skine stanje (vrsta "utovar") i označi spisak kao utovaren.
+ * Drugi klik, loš internet ili drugi telefon ne mogu da skinu stanje dvaput: drugi pokušaj zatiče
+ * spisak već utovaren i ništa ne upisuje. Stanje sme da ode u minus (roba je već na kamionu).
+ * Vraća ['ok' => bool, 'vec' => bool (već utovaren), 'greska' => ?string, 'razlike' => [tekst]].
+ */
+function spisak_potvrdi_utovar(int $id, array $kolicine, int $korisnik_id): array
+{
+    return db_trans(static function () use ($id, $kolicine, $korisnik_id): array {
+        $sp = spisak_zakljucaj($id);
+        if ($sp === null) {
+            return ['ok' => false, 'vec' => false, 'greska' => 'Spisak ne postoji.', 'razlike' => []];
+        }
+        if ($sp['status'] === 'utovareno') {
+            return ['ok' => false, 'vec' => true, 'greska' => 'Ovaj spisak je već potvrđen kao utovaren – ništa nije upisano ponovo.', 'razlike' => []];
+        }
+        if ($sp['status'] !== 'za_utovar') {
+            return ['ok' => false, 'vec' => false, 'greska' => 'Spisak više ne čeka utovar (administrator ga je vratio u nacrt ili otkazao).', 'razlike' => []];
+        }
+        $stavke = spisak_stavke($id);
+        $ids = array_map(static fn(array $st): int => (int)$st['stavka_id'], $stavke);
+        sort($ids);
+        $poslato = array_keys($kolicine);
+        sort($poslato);
+        if ($ids !== $poslato) {
+            return ['ok' => false, 'vec' => false, 'greska' => 'Spisak je u međuvremenu izmenjen. Otvorite ga ponovo.', 'razlike' => []];
+        }
+        $sku_ids = array_values(array_unique(array_filter(array_map(static fn(array $st): int => (int)$st['sku_id'], $stavke))));
+        sort($sku_ids);
+        foreach ($sku_ids as $sku_id) {
+            sku_zakljucaj($sku_id);       // uvek istim redom, da se dva utovara ne zaglave
+        }
+        $sad = sada();
+        $razlike = [];
+        foreach ($stavke as $st) {
+            $sid = (int)$st['stavka_id'];
+            $k = $kolicine[$sid];
+            db_run('UPDATE spisak_stavke SET utovareno = ? WHERE id = ?', [$k['kolicina'], $sid]);
+            if ($k['kolicina'] !== (int)$st['kolicina']) {
+                $razlike[] = stavka_naziv($st) . ': ' . broj($k['kolicina']) . ' umesto ' . broj((int)$st['kolicina']);
+            }
+            if ($st['sku_id'] === null || $k['kolicina'] === 0) {
+                continue;
+            }
+            db_run(
+                "INSERT INTO unosi (tip, sku_id, kolicina, palete, paketi, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
+                 VALUES ('utovar', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(int)$st['sku_id'], $k['kolicina'], $k['palete'], $k['paketi'], $korisnik_id, (int)$sp['kupac_id'], $id, 'Spisak #' . $id, $sad, $sad]
+            );
+        }
+        db_run("UPDATE spiskovi SET status = 'utovareno', utovario_id = ?, utovareno_u = ?, izmenjen = ? WHERE id = ?", [$korisnik_id, $sad, $sad, $id]);
+        db_run('UPDATE kupci SET poslednja_prodaja = ? WHERE id = ?', [$sad, (int)$sp['kupac_id']]);
+        return ['ok' => true, 'vec' => false, 'greska' => null, 'razlike' => $razlike];
+    });
+}
+
+/** Tekst spiska za deljenje (Viber, WhatsApp, SMS). */
+function spisak_tekst_za_deljenje(array $sp, array $stavke): string
+{
+    $utovaren = $sp['status'] === 'utovareno';
+    $z = spisak_zbir($stavke, $utovaren);
+    $l = [];
+    $l[] = 'Farmerkop – spisak za utovar #' . (int)$sp['id'] . ($utovaren ? ' (utovareno)' : '');
+    $l[] = 'Kupac: ' . $sp['kupac'];
+    $l[] = 'Utovar: ' . dan_u_nedelji((string)$sp['datum']) . ', ' . datum_srp((string)$sp['datum']);
+    if ($sp['vozilo']) {
+        $l[] = 'Vozilo: ' . $sp['vozilo'];
+    }
+    if ($sp['vozac']) {
+        $l[] = 'Vozač: ' . $sp['vozac'];
+    }
+    $l[] = '';
+    $n = 0;
+    foreach ($stavke as $st) {
+        $n++;
+        $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
+        if ($st['sku_id'] === null) {
+            $opis = broj($kol) . ' ' . ($st['ostalo_jedinica'] ?: 'kom');
+        } else {
+            $opis = ($utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom' : stavka_unos_tekst($st) . ((int)$st['u_palete'] > 0 || (int)$st['u_paketi'] > 0 ? ' = ' . broj($kol) . ' kom' : ''));
+        }
+        $l[] = $n . '. ' . stavka_naziv($st) . ' – ' . $opis;
+    }
+    $l[] = '';
+    $l[] = 'Ukupno: ' . ($z['palete'] > 0 ? palete_zbir_tekst($z['palete']) . ', ' : '') . '≈ ' . kg_tekst($z['kg']);
+    if ($sp['napomena']) {
+        $l[] = 'Napomena: ' . $sp['napomena'];
+    }
+    return implode("\n", $l);
 }

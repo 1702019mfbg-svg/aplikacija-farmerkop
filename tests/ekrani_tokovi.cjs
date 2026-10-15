@@ -491,6 +491,82 @@ module.exports = {
         await p.slika('74-stanje-rezervisano');
     },
 
+    async potvrda(page, p) {
+        // Administrator pravi i šalje spisak
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.goto(p.base + '/admin/utovar.php');
+        await page.fill('#kupac', 'Vrt i bašta Kraljevo');
+        await page.fill('#vozilo', 'KV 555-XY');
+        await page.getByRole('button', { name: 'Napravi spisak' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+        const adresaSpiska = page.url();
+        await page.selectOption('#sku_id', { label: 'Humovit · 10 l' });
+        await page.fill('[data-nova-stavka] [name="pal"]', '1');
+        await page.getByRole('button', { name: 'Dodaj na spisak' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        await page.selectOption('#sku_id', { label: 'Beli oblutak · 1-3 cm · 20 kg' });
+        await page.fill('[data-nova-stavka] [name="kom"]', '20');
+        await page.getByRole('button', { name: 'Dodaj na spisak' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        page.once('dialog', (d) => d.accept());
+        await page.getByRole('button', { name: 'Pošalji na utovar' }).click();
+        await page.waitForSelector('.status-za_utovar');
+
+        // Radnik potvrđuje na svom telefonu
+        const r = await p.novaStranica(p.tema);
+        const rp = r.page;
+        await rp.goto(p.base + '/login.php');
+        await rp.locator('label.ime', { hasText: 'Jelena' }).click();
+        for (const c of '4321') { await rp.locator(`[data-cifra="${c}"]`).click(); }
+        await rp.waitForURL('**/radnik/**');
+        await rp.getByRole('link', { name: 'Utovar' }).click();
+        await rp.waitForURL('**/radnik/utovar.php');
+        await rp.locator('.spisak-kartica', { hasText: 'Vrt i bašta Kraljevo' }).click();
+        await rp.waitForSelector('[data-utovar]');
+        tvrdi((await rp.locator('[data-brojac]').innerText()).includes('Štiklirano 0 od 2'), 'brojač 0 od 2');
+        let upozorenje = '';
+        rp.once('dialog', (d) => { upozorenje = d.message(); d.accept(); });
+        await rp.locator('[data-potvrdi]').click();
+        await rp.waitForTimeout(300);
+        tvrdi(upozorenje.includes('Štiklirajte svaku stavku'), 'bez štikliranja: upozorenje (' + upozorenje + ')');
+        tvrdi(rp.url().includes('/radnik/utovar.php?id='), 'ostaje na spisku');
+        await rp.locator('.utovar-cek', { hasText: 'Humovit · 10 l' }).click();
+        await rp.locator('.utovar-cek', { hasText: 'Beli oblutak' }).click();
+        tvrdi((await rp.locator('[data-brojac]').innerText()).includes('Štiklirano 2 od 2'), 'brojač 2 od 2');
+        // drugačija količina za Humovit: 200 komada umesto 1 palete
+        const st = rp.locator('.utovar-stavka', { hasText: 'Humovit · 10 l' });
+        await st.locator('summary').click();
+        await rp.waitForFunction((el) => !el.disabled, await st.locator('[data-p="kom"]').elementHandle(), { timeout: 3000 }).catch(() => {});
+        tvrdi(!(await st.locator('[data-p="kom"]').isDisabled()), 'otvorena polja su uključena');
+        await st.locator('[data-p="pal"]').fill('0');
+        await st.locator('[data-p="kom"]').fill('200');
+        tvrdi((await st.locator('[data-zbir]').innerText()).includes('= 200 kom'), 'zbir ispravke: ' + await st.locator('[data-zbir]').innerText());
+        await rp.screenshot({ path: process.argv[3] + '/75-radnik-potvrda-' + (p.tema === 'dark' ? 'tamno' : 'svetlo') + '.png', fullPage: true });
+        rp.once('dialog', (d) => { tvrdi(d.message().includes('Potvrditi utovar'), 'pitanje: ' + d.message()); d.accept(); });
+        await rp.locator('[data-potvrdi]').click();
+        await rp.waitForSelector('.poruka-uspeh');
+        const por = await rp.locator('.poruka-uspeh').innerText();
+        tvrdi(por.includes('Utovar je potvrđen') && por.includes('200 umesto 270'), 'poruka: ' + por);
+        const sirina = await rp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+        tvrdi(sirina, 'radnikov ekran nije širi od telefona');
+        await r.ctx.close();
+
+        // Administrator: utovaren spisak i štampa
+        await page.goto(adresaSpiska);
+        tvrdi((await page.locator('.status-utovareno').count()) === 1, 'spisak je utovaren');
+        tvrdi((await page.locator('main').innerText()).includes('utovareno 200 umesto 270'), 'razlika je vidljiva');
+        await p.slika('76-spisak-utovaren');
+        await page.getByRole('link', { name: /Štampa \/ PDF/ }).click();
+        await page.waitForURL('**/admin/spisak_stampa.php?id=*');
+        tvrdi((await page.locator('.stampa-tabela tbody tr').count()) === 2, 'štampa: 2 reda');
+        await p.slika('77-spisak-stampa');
+        await page.emulateMedia({ media: 'print' });
+        tvrdi(!(await page.locator('.stampa-akcije').isVisible()), 'pri štampi se dugmad ne vide');
+        await page.emulateMedia({ media: 'screen' });
+        await page.locator('[data-podeli]').click();
+        await page.waitForTimeout(300);
+    },
+
     async pwa(page, p) {
         // Posrednik ispred servera: gašenjem posrednika simuliramo da je telefon izgubio vezu.
         const http = require('http');

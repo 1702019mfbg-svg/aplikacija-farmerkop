@@ -501,3 +501,47 @@ input[type="date"].polje, input[type="datetime-local"].polje { min-width: 0; -we
 .stavka-izmena .polje { margin-top: 3px; text-align: center; font-weight: 800; min-height: 48px; padding: 6px; }
 .stavka-izmena .btn { flex: none; min-height: 48px; }
 [data-nova-stavka] .popis-polja { margin-bottom: 6px; }
+
+/* ── Potvrda utovara (radnik) ── */
+.utovar-lista .utovar-stavka { display: grid; gap: 6px; padding: 12px 0; }
+.utovar-cek { display: flex; gap: 14px; align-items: center; cursor: pointer; margin: 0; }
+.utovar-cek input[type="checkbox"] { width: 34px; height: 34px; flex: none; }
+.utovar-cek strong { display: block; font-size: 1.1rem; }
+.utovar-plan { display: block; color: var(--tekst-bled); font-weight: 600; }
+.utovar-cek:has(input:checked) strong { color: var(--zelena-tamno); }
+.utovar-izmena summary { color: var(--tekst-bled); font-size: .9rem; padding: 4px 0; cursor: pointer; margin-left: 48px; }
+.utovar-izmena .stavka-izmena, .utovar-izmena .popis-zbir { margin-left: 48px; }
+.utovar-brojac { text-align: center; font-weight: 700; color: var(--tekst-bled); }
+.btn-ugaseno { opacity: .55; }
+
+/* ── Spisak za štampu / PDF ── */
+body.stampa { background: var(--bg); }
+.stampa-akcije { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.stampa-akcije .pomoc, .stampa-akcije textarea { flex-basis: 100%; }
+.stampa-list { background: #fff; color: #1a1612; border: 1px solid #ddd; border-radius: 10px; padding: 18px 16px; }
+.stampa-glava { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; border-bottom: 2px solid #1a1612; padding-bottom: 8px; margin-bottom: 10px; }
+.stampa-glava h1 { margin: 2px 0 0; font-size: 1.35rem; color: #1a1612; }
+.stampa-firma { font-weight: 700; font-size: .9rem; color: #5c3d2e; }
+.stampa-status { border: 1px solid #1a1612; border-radius: 6px; padding: 2px 8px; font-weight: 700; font-size: .85rem; white-space: nowrap; }
+.stampa-podaci { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; margin: 0 0 12px; }
+.stampa-podaci .siroko { grid-column: 1 / -1; }
+.stampa-podaci dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6b5a4a; }
+.stampa-podaci dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.stampa-tabela { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.stampa-tabela th, .stampa-tabela td { border-bottom: 1px solid #ccc; padding: 6px 4px; text-align: left; vertical-align: top; }
+.stampa-tabela th { font-size: .75rem; text-transform: uppercase; color: #6b5a4a; }
+.stampa-tabela .br { text-align: right; white-space: nowrap; }
+.stampa-tabela .cek { text-align: center; width: 28px; font-size: 1.1rem; }
+.stampa-tabela tfoot td { border-top: 2px solid #1a1612; border-bottom: none; }
+.stampa-tabela small { color: #6b5a4a; }
+.stampa-napomena { font-size: .8rem; color: #6b5a4a; margin: 8px 0 0; }
+.stampa-potpisi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 46px; }
+.stampa-potpisi div { border-top: 1px solid #1a1612; padding-top: 4px; font-size: .8rem; text-align: center; }
+@media print {
+    @page { size: A4; margin: 14mm; }
+    body.stampa, body { background: #fff !important; }
+    .ne-stampa, .donja-nav, .zaglavlje { display: none !important; }
+    .sadrzaj { padding: 0 !important; max-width: none !important; }
+    .stampa-list { border: none; padding: 0; }
+    .stampa-tabela { font-size: 10.5pt; }
+}

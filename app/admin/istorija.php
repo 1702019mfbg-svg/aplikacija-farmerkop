@@ -50,7 +50,7 @@ $opsezi = [
     '30 dana' => ['od' => date('Y-m-d', strtotime('-29 days')), 'do' => $danas],
     'Sve'     => ['od' => '', 'do' => ''],
 ];
-$tipovi_cipovi = ['' => 'Sve', 'proizvodnja' => 'Proizvodnja', 'prodaja' => 'Prodaja', 'kucna_prodaja' => 'Kućna prodaja', 'korekcija' => 'Popis'];
+$tipovi_cipovi = ['' => 'Sve', 'proizvodnja' => 'Proizvodnja', 'prodaja' => 'Prodaja', 'kucna_prodaja' => 'Kućna prodaja', 'utovar' => 'Utovar', 'korekcija' => 'Popis'];
 
 ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
 ?>
@@ -149,6 +149,8 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
                                     <input type="hidden" name="nazad" value="<?= e($osnovni . '&strana=' . $strana) ?>">
                                     <button class="btn btn-mali" type="submit">Vrati unos</button>
                                 </form>
+                            <?php elseif ($u['spisak_id'] !== null): ?>
+                                <a class="btn btn-mali" href="<?= e(url('admin/spisak.php?id=' . (int)$u['spisak_id'])) ?>"><?= ikona('kamion') ?> Spisak #<?= (int)$u['spisak_id'] ?></a>
                             <?php else: ?>
                                 <a class="btn btn-mali" href="<?= e(url('admin/unos.php?id=' . (int)$u['id'] . '&nazad=' . rawurlencode($osnovni . '&strana=' . $strana))) ?>"><?= ikona('olovka') ?> Ispravi</a>
                                 <form method="post" class="forma-u-liniji" action="<?= e(url('admin/istorija.php')) ?>"

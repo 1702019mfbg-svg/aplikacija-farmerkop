@@ -85,7 +85,7 @@ const ISTORIJA_IZ = 'FROM unosi u JOIN sku s ON s.id = u.sku_id JOIN artikli a O
     . 'JOIN korisnici r ON r.id = u.korisnik_id LEFT JOIN kupci ku ON ku.id = u.kupac_id '
     . 'LEFT JOIN korisnici ob ON ob.id = u.obrisao_id ';
 
-const ISTORIJA_POLJA = 'u.id, u.tip, u.kolicina, u.palete, u.paketi, u.napomena, u.nastalo, u.obrisan, u.obrisan_u, '
+const ISTORIJA_POLJA = 'u.id, u.tip, u.kolicina, u.palete, u.paketi, u.napomena, u.nastalo, u.obrisan, u.obrisan_u, u.spisak_id, '
     . 'r.ime AS radnik, r.uloga AS radnik_uloga, ku.naziv AS kupac, ob.ime AS obrisao, '
     . 's.id AS sku_id, s.po_paleti, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta, '
     . 'p.kolicina AS pak_kolicina, p.jedinica';

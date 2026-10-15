@@ -185,7 +185,9 @@ if (je_post()) {
             $poruke = [
                 'za_utovar' => ['poslat na utovar', 'Spisak je poslat na utovar: radnici ga vide, a količine su rezervisane.'],
                 'nacrt'     => ['vraćen u nacrt', 'Spisak je vraćen u nacrt – možete ga menjati. Radnici ga ne vide dok ga ponovo ne pošaljete.'],
-                'otkazano'  => ['otkazan', 'Spisak je otkazan. Ništa nije skinuto sa stanja.'],
+                'otkazano'  => $ocekivan === 'utovareno'
+                    ? ['otkazan utovar – roba vraćena na stanje', 'Utovar je otkazan i sva roba je vraćena na stanje (povrat).']
+                    : ['otkazan', 'Spisak je otkazan. Ništa nije skinuto sa stanja.'],
             ];
             spisak_dnevnik($id, $poruke[$novi][0]);
             flash_dodaj('uspeh', $poruke[$novi][1]);
@@ -225,6 +227,10 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
         <div class="stat"><span class="broj"><?= e(broj(round($z['palete'], 1), round($z['palete'], 1) == floor(round($z['palete'], 1)) ? 0 : 1)) ?></span><span class="opis">paleta<?= $z['bez_palete'] ? ' (+' . (int)$z['bez_palete'] . ' bez palete)' : '' ?></span></div>
         <div class="stat"><span class="broj"><?= e(kg_tekst($z['kg'])) ?></span><span class="opis">težina<?= $z['bez_tezine'] ? ' (' . (int)$z['bez_tezine'] . ' bez težine)' : '' ?></span></div>
     </div>
+
+    <p class="grupa-dugmica razmak-gore">
+        <a class="btn btn-mali" href="<?= e(url('admin/spisak_stampa.php?id=' . $id)) ?>"><?= ikona('preuzmi') ?> Štampa / PDF / Podeli</a>
+    </p>
 
     <?php if ($nacrt): ?>
         <details class="razmak-gore">
@@ -379,14 +385,15 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
     } elseif ($sp['status'] === 'za_utovar') {
         $dugmad[] = ['nacrt', 'Vrati u nacrt (za izmene)', '', 'Vratiti spisak u nacrt? Radnici ga neće videti dok ga ponovo ne pošaljete.'];
         $dugmad[] = ['otkazano', 'Otkaži spisak', 'btn-opasno', 'Otkazati ovaj spisak? Rezervacija se ukida.'];
-        $opis = 'Čeka utovar: radnici ga vide, količine su rezervisane. Stanje se skida tek kad radnik potvrdi utovar.';
+        $opis = 'Čeka utovar: radnici ga vide, količine su rezervisane. Stanje se skida tek kad se potvrdi utovar (radnik, ili vi dugmetom ispod).';
     } elseif ($sp['status'] === 'otkazano') {
         if ($sp['utovareno_u'] === null) {
             $dugmad[] = ['nacrt', 'Vrati u nacrt', '', 'Ponovo otvoriti otkazan spisak kao nacrt?'];
         }
         $opis = 'Otkazan spisak ništa ne rezerviše i ne menja stanje.';
     } else {
-        $opis = 'Utovareno: stanje je skinuto i spisak se više ne menja.';
+        $dugmad[] = ['otkazano', 'Otkaži utovar (vrati robu na stanje)', 'btn-opasno', 'Otkazati utovaren spisak? Sva utovarena roba se vraća na stanje (upisuje se kao povrat).'];
+        $opis = 'Utovareno: stanje je skinuto i spisak se više ne menja. Ako je utovar greška, otkažite ga – roba se vraća na stanje.';
     }
     ?>
     <p class="pomoc"><?= e($opis) ?></p>
@@ -402,6 +409,9 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
             </form>
         <?php endforeach; ?>
     </div>
+    <?php if ($sp['status'] === 'za_utovar'): ?>
+        <p class="razmak-gore"><a class="btn btn-braon btn-blok" href="<?= e(url('radnik/utovar.php?id=' . $id)) ?>"><?= ikona('kamion') ?> Potvrdi utovar (štikliranje stavki)</a></p>
+    <?php endif; ?>
 </section>
 <?php
 ui_end();

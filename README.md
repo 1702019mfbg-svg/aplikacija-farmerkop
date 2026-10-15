@@ -10,7 +10,7 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 
 | Ko | Šta |
 |---|---|
-| **Radnik** (ime + PIN od 4 cifre) | **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
+| **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
 | **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar; ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
@@ -18,9 +18,10 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 ```
 app/                  ← ceo sadržaj ovog foldera ide u koren poddomena
   index.php login.php logout.php install.php config.php
-  radnik/             proizvodnja, kućna prodaja
+  radnik/             proizvodnja, kućna prodaja, utovar (potvrda spiska)
   admin/              stanje, prodaja, istorija, unos (ispravka), izvoz (CSV), dnevnik,
-                      radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak
+                      radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak,
+                      spisak_stampa (štampa / PDF / deljenje)
   inc/                bootstrap, db, auth, csrf, session, katalog, unosi, istorija,
                       podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi (zaštićeno .htaccess-om)
   assets/             css, js, ikone;  sw.js, manifest.webmanifest, offline.html
@@ -66,6 +67,7 @@ python3 tests/test_08_nadogradnja.py       # nadogradnja stare baze (v1 → v2) 
 python3 tests/test_09_uvoz.py              # uvoz stanja: CSV, uparivanje, jedinice, zaštite, pamćenje
 python3 tests/test_10_utovar.py            # spisak za utovar: šema v3, novi artikli, težina, utovar/povrat, rezervisano
 python3 tests/test_11_spisak.py            # spisak za utovar (admin): stavke, ostalo, palete/kg, upozorenja, statusi
+python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli klik, 4 telefona, minus, povrat, štampa
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

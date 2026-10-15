@@ -136,6 +136,7 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 - Na dnu je lista njegovih današnjih unosa i ukupan broj za danas.
 - **Pogrešan unos?** Dugme **Obriši** stoji uz poslednji unos još 10 minuta.
 - **Kućna prodaja:** prodaja na licu mesta, isto kao proizvodnja. Radnik ne vidi koliko robe ima; ako unese više nego što ima, program ga odbija.
+- **Utovar:** spiskovi koje je administrator poslao na utovar. Radnik otvori spisak, **štiklira svaku stavku** kad je utovarena, a ako je utovareno drugačije od plana dodirne **Drugačija količina** i upiše stvarno (0 ako nije utovareno ništa) → **Potvrdi utovar**. Tek tada se skida stanje. Dupli dodir ili dva telefona ne mogu da skinu stanje dvaput.
 
 ### Administrator (donja traka)
 | Kartica | Čemu služi |
@@ -156,6 +157,9 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 5. Ako za neku stavku nema dovoljno slobodne robe, spisak to pokaže žutim upozorenjem – to je samo upozorenje.
 6. **Pošalji na utovar:** spisak dobija status *Za utovar* i količine su **rezervisane** (Stanje pokazuje *rezervisano* i *slobodno*). Stanje se **ne skida** dok radnik ne potvrdi utovar.
 7. Za izmene: **Vrati u nacrt**, izmenite, pa ponovo pošaljite. **Otkaži spisak** ukida rezervaciju.
+8. **Utovar potvrđuje radnik** (kartica Utovar na njegovom telefonu) – ili vi, dugmetom **Potvrdi utovar** na spisku. Stanje se skida za stvarno utovarenu količinu; ako je utovareno više nego što program misli da ima, stanje ode u minus i Stanje to pokaže crveno („uradite popis“).
+9. **Utovaren spisak se više ne menja.** Ako je utovar bio greška: **Otkaži utovar (vrati robu na stanje)** – sve se vraća kao „povrat“, ništa se ne briše. Ostale razlike ispravljate popisom.
+10. **Štampa / PDF / Podeli:** prikaz spiska za štampu (sa mestima za potpis: utovario, vozač, primio). PDF: *Štampaj / PDF* → kao štampač izaberite **Sačuvaj kao PDF**. **Podeli** šalje tekst spiska u Viber, WhatsApp ili SMS.
 
 Statusi: **Nacrt** (slobodno menjate, stanje se ne dira) → **Za utovar** (radnici vide, rezervisano) → **Utovareno** (tek tada se skida stanje) · **Otkazano**.
 Sve promene spiskova su u *Dnevniku izmena*. Ako ručno unesete prodaju kupcu koji tog dana ima spisak, aplikacija upozori da se ista roba ne bi skinula dvaput.
@@ -216,7 +220,9 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
-**Novo – spisak za utovar, faza 2 (verzija baze 4):** kartica **Utovar** u donjoj traci (umesto Prodaje; ručna prodaja je unutra), pravljenje spiskova, rezervacija, broj paleta i težina tovara. Okvirne težine su upisane same: zemlja 5 l ≈ 1,8 kg (i srazmerno za ostala pakovanja), malč 50 l ≈ 15 kg, perlit 100 l ≈ 7 kg, keramzit 35 l ≈ 7 kg; rizla 50 komada po paleti. Težine koje ste već sami upisali se ne menjaju.
+**Novo – spisak za utovar, faze 3 i 4:** radnik potvrđuje utovar (kartica **Utovar**), stanje se skida tek tada; otkazivanje utovarenog spiska vraća robu (povrat); štampa, PDF i deljenje spiska. Unosi sa spiska se u Istoriji ne menjaju ručno (vode na spisak).
+
+**Spisak za utovar, faza 2 (verzija baze 4):** kartica **Utovar** u donjoj traci (umesto Prodaje; ručna prodaja je unutra), pravljenje spiskova, rezervacija, broj paleta i težina tovara. Okvirne težine su upisane same: zemlja 5 l ≈ 1,8 kg (i srazmerno za ostala pakovanja), malč 50 l ≈ 15 kg, perlit 100 l ≈ 7 kg, keramzit 35 l ≈ 7 kg; rizla 50 komada po paleti. Težine koje ste već sami upisali se ne menjaju.
 
 **Spisak za utovar, faza 1 (verzija baze 3):** novi artikli (crni i crveni oblutak u svim granulacijama; bela, crna i crvena rizla – sitnija i krupnija, 20 kg; perlit 5 l (20 u paketu) i 100 l; keramzit 5 l (8 u paketu) i 35 l), kolona **Kg/kom** (okvirna težina jednog komada, za težinu tovara) u *Podešavanja → Artikli → Uredi*, i priprema baze za spiskove za utovar. Ako ste neki od ovih artikala već ranije sami dodali, ne pravi se duplikat.
 

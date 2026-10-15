@@ -46,6 +46,7 @@ function nav_stavke(string $vrsta): array
     return [
         'proizvodnja' => ['Proizvodnja', 'radnik/index.php', 'kutija'],
         'kucna'       => ['Kućna prodaja', 'radnik/prodaja.php', 'kuca'],
+        'utovar'      => ['Utovar', 'radnik/utovar.php', 'kamion'],
     ];
 }
 

@@ -129,6 +129,9 @@ function unos_obrisi(int $unos_id, int $korisnik_id, string $akcija = 'brisanje'
         if ($u === null || (int)$u['obrisan'] === 1) {
             return ['ok' => false, 'greska' => 'Unos ne postoji ili je već obrisan.'];
         }
+        if ($u['spisak_id'] !== null) {
+            return ['ok' => false, 'greska' => 'Ovaj unos pripada spisku za utovar #' . (int)$u['spisak_id'] . ' – ispravlja se otkazivanjem spiska ili popisom.'];
+        }
         $sku_id = (int)$u['sku_id'];
         sku_zakljucaj($sku_id);
         $novo_stanje = stanje_sku($sku_id) - unos_efekat((string)$u['tip'], (int)$u['kolicina']);
@@ -192,6 +195,9 @@ function unos_izmeni(int $id, array $nova, int $korisnik_id): array
         $stari = db_one('SELECT * FROM unosi WHERE id = ? FOR UPDATE', [$id]);
         if ($stari === null || (int)$stari['obrisan'] === 1) {
             return ['ok' => false, 'greska' => 'Unos ne postoji ili je obrisan.'];
+        }
+        if ($stari['spisak_id'] !== null) {
+            return ['ok' => false, 'greska' => 'Ovaj unos pripada spisku za utovar #' . (int)$stari['spisak_id'] . ' – ispravlja se otkazivanjem spiska ili popisom.'];
         }
         $tip = (string)$stari['tip'];
         $stari_sku = (int)$stari['sku_id'];
