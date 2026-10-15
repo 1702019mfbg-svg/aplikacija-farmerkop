@@ -14,6 +14,7 @@ function ikona(string $ime, string $klasa = 'ikona'): string
         'radnici'      => '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17.5 14c2.5 0 4 1.8 4 4.5"/>',
         'podesavanja'  => '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
         'kutija'       => '<path d="M21 8 12 3 3 8v8l9 5 9-5V8z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/>',
+        'kamion'       => '<path d="M2 6h12v10H2z"/><path d="M14 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
         'kuca'         => '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
         'tema'         => '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/>',
         'odjava'       => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
@@ -36,7 +37,7 @@ function nav_stavke(string $vrsta): array
     if ($vrsta === 'admin') {
         return [
             'stanje'      => ['Stanje', 'admin/stanje.php', 'stanje'],
-            'prodaja'     => ['Prodaja', 'admin/prodaja.php', 'prodaja'],
+            'utovar'      => ['Utovar', 'admin/utovar.php', 'kamion'],
             'istorija'    => ['Istorija', 'admin/istorija.php', 'istorija'],
             'radnici'     => ['Radnici', 'admin/radnici.php', 'radnici'],
             'podesavanja' => ['Podešavanja', 'admin/podesavanja.php', 'podesavanja'],

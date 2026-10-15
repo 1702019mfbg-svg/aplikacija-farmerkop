@@ -470,3 +470,34 @@ input[type="date"].polje, input[type="datetime-local"].polje { min-width: 0; -we
 .sku-rez strong { color: var(--tekst); }
 .tekst-crveno, .sku-rez strong.tekst-crveno { color: var(--crvena); }
 .matrica-zaglavlje span { min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
+
+/* ── Spisak za utovar ── */
+.red-polja-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.red-polja-3 > * { min-width: 0; }
+.spiskovi { display: grid; gap: 10px; }
+.spisak-kartica { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--granica); border-left: 6px solid var(--granica); border-radius: 14px; background: var(--povrsina); color: var(--tekst); text-decoration: none; }
+.spisak-kartica.spisak-za_utovar { border-left-color: var(--zelena); }
+.spisak-kartica.spisak-nacrt { border-left-color: var(--kraft-tamno); }
+.spisak-kartica.spisak-otkazano { opacity: .7; }
+.spisak-glava { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.spisak-glava strong { font-size: 1.1rem; overflow-wrap: anywhere; }
+.spisak-pod, .spisak-zbir { font-size: .9rem; color: var(--tekst-bled); }
+.status-nacrt { background: var(--povrsina-2); color: var(--tekst); }
+.status-za_utovar { background: var(--zelena-svetla); color: var(--zelena-tamno); border-color: var(--zelena); }
+.status-utovareno { background: var(--zelena); color: #fff; border-color: var(--zelena); }
+.status-otkazano { background: var(--crvena-svetla); color: var(--crvena); border-color: var(--crvena); }
+:root[data-tema="dark"] .status-utovareno { color: #1a1612; }
+.spisak-podaci { display: grid; gap: 4px; margin: 0 0 12px; }
+.spisak-podaci > div { display: grid; grid-template-columns: 90px 1fr; gap: 8px; }
+.spisak-podaci dt { color: var(--tekst-bled); font-size: .9rem; }
+.spisak-podaci dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.stavke-lista .stavka { display: grid; gap: 6px; padding: 12px 0; }
+.stavka-glava { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.stavka-kol { font-size: .95rem; }
+.stavka-upoz { color: var(--upozorenje); font-weight: 700; font-size: .9rem; }
+.stavka-manjak { background: var(--upozorenje-svetla); margin: 0 -12px; padding-left: 12px !important; padding-right: 12px !important; }
+.stavka-izmena { display: flex; gap: 8px; align-items: flex-end; }
+.stavka-izmena .mala-oznaka { flex: 1; min-width: 0; margin: 0; font-size: .75rem; font-weight: 700; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
+.stavka-izmena .polje { margin-top: 3px; text-align: center; font-weight: 800; min-height: 48px; padding: 6px; }
+.stavka-izmena .btn { flex: none; min-height: 48px; }
+[data-nova-stavka] .popis-polja { margin-bottom: 6px; }

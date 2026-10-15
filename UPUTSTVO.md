@@ -141,12 +141,24 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 | Kartica | Čemu služi |
 |---|---|
 | **Stanje** | Stanje svakog artikla po pakovanju (komadi, palete, litri), danas proizvedeno i prodato, crveno kad padne ispod minimuma |
-| **Prodaja** | Unos prodaje (kupac, artikal, količina). Program ne dozvoljava da se proda više nego što ima. Raniji kupci se pamte |
+| **Utovar** | Spiskovi za utovar (kupac, datum, vozilo, vozač, stavke). Odatle je i **Ručna prodaja** – samo za izuzetke (npr. neko dođe po par vreća bez spiska) |
 | **Istorija** | Svi unosi sa filterima; ispravka i brisanje (uz zapis ko i kad); **Izvoz u Excel (CSV)** |
 | **Radnici** | Dodavanje, PIN, gašenje i vraćanje pristupa, pregled ko je koliko proizveo po danima |
 | **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, težina komada, **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
 
 **Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa. Sve se čuva u komadima; palete i paketi su samo način unosa.
+
+### Spisak za utovar
+1. **Utovar → Novi spisak za utovar:** kupac (raniji ili nov), datum utovara, vozilo, vozač, napomena → **Napravi spisak**.
+2. **Dodaj artikal:** izaberite artikal i pakovanje, pa upišite **palete + pakete + komade** u bilo kojoj kombinaciji (npr. 1 paleta + 2 paketa + 3 komada). Ispod piše ukupno komada i koliko ima na stanju.
+3. **Dodaj ostalo:** roba koja se ne vodi u aplikaciji (naziv, količina, jedinica, kg po jedinici). Ide na spisak i u težinu tovara, ali ne menja stanje.
+4. Gore se vidi **broj paleta** i **težina tovara** (okvirno, po težinama iz Podešavanja → Artikli → Kg/kom).
+5. Ako za neku stavku nema dovoljno slobodne robe, spisak to pokaže žutim upozorenjem – to je samo upozorenje.
+6. **Pošalji na utovar:** spisak dobija status *Za utovar* i količine su **rezervisane** (Stanje pokazuje *rezervisano* i *slobodno*). Stanje se **ne skida** dok radnik ne potvrdi utovar.
+7. Za izmene: **Vrati u nacrt**, izmenite, pa ponovo pošaljite. **Otkaži spisak** ukida rezervaciju.
+
+Statusi: **Nacrt** (slobodno menjate, stanje se ne dira) → **Za utovar** (radnici vide, rezervisano) → **Utovareno** (tek tada se skida stanje) · **Otkazano**.
+Sve promene spiskova su u *Dnevniku izmena*. Ako ručno unesete prodaju kupcu koji tog dana ima spisak, aplikacija upozori da se ista roba ne bi skinula dvaput.
 
 ### Početno stanje (popis) – kako krenuti sa praćenjem
 Pre nego što radnici počnu da unose, upišite koliko trenutno imate. Postoje dva načina, oba u **Podešavanja**:
@@ -204,7 +216,9 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
-**Novo – spisak za utovar, faza 1 (verzija baze 3):** novi artikli (crni i crveni oblutak u svim granulacijama; bela, crna i crvena rizla – sitnija i krupnija, 20 kg; perlit 5 l (20 u paketu) i 100 l; keramzit 5 l (8 u paketu) i 35 l), kolona **Kg/kom** (okvirna težina jednog komada, za težinu tovara) u *Podešavanja → Artikli → Uredi*, i priprema baze za spiskove za utovar. Ako ste neki od ovih artikala već ranije sami dodali, ne pravi se duplikat.
+**Novo – spisak za utovar, faza 2 (verzija baze 4):** kartica **Utovar** u donjoj traci (umesto Prodaje; ručna prodaja je unutra), pravljenje spiskova, rezervacija, broj paleta i težina tovara. Okvirne težine su upisane same: zemlja 5 l ≈ 1,8 kg (i srazmerno za ostala pakovanja), malč 50 l ≈ 15 kg, perlit 100 l ≈ 7 kg, keramzit 35 l ≈ 7 kg; rizla 50 komada po paleti. Težine koje ste već sami upisali se ne menjaju.
+
+**Spisak za utovar, faza 1 (verzija baze 3):** novi artikli (crni i crveni oblutak u svim granulacijama; bela, crna i crvena rizla – sitnija i krupnija, 20 kg; perlit 5 l (20 u paketu) i 100 l; keramzit 5 l (8 u paketu) i 35 l), kolona **Kg/kom** (okvirna težina jednog komada, za težinu tovara) u *Podešavanja → Artikli → Uredi*, i priprema baze za spiskove za utovar. Ako ste neki od ovih artikala već ranije sami dodali, ne pravi se duplikat.
 
 **Prethodno ažuriranje:** paketi (transportno pakovanje) kao treći način unosa, popis u paletama + paketima + komadima, uvoz stanja iz fajla, naziv „Cmana supstrat“, i zaštite u Podešavanjima artikala (potvrda pre „Isključi“, ne može da se sačuva artikal bez ijednog pakovanja, crvena oznaka „nema pakovanja“, dugme „Vrati artikal na stanje bez varijanti“). Komada u paketu se podešava po pakovanju: *Podešavanja → Artikli → Uredi → pakete, palete i minimum*.
 

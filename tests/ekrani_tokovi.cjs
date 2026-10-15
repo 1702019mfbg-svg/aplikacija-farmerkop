@@ -427,6 +427,70 @@ module.exports = {
         await radnik.ctx.close();
     },
 
+    async spisak(page, p) {
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.getByRole('link', { name: 'Utovar' }).click();
+        await page.waitForURL('**/admin/utovar.php');
+        await p.slika('70-utovar-prazno');
+        await page.fill('#kupac', 'Agrocentar Novi Sad');
+        await page.fill('#vozilo', 'NS 123-AB');
+        await page.fill('#vozac', 'Pera');
+        await page.getByRole('button', { name: 'Napravi spisak' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+
+        // Humovit 10 l: palete + paketi + komadi, zbir uživo
+        await page.selectOption('#sku_id', { label: 'Humovit · 10 l' });
+        tvrdi(await page.locator('[data-polje-pak]').isVisible() && await page.locator('[data-polje-pal]').isVisible(), 'Humovit 10 l ima palete i pakete');
+        await page.fill('[data-nova-stavka] [name="pal"]', '1');
+        await page.fill('[data-nova-stavka] [name="pak"]', '2');
+        await page.fill('[data-nova-stavka] [name="kom"]', '3');
+        const zbir = await page.locator('[data-nova-stavka] [data-zbir]').innerText();
+        tvrdi(zbir.includes('= 285 kom') && zbir.includes('na stanju'), 'zbir nove stavke: ' + zbir);
+        await page.getByRole('button', { name: 'Dodaj na spisak' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+
+        // Humovit 25 l nema paket: polje za pakete se skriva
+        await page.selectOption('#sku_id', { label: 'Humovit · 25 l' });
+        tvrdi(!(await page.locator('[data-polje-pak]').isVisible()), 'Humovit 25 l: nema polja za pakete');
+        await page.fill('[data-nova-stavka] [name="pal"]', '2');
+        await page.getByRole('button', { name: 'Dodaj na spisak' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+
+        // Ostalo
+        await page.locator('summary', { hasText: 'Dodaj ostalo' }).click();
+        await page.fill('#o_naziv', 'Saksije 30 cm');
+        await page.fill('#o_kolicina', '40');
+        await page.fill('#o_kg', '0,8');
+        await page.getByRole('button', { name: 'Dodaj ostalo' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.stavke-lista .stavka').count()) === 3, '3 stavke na spisku');
+        const t = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+        tvrdi(t.includes('1 pal + 2 pak + 3 kom = 285 kom'), 'prikaz stavke Humovit 10 l');
+        await p.slika('71-spisak-nacrt');
+
+        // izmena količine uživo u listi
+        const red = page.locator('.stavka', { hasText: 'Humovit · 25 l' });
+        await red.locator('[data-p="pal"]').fill('1');
+        tvrdi((await red.locator('[data-zbir]').innerText()).includes('= 120 kom'), 'izmena u listi: zbir uživo');
+        await page.getByRole('button', { name: 'Sačuvaj izmene količina' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+
+        // slanje na utovar (potvrda)
+        page.once('dialog', (d) => { tvrdi(d.message().includes('Poslati spisak na utovar'), 'pitanje: ' + d.message()); d.accept(); });
+        await page.getByRole('button', { name: 'Pošalji na utovar' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.znacka.status-za_utovar').count()) === 1, 'status Za utovar');
+        tvrdi((await page.locator('[data-nova-stavka]').count()) === 0, 'spisak Za utovar se više ne menja');
+        await p.slika('72-spisak-za-utovar');
+        await page.getByRole('link', { name: /Svi spiskovi/ }).click();
+        await page.waitForURL('**/admin/utovar.php');
+        tvrdi((await page.locator('.spisak-kartica').count()) === 1, 'jedan spisak u listi');
+        await p.slika('73-utovar-lista');
+        await page.goto(p.base + '/admin/stanje.php');
+        tvrdi((await page.locator('.sku-rez').count()) >= 2, 'Stanje prikazuje rezervisano');
+        await p.slika('74-stanje-rezervisano');
+    },
+
     async pwa(page, p) {
         // Posrednik ispred servera: gašenjem posrednika simuliramo da je telefon izgubio vezu.
         const http = require('http');

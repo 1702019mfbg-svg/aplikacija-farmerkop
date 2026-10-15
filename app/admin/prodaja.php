@@ -37,6 +37,15 @@ if (je_post()) {
                 } elseif ($rez['ok']) {
                     db_run('UPDATE kupci SET poslednja_prodaja = ? WHERE id = ?', [sada(), $kupac_id]);
                     flash_dodaj('uspeh', 'Prodaja sačuvana: ' . $kupac . ' – ' . sku_naziv($sku) . ' – ' . kolicina_tekst($kol['komadi'], $kol['palete'], $kol['paketi']));
+                    // Zaštita od duplog skidanja: isti kupac danas ima spisak za utovar.
+                    $spisak = db_one(
+                        "SELECT id, status FROM spiskovi WHERE kupac_id = ? AND datum = ? AND status IN ('za_utovar','utovareno') ORDER BY id DESC LIMIT 1",
+                        [$kupac_id, date('Y-m-d')]
+                    );
+                    if ($spisak !== null) {
+                        flash_dodaj('upozorenje', 'Pažnja: ' . $kupac . ' danas ima spisak za utovar #' . (int)$spisak['id'] . ' (' . ($spisak['status'] === 'utovareno' ? 'utovaren' : 'čeka utovar')
+                            . '). Ako je ista roba na spisku, stanje bi se skinulo dvaput – tada obrišite ovu prodaju u Istoriji.');
+                    }
                     $nazad = 'admin/prodaja.php?' . http_build_query(['kupac' => $kupac]);
                 } elseif (!empty($rez['nedovoljno'])) {
                     flash_dodaj('greska', 'Nema dovoljno na stanju: na stanju je ' . broj((int)$rez['stanje']) . ' kom.');
@@ -71,7 +80,7 @@ if ($izabran_sku > 0 && sku_aktivan($izabran_sku) === null) {
 }
 $unapred_kupac = get_str('kupac', 120);
 
-ui_start('Prodaja', ['nav' => 'admin', 'aktivno' => 'prodaja', 'js' => ['assets/js/unos.js', 'assets/js/prodaja.js']]);
+ui_start('Prodaja', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/unos.js', 'assets/js/prodaja.js']]);
 ?>
 <div class="stat-mreza">
     <div class="stat">

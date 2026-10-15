@@ -9,10 +9,11 @@
  * Verzija 3: spisak za utovar – težina jednog komada, spiskovi i stavke spiska (i "ostalo"),
  *            nove vrste kretanja zaliha (utovar, povrat) i veza unosa sa spiskom;
  *            novi artikli: crni i crveni oblutak, rizla (bela, crna, crvena), perlit, keramzit.
+ * Verzija 4: okvirne težine komada (zemlja, malč, perlit, keramzit) i 50 komada po paleti za rizlu.
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 3;
+const SCHEMA_VERZIJA = 4;
 
 function kolona_postoji(string $tabela, string $kolona): bool
 {
@@ -234,10 +235,40 @@ function migracija_3(): void
     db_trans('ubaci_dodatke_v3');
 }
 
+/**
+ * Okvirne težine (kg po litru) po podacima vlasnika: zemlja 5 l ≈ 1,8 kg, malč 50 l ≈ 15 kg,
+ * perlit 100 l ≈ 7 kg, keramzit 35 l ≈ 7 kg. Upisuje se samo gde težina još nije upisana.
+ */
+function postavi_tezine_v4(): void
+{
+    $po_kategoriji = ['Zemlja za cveće' => 0.36, 'Malč' => 0.3];
+    foreach ($po_kategoriji as $kategorija => $kg_po_litru) {
+        db_run(
+            "UPDATE sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id JOIN pakovanja p ON p.id = s.pakovanje_id
+             SET s.tezina_kg = ROUND(p.kolicina * ?, 2) WHERE k.naziv = ? AND p.jedinica = 'l' AND s.tezina_kg IS NULL",
+            [$kg_po_litru, $kategorija]
+        );
+    }
+    foreach (['Perlit' => 0.07, 'Keramzit' => 0.2] as $artikal => $kg_po_litru) {
+        db_run(
+            "UPDATE sku s JOIN artikli a ON a.id = s.artikal_id JOIN pakovanja p ON p.id = s.pakovanje_id
+             SET s.tezina_kg = ROUND(p.kolicina * ?, 2) WHERE a.naziv = ? AND p.jedinica = 'l' AND s.tezina_kg IS NULL",
+            [$kg_po_litru, $artikal]
+        );
+    }
+    db_run("UPDATE sku s JOIN artikli a ON a.id = s.artikal_id SET s.po_paleti = 50
+            WHERE a.naziv IN ('Bela rizla', 'Crna rizla', 'Crvena rizla') AND s.po_paleti IS NULL");
+}
+
+function migracija_4(): void
+{
+    db_trans('postavi_tezine_v4');
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
-    return [2 => 'migracija_2', 3 => 'migracija_3'];
+    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

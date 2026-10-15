@@ -230,4 +230,5 @@ function ubaci_pocetni_katalog(): void
     }
     // Artikli dodati kasnije (verzija 3) – nova instalacija ih dobija odmah.
     ubaci_dodatke_v3();
+    postavi_tezine_v4();
 }

@@ -135,7 +135,7 @@ try:
     R.provera(sql_int("SELECT neuspesni_pokusaji FROM korisnici WHERE uloga='admin'") == 0, "uspešna prijava vraća brojač na 0")
     o = a.get("/admin/stanje.php")
     R.provera(o.status == 200 and "Farmerkop · Vlasnik" in o.text, "administrator vidi admin stranicu")
-    R.provera("Podešavanja" in o.text and "Istorija" in o.text and "Radnici" in o.text and "Prodaja" in o.text and "Stanje" in o.text, "donja navigacija ima svih 5 kartica")
+    R.provera("Podešavanja" in o.text and "Istorija" in o.text and "Radnici" in o.text and "Utovar" in o.text and "Stanje" in o.text, "donja navigacija ima svih 5 kartica")
 
     # ── 4. Radnici ───────────────────────────────────────────────────────────
     R.odeljak("Prijava radnika (ime + PIN)")

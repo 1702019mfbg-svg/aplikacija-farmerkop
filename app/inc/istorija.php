@@ -110,6 +110,7 @@ const AKCIJE_DNEVNIKA = [
     'brisanje_radnik' => 'Obrisao radnik',
     'povracaj'        => 'Vraćeno',
     'podesavanje'     => 'Podešavanje',
+    'spisak'          => 'Spisak za utovar',
 ];
 
 /** Opis promene u obliku liste rečenica ("Količina: 100 → 120 kom"). */

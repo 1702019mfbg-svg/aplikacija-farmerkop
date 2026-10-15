@@ -11,7 +11,7 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 | Ko | Šta |
 |---|---|
 | **Radnik** (ime + PIN od 4 cifre) | **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
-| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma), **Prodaja** (kupci, zabrana prodaje preko stanja), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
+| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar; ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
 
@@ -20,9 +20,9 @@ app/                  ← ceo sadržaj ovog foldera ide u koren poddomena
   index.php login.php logout.php install.php config.php
   radnik/             proizvodnja, kućna prodaja
   admin/              stanje, prodaja, istorija, unos (ispravka), izvoz (CSV), dnevnik,
-                      radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra
+                      radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak
   inc/                bootstrap, db, auth, csrf, session, katalog, unosi, istorija,
-                      podesavanja, izbor, layout, schema, migracije, uvoz (zaštićeno .htaccess-om)
+                      podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi (zaštićeno .htaccess-om)
   assets/             css, js, ikone;  sw.js, manifest.webmanifest, offline.html
 tests/                HTTP testovi (Python, nad pravom MariaDB), Apache test, snimci ekrana
 tools/                napravi_zip.sh, napravi_ikone.php
@@ -35,9 +35,9 @@ dist/                 gotovi ZIP paketi
   (isti artikal u istoj litraži može imati drugačiju paletu, npr. Idea 10 l = 225, Humovit 10 l = 270).
 - Sve količine se čuvaju u **komadima**. **Paleta i paket su samo način unosa** (palete × `po_paleti`, paketi × `po_paketu`;
   `unosi.palete` / `unosi.paketi` pamte šta je radnik uneo).
-- Tabela `unosi` je jedini izvor istine: `proizvodnja`, `prodaja`, `kucna_prodaja`, `korekcija`.
+- Tabela `unosi` je jedini izvor istine: `proizvodnja`, `prodaja`, `kucna_prodaja`, `korekcija`,
   `utovar` (po spisku) i `povrat` (otkazan utovar). **Stanje = zbir** (prodaja i utovar oduzimaju, `TIPOVI_MINUS`). Brisanje je meko (`obrisan = 1`), a svaka izmena/brisanje ide u `dnevnik`.
-- Stanje nikad ne sme pasti ispod nule; promena SKU-a zaključava njegov red (`SELECT … FOR UPDATE`),
+- Stanje ne sme pasti ispod nule (izuzetak: potvrđen utovar – roba je već na kamionu, pa minus znači da treba popis); promena SKU-a zaključava njegov red (`SELECT … FOR UPDATE`),
   pa dva istovremena unosa ne mogu da probiju stanje (vidi `inc/unosi.php`).
 - Artikli, varijante, pakovanja i kategorije se **ne brišu**, samo isključuju.
 - **Šema baze se nadograđuje sama:** `inc/migracije.php` (`SCHEMA_VERZIJA`, `podesavanja.schema_verzija`) se izvršava pri prvom zahtevu
@@ -65,6 +65,7 @@ python3 tests/test_07_paketi.py            # paketi, popis u pal/pak/kom, zašti
 python3 tests/test_08_nadogradnja.py       # nadogradnja stare baze (v1 → v2) bez gubitka podataka
 python3 tests/test_09_uvoz.py              # uvoz stanja: CSV, uparivanje, jedinice, zaštite, pamćenje
 python3 tests/test_10_utovar.py            # spisak za utovar: šema v3, novi artikli, težina, utovar/povrat, rezervisano
+python3 tests/test_11_spisak.py            # spisak za utovar (admin): stavke, ostalo, palete/kg, upozorenja, statusi
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```
