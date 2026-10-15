@@ -43,6 +43,8 @@ dist/                 gotovi ZIP paketi
 - Artikli, varijante, pakovanja i kategorije se **ne brišu**, samo isključuju.
 - **Šema baze se nadograđuje sama:** `inc/migracije.php` (`SCHEMA_VERZIJA`, `podesavanja.schema_verzija`) se izvršava pri prvom zahtevu
   posle ažuriranja, pod `GET_LOCK`. Nova promena šeme = nova `migracija_N()` + povećan broj verzije + isto u `schema.php` za nove instalacije.
+- **Spisak za utovar** (`inc/spiskovi.php`): `spiskovi`, `spisak_stavke` (artikal ili „ostalo“; `paleta_id` > 0 = stavka zbirne palete,
+  količina = na jednoj paleti × `spisak_palete.broj`), `spisak_palete`. Stanje se skida tek potvrdom utovara (`spisak_potvrdi_utovar`).
 - **Uvoz stanja** (`inc/uvoz.php`, `admin/uvoz.php`): čita CSV/tabelu, uparuje redove sa SKU-ovima po normalizovanim rečima
   (latinica/ćirilica, pakovanje, granulacija, boja), pamti ručna uparivanja u `uvoz_mapiranje`, a upisuje preko `popis_postavi()`.
 
@@ -69,6 +71,7 @@ python3 tests/test_10_utovar.py            # spisak za utovar: šema v3, novi ar
 python3 tests/test_11_spisak.py            # spisak za utovar (admin): stavke, ostalo, palete/kg, upozorenja, statusi
 python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli klik, 4 telefona, minus, povrat, štampa,
                                            # utovar na licu mesta (više od plana, radnik dodaje artikal)
+python3 tests/test_13_zbirna_paleta.py     # zbirna paleta: više artikala na paleti, broj paleta, radnik, štampa, v5 → v6
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

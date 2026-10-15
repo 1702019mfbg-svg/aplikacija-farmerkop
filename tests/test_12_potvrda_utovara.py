@@ -35,7 +35,7 @@ def stavke_ids(sp):
 
 def napravi_spisak(adm, kupac, stavke, ostalo=None, posalji=True):
     adm.get("/admin/utovar.php")
-    adm.post("/admin/utovar.php", {"kupac": kupac, "datum": sql("SELECT CURDATE()"), "vozilo": "NS 1", "vozac": "Pera"})
+    adm.post("/admin/utovar.php", {"kupac": kupac, "datum": danas_bg(), "vozilo": "NS 1", "vozac": "Pera"})
     sp = sql_int("SELECT MAX(id) FROM spiskovi")
     for sku, polja in stavke:
         adm.post("/admin/spisak.php", dict({"akcija": "dodaj", "id": sp, "sku_id": sku}, **polja))

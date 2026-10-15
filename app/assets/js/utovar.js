@@ -18,7 +18,26 @@
         for (var i = 0; i < polja.length; i++) { polja[i].disabled = !det.open; }
         if (det.open && polja.length) { polja[polja.length - 1].focus(); }
     }, true);
-    forma.addEventListener('change', brojac);
+    /* Zbirna paleta: jedan kvadratić štiklira (ili odštiklira) sve artikle na toj paleti. */
+    function grupa(g) {
+        var linije = forma.querySelectorAll('[data-cek][data-grupa="' + g + '"]');
+        var ok = 0;
+        for (var i = 0; i < linije.length; i++) { if (linije[i].checked) { ok++; } }
+        var gr = forma.querySelector('[data-cek-grupa="' + g + '"]');
+        if (gr) { gr.checked = ok === linije.length && ok > 0; gr.indeterminate = ok > 0 && ok < linije.length; }
+    }
+    forma.addEventListener('change', function (e) {
+        var t = e.target;
+        if (t.hasAttribute && t.hasAttribute('data-cek-grupa')) {
+            var linije = forma.querySelectorAll('[data-cek][data-grupa="' + t.getAttribute('data-cek-grupa') + '"]');
+            for (var i = 0; i < linije.length; i++) { linije[i].checked = t.checked; }
+        } else if (t.hasAttribute && t.hasAttribute('data-grupa')) {
+            grupa(t.getAttribute('data-grupa'));
+        }
+        brojac();
+    });
+    var grupe = forma.querySelectorAll('[data-cek-grupa]');
+    for (var g = 0; g < grupe.length; g++) { grupa(grupe[g].getAttribute('data-cek-grupa')); }
     // na prozoru (pre opšte potvrde iz app.js), da se prvo proveri da je sve štiklirano
     window.addEventListener('submit', function (e) {
         if (e.target !== forma) { return; }

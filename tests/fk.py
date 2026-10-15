@@ -33,9 +33,25 @@ ADMIN_PASS = "Tajna-lozinka-1"
 
 # ─── Baza ──────────────────────────────────────────────────────────────────
 
+def _beograd_pomak():
+    """Trenutni pomak beogradskog vremena od UTC-a, npr. '+02:00' (leti) ili '+01:00' (zimi)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    m = int(datetime.now(ZoneInfo("Europe/Belgrade")).utcoffset().total_seconds() // 60)
+    return "%s%02d:%02d" % ("+" if m >= 0 else "-", abs(m) // 60, abs(m) % 60)
+
+
+def danas_bg():
+    """Današnji datum po beogradskom vremenu (kao u aplikaciji)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Europe/Belgrade")).strftime("%Y-%m-%d")
+
+
 def sql(upit, db=DB_NAME):
-    """Izvrši SQL preko mysql CLI i vrati tekst (kolone odvojene tabulatorom)."""
-    cmd = ["mysql", "-N", "-B", "-e", upit]
+    """Izvrši SQL preko mysql CLI i vrati tekst (kolone odvojene tabulatorom).
+    NOW() i CURDATE() u testovima daju beogradsko vreme, isto kao aplikacija (inače se oko ponoći "danas" razlikuje)."""
+    cmd = ["mysql", "-N", "-B", "-e", "SET time_zone = '%s'; %s" % (_beograd_pomak(), upit)]
     if db:
         cmd.append(db)
     r = subprocess.run(cmd, capture_output=True, text=True)

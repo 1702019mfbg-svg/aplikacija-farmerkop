@@ -9,6 +9,8 @@
  *
  * Stavka je artikal iz aplikacije (sku_id, količina u komadima, kako je uneto: palete + paketi + komadi)
  * ili "ostalo" (sku_id = NULL): roba koja se ne vodi u aplikaciji i ne dira stanje.
+ * Zbirna paleta (spisak_palete) grupiše stavke koje se slažu na istu paletu; kod njih je "kako je uneto"
+ * količina za JEDNU paletu (paketi + komadi), a kolicina = ta količina × broj ovakvih paleta.
  */
 declare(strict_types=1);
 
@@ -41,18 +43,61 @@ function spisak_stavke(int $spisak_id): array
         'SELECT st.id AS stavka_id, st.spisak_id, st.sku_id, st.naziv AS ostalo_naziv, st.jedinica AS ostalo_jedinica,
                 st.tezina_kg AS ostalo_kg, st.kolicina, st.palete AS u_palete, st.paketi AS u_paketi, st.komadi AS u_komadi,
                 st.utovareno, st.redosled, st.dodao_id, d.ime AS dodao,
+                st.paleta_id, pl.naziv AS paleta_naziv, pl.broj AS paleta_broj,
                 s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
                 p.kolicina AS pak_kolicina, p.jedinica
          FROM spisak_stavke st
+         LEFT JOIN spisak_palete pl ON pl.id = st.paleta_id
          LEFT JOIN korisnici d ON d.id = st.dodao_id
          LEFT JOIN sku s ON s.id = st.sku_id
          LEFT JOIN artikli a ON a.id = s.artikal_id
          LEFT JOIN pakovanja p ON p.id = s.pakovanje_id
          LEFT JOIN varijante v ON v.id = s.varijanta_id
          WHERE st.spisak_id = ?
-         ORDER BY (st.sku_id IS NULL), st.redosled, st.id',
+         ORDER BY (st.paleta_id > 0), pl.redosled, st.paleta_id, (st.sku_id IS NULL), st.redosled, st.id',
         [$spisak_id]
     );
+}
+
+/** Zbirne palete spiska (i prazne), redom. */
+function spisak_palete(int $spisak_id): array
+{
+    return db_all('SELECT * FROM spisak_palete WHERE spisak_id = ? ORDER BY redosled, id', [$spisak_id]);
+}
+
+/** Stavke po grupama: [0 => posebne stavke, paleta_id => stavke te zbirne palete]; uz svaku grupu naziv i broj. */
+function spisak_grupe(array $stavke): array
+{
+    $grupe = [0 => ['naziv' => null, 'broj' => 0, 'stavke' => []]];
+    foreach ($stavke as $st) {
+        $pid = (int)$st['paleta_id'];
+        if (!isset($grupe[$pid])) {
+            $grupe[$pid] = ['naziv' => (string)$st['paleta_naziv'], 'broj' => (int)$st['paleta_broj'], 'stavke' => []];
+        }
+        $grupe[$pid]['stavke'][] = $st;
+    }
+    return $grupe;
+}
+
+/** "1 artikal", "3 artikla", "5 artikala" */
+function artikala_tekst(int $n): string
+{
+    $m10 = $n % 10;
+    $m100 = $n % 100;
+    if ($m10 === 1 && $m100 !== 11) {
+        $rec = 'artikal';
+    } elseif ($m10 >= 2 && $m10 <= 4 && ($m100 < 12 || $m100 > 14)) {
+        $rec = 'artikla';
+    } else {
+        $rec = 'artikala';
+    }
+    return $n . ' ' . $rec;
+}
+
+/** "Zbirna paleta 1 (2 palete)" */
+function paleta_naslov(string $naziv, int $broj): string
+{
+    return $naziv . ($broj > 1 ? ' (' . palete_tekst($broj) . ')' : '');
 }
 
 /** Naziv stavke: "Humovit · 10 l" ili naziv "ostalog". */
@@ -61,11 +106,27 @@ function stavka_naziv(array $st): string
     return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_naziv($st);
 }
 
+/** Naziv sa zbirnom paletom: "Humovit · 10 l (Zbirna paleta 1)". */
+function stavka_puni_naziv(array $st): string
+{
+    return stavka_naziv($st) . ((int)($st['paleta_id'] ?? 0) > 0 ? ' (' . $st['paleta_naziv'] . ')' : '');
+}
+
 /** Kako je količina uneta: "2 pal + 3 pak + 5 kom" (za "ostalo": "40 kom"). */
 function stavka_unos_tekst(array $st): string
 {
     if ($st['sku_id'] === null) {
         return broj((int)$st['kolicina']) . ' ' . ($st['ostalo_jedinica'] ?: 'kom');
+    }
+    if ((int)($st['paleta_id'] ?? 0) > 0) {
+        $delovi = [];
+        if ((int)$st['u_paketi'] > 0) {
+            $delovi[] = (int)$st['u_paketi'] . ' pak';
+        }
+        if ((int)$st['u_komadi'] > 0 || !$delovi) {
+            $delovi[] = broj((int)$st['u_komadi']) . ' kom';
+        }
+        return implode(' + ', $delovi) . ((int)$st['paleta_broj'] > 1 ? ' na paleti' : '');
     }
     $delovi = [];
     if ((int)$st['u_palete'] > 0) {
@@ -80,6 +141,25 @@ function stavka_unos_tekst(array $st): string
     return implode(' + ', $delovi);
 }
 
+/**
+ * Plan stavke za prikaz: "1 pal + 2 pak = 282 kom", "5 kom na paleti × 2 = 10 kom", "40 kom".
+ */
+function stavka_plan_tekst(array $st): string
+{
+    $t = stavka_unos_tekst($st);
+    if ($st['sku_id'] === null) {
+        return $t;
+    }
+    $kol = broj((int)$st['kolicina']) . ' kom';
+    if ((int)($st['paleta_id'] ?? 0) > 0) {
+        if ((int)$st['paleta_broj'] > 1) {
+            return $t . ' × ' . (int)$st['paleta_broj'] . ' = ' . $kol;
+        }
+        return (int)$st['u_paketi'] > 0 ? $t . ' = ' . $kol : $t;
+    }
+    return ((int)$st['u_palete'] > 0 || (int)$st['u_paketi'] > 0) ? $t . ' = ' . $kol : $t;
+}
+
 /** Težina stavke u kg (null = nepoznata). Za stavku koja je utovarena uzima se utovarena količina. */
 function stavka_kg(array $st, ?int $kolicina = null): ?float
 {
@@ -92,15 +172,24 @@ function stavka_kg(array $st, ?int $kolicina = null): ?float
 }
 
 /**
- * Zbir spiska: ukupno paleta (komadi / komada po paleti), težina u kg i šta nije moglo da se uračuna.
- * ['palete' => float, 'kg' => float, 'bez_palete' => int, 'bez_tezine' => int, 'stavki' => int]
+ * Zbir spiska: ukupno paleta (komadi / komada po paleti, a zbirna paleta je cela paleta), težina u kg
+ * i šta nije moglo da se uračuna.
+ * ['palete' => float, 'zbirnih' => int, 'kg' => float, 'bez_palete' => int, 'bez_tezine' => int, 'stavki' => int]
  */
 function spisak_zbir(array $stavke, bool $utovareno = false): array
 {
-    $z = ['palete' => 0.0, 'kg' => 0.0, 'bez_palete' => 0, 'bez_tezine' => 0, 'stavki' => count($stavke)];
+    $z = ['palete' => 0.0, 'zbirnih' => 0, 'kg' => 0.0, 'bez_palete' => 0, 'bez_tezine' => 0, 'stavki' => count($stavke)];
+    $vidjene = [];
     foreach ($stavke as $st) {
         $kol = $utovareno && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
-        if ($st['sku_id'] !== null) {
+        $pid = (int)($st['paleta_id'] ?? 0);
+        if ($pid > 0) {
+            if (!isset($vidjene[$pid])) {
+                $vidjene[$pid] = true;
+                $z['palete'] += (int)$st['paleta_broj'];
+                $z['zbirnih'] += (int)$st['paleta_broj'];
+            }
+        } elseif ($st['sku_id'] !== null) {
             if ((int)$st['po_paleti'] > 0) {
                 $z['palete'] += $kol / (int)$st['po_paleti'];
             } else {
@@ -142,6 +231,13 @@ function spisak_manjak(int $spisak_id, array $stavke): array
     ) as $r) {
         $rez[(int)$r['sku_id']] = (int)$r['kom'];
     }
+    // isti artikal može biti i posebna stavka i u zbirnoj paleti – gleda se ukupno na spisku
+    $na_spisku = [];
+    foreach ($stavke as $st) {
+        if ($st['sku_id'] !== null) {
+            $na_spisku[(int)$st['sku_id']] = ($na_spisku[(int)$st['sku_id']] ?? 0) + (int)$st['kolicina'];
+        }
+    }
     $manjak = [];
     foreach ($stavke as $st) {
         if ($st['sku_id'] === null) {
@@ -149,8 +245,8 @@ function spisak_manjak(int $spisak_id, array $stavke): array
         }
         $sid = (int)$st['sku_id'];
         $slobodno = ($stanja[$sid] ?? 0) - ($rez[$sid] ?? 0);
-        if ((int)$st['kolicina'] > $slobodno) {
-            $manjak[(int)$st['stavka_id']] = ['slobodno' => $slobodno, 'trazi' => (int)$st['kolicina']];
+        if ($na_spisku[$sid] > $slobodno) {
+            $manjak[(int)$st['stavka_id']] = ['slobodno' => $slobodno, 'trazi' => $na_spisku[$sid], 'stavka' => (int)$st['kolicina']];
         }
     }
     return $manjak;
@@ -298,7 +394,7 @@ function utovar_iz_posta(array $stavke): array
     foreach ($stavke as $st) {
         $sid = (int)$st['stavka_id'];
         if (($ok[$sid] ?? '') !== '1') {
-            $neoznaceno[] = stavka_naziv($st);
+            $neoznaceno[] = stavka_puni_naziv($st);
             continue;
         }
         if ($st['sku_id'] === null) {
@@ -371,7 +467,7 @@ function spisak_potvrdi_utovar(int $id, array $kolicine, int $korisnik_id): arra
             $k = $kolicine[$sid];
             db_run('UPDATE spisak_stavke SET utovareno = ? WHERE id = ?', [$k['kolicina'], $sid]);
             if ($k['kolicina'] !== (int)$st['kolicina']) {
-                $razlike[] = stavka_naziv($st) . ': ' . broj($k['kolicina']) . ' umesto ' . broj((int)$st['kolicina']);
+                $razlike[] = stavka_puni_naziv($st) . ': ' . broj($k['kolicina']) . ' umesto ' . broj((int)$st['kolicina']);
             }
             if ($st['sku_id'] === null || $k['kolicina'] === 0) {
                 continue;
@@ -379,7 +475,8 @@ function spisak_potvrdi_utovar(int $id, array $kolicine, int $korisnik_id): arra
             db_run(
                 "INSERT INTO unosi (tip, sku_id, kolicina, palete, paketi, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
                  VALUES ('utovar', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [(int)$st['sku_id'], $k['kolicina'], $k['palete'], $k['paketi'], $korisnik_id, (int)$sp['kupac_id'], $id, 'Spisak #' . $id, $sad, $sad]
+                [(int)$st['sku_id'], $k['kolicina'], $k['palete'], $k['paketi'], $korisnik_id, (int)$sp['kupac_id'], $id,
+                 'Spisak #' . $id . ((int)$st['paleta_id'] > 0 ? ' – ' . $st['paleta_naziv'] : ''), $sad, $sad]
             );
         }
         db_run("UPDATE spiskovi SET status = 'utovareno', utovario_id = ?, utovareno_u = ?, izmenjen = ? WHERE id = ?", [$korisnik_id, $sad, $sad, $id]);
@@ -403,20 +500,24 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
     if ($sp['vozac']) {
         $l[] = 'Vozač: ' . $sp['vozac'];
     }
-    $l[] = '';
     $n = 0;
-    foreach ($stavke as $st) {
-        $n++;
-        $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
-        if ($st['sku_id'] === null) {
-            $opis = broj($kol) . ' ' . ($st['ostalo_jedinica'] ?: 'kom');
-        } else {
-            $opis = ($utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom' : stavka_unos_tekst($st) . ((int)$st['u_palete'] > 0 || (int)$st['u_paketi'] > 0 ? ' = ' . broj($kol) . ' kom' : ''));
+    foreach (spisak_grupe($stavke) as $pid => $g) {
+        if (!$g['stavke']) {
+            continue;
         }
-        $l[] = $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
+        $l[] = '';
+        if ($pid > 0) {
+            $l[] = 'ZBIRNA PALETA – ' . paleta_naslov($g['naziv'], $g['broj']) . ':';
+        }
+        foreach ($g['stavke'] as $st) {
+            $n++;
+            $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
+            $opis = $utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom (utovareno)' : stavka_plan_tekst($st);
+            $l[] = ($pid > 0 ? '   ' : '') . $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
+        }
     }
     $l[] = '';
-    $l[] = 'Ukupno: ' . ($z['palete'] > 0 ? palete_zbir_tekst($z['palete']) . ', ' : '') . '≈ ' . kg_tekst($z['kg']);
+    $l[] = 'Ukupno: ' . ($z['palete'] > 0 ? palete_zbir_tekst($z['palete']) . ($z['zbirnih'] > 0 ? ' (zbirnih: ' . $z['zbirnih'] . ')' : '') . ', ' : '') . '≈ ' . kg_tekst($z['kg']);
     if ($sp['napomena']) {
         $l[] = 'Napomena: ' . $sp['napomena'];
     }
@@ -434,7 +535,7 @@ function spisak_dodaj_pri_utovaru(int $id, array $sku, int $komadi, int $pal, in
         if ($sp === null || $sp['status'] !== 'za_utovar') {
             return ['ok' => false, 'greska' => 'Spisak više ne čeka utovar.', 'stavka_id' => null];
         }
-        if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND sku_id = ?', [$id, (int)$sku['sku_id']]) !== null) {
+        if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND paleta_id = 0 AND sku_id = ?', [$id, (int)$sku['sku_id']]) !== null) {
             return ['ok' => false, 'greska' => sku_naziv($sku) . ' je već na spisku – kod te stavke dodirnite „Više ili manje od plana“ i upišite količinu.', 'stavka_id' => null];
         }
         $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;

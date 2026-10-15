@@ -114,37 +114,63 @@ if ($id > 0) {
         <input type="hidden" name="id" value="<?= $id ?>">
         <div class="kartica-naslov"><h2>Štiklirajte šta je utovareno</h2></div>
         <p class="pomoc">Ako je utovareno <strong>više ili manje</strong> od plana (npr. u šleper stane više), dodirnite <strong>Više ili manje od plana</strong> i upišite stvarno utovareno (0 ako nije utovareno ništa). Artikal kog nema na spisku dodajte dole.</p>
-        <ul class="lista utovar-lista">
-            <?php foreach ($stavke as $st):
-                $sid = (int)$st['stavka_id'];
-                $ostalo = $st['sku_id'] === null;
-                $izmenjeno = $f('pal', $sid) !== null || $f('pak', $sid) !== null || $f('kom', $sid) !== null || $f('o_kol', $sid) !== null;
-                $stiklirano = $f('ok', $sid) === '1'; ?>
-                <li class="utovar-stavka">
-                    <label class="utovar-cek">
-                        <input type="checkbox" name="ok[<?= $sid ?>]" value="1"<?= $stiklirano ? ' checked' : '' ?> data-cek>
-                        <span>
-                            <strong><?= e(stavka_naziv($st)) ?></strong>
-                            <?php if ($st['dodao_id'] !== null): ?><span class="znacka">dodato pri utovaru</span><?php endif; ?>
-                            <span class="utovar-plan"><?= e(stavka_unos_tekst($st)) ?><?= !$ostalo && ((int)$st['u_palete'] > 0 || (int)$st['u_paketi'] > 0) ? ' = ' . e(broj((int)$st['kolicina'])) . ' kom' : '' ?></span>
-                        </span>
-                    </label>
-                    <details class="utovar-izmena"<?= $izmenjeno ? ' open' : '' ?>>
-                        <summary>Više ili manje od plana</summary>
-                        <div class="stavka-izmena" data-popis data-po="<?= (int)$st['po_paleti'] ?>" data-pp="<?= (int)$st['po_paketu'] ?>" data-sada="<?= (int)$st['kolicina'] ?>">
-                            <?php if ($ostalo): ?>
-                                <label class="mala-oznaka"><?= e($st['ostalo_jedinica'] ?: 'kom') ?><input class="polje" name="o_kol[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= e($f('o_kol', $sid) ?? (string)(int)$st['kolicina']) ?>"<?= $izmenjeno ? '' : ' disabled' ?>></label>
-                            <?php else: ?>
-                                <?php if ((int)$st['po_paleti'] > 0): ?><label class="mala-oznaka">paleta<input class="polje" name="pal[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= e($f('pal', $sid) ?? ((int)$st['u_palete'] ?: '')) ?>" placeholder="0" data-p="pal"<?= $izmenjeno ? '' : ' disabled' ?>></label><?php endif; ?>
-                                <?php if ((int)$st['po_paketu'] > 0): ?><label class="mala-oznaka">paketa<input class="polje" name="pak[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= e($f('pak', $sid) ?? ((int)$st['u_paketi'] ?: '')) ?>" placeholder="0" data-p="pak"<?= $izmenjeno ? '' : ' disabled' ?>></label><?php endif; ?>
-                                <label class="mala-oznaka">komada<input class="polje" name="kom[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= e($f('kom', $sid) ?? ((int)$st['u_komadi'] ?: '')) ?>" placeholder="0" data-p="kom"<?= $izmenjeno ? '' : ' disabled' ?>></label>
-                            <?php endif; ?>
-                        </div>
-                        <?php if (!$ostalo): ?><div class="popis-zbir" data-zbir aria-live="polite"></div><?php endif; ?>
-                    </details>
-                </li>
-            <?php endforeach; ?>
-        </ul>
+        <?php
+        /** Jedna stavka za štikliranje; $grupa = zbirna paleta kojoj pripada (0 = posebna stavka). */
+        $red_utovara = static function (array $st, int $grupa) use ($f): void {
+            $sid = (int)$st['stavka_id'];
+            $ostalo = $st['sku_id'] === null;
+            $u_paleti = $grupa > 0;
+            $izmenjeno = $f('pal', $sid) !== null || $f('pak', $sid) !== null || $f('kom', $sid) !== null || $f('o_kol', $sid) !== null;
+            $stiklirano = $f('ok', $sid) === '1';
+            $iskljuceno = $izmenjeno ? '' : ' disabled';
+            ?>
+            <li class="utovar-stavka">
+                <label class="utovar-cek">
+                    <input type="checkbox" name="ok[<?= $sid ?>]" value="1"<?= $stiklirano ? ' checked' : '' ?> data-cek<?= $u_paleti ? ' data-grupa="' . $grupa . '"' : '' ?>>
+                    <span>
+                        <strong><?= e(stavka_naziv($st)) ?></strong>
+                        <?php if ($st['dodao_id'] !== null): ?><span class="znacka">dodato pri utovaru</span><?php endif; ?>
+                        <span class="utovar-plan"><?= e(stavka_plan_tekst($st)) ?></span>
+                    </span>
+                </label>
+                <details class="utovar-izmena"<?= $izmenjeno ? ' open' : '' ?>>
+                    <summary>Više ili manje od plana</summary>
+                    <div class="stavka-izmena" data-popis data-po="<?= $u_paleti ? 0 : (int)$st['po_paleti'] ?>" data-pp="<?= $u_paleti ? 0 : (int)$st['po_paketu'] ?>" data-sada="<?= (int)$st['kolicina'] ?>">
+                        <?php if ($ostalo): ?>
+                            <label class="mala-oznaka"><?= e($st['ostalo_jedinica'] ?: 'kom') ?><input class="polje" name="o_kol[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= e($f('o_kol', $sid) ?? (string)(int)$st['kolicina']) ?>"<?= $iskljuceno ?>></label>
+                        <?php elseif ($u_paleti): ?>
+                            <label class="mala-oznaka">komada ukupno<?= (int)$st['paleta_broj'] > 1 ? ' (sve palete)' : '' ?><input class="polje" name="kom[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= e($f('kom', $sid) ?? (string)(int)$st['kolicina']) ?>" data-p="kom"<?= $iskljuceno ?>></label>
+                        <?php else: ?>
+                            <?php if ((int)$st['po_paleti'] > 0): ?><label class="mala-oznaka">paleta<input class="polje" name="pal[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= e($f('pal', $sid) ?? ((int)$st['u_palete'] ?: '')) ?>" placeholder="0" data-p="pal"<?= $iskljuceno ?>></label><?php endif; ?>
+                            <?php if ((int)$st['po_paketu'] > 0): ?><label class="mala-oznaka">paketa<input class="polje" name="pak[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= e($f('pak', $sid) ?? ((int)$st['u_paketi'] ?: '')) ?>" placeholder="0" data-p="pak"<?= $iskljuceno ?>></label><?php endif; ?>
+                            <label class="mala-oznaka">komada<input class="polje" name="kom[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= e($f('kom', $sid) ?? ((int)$st['u_komadi'] ?: '')) ?>" placeholder="0" data-p="kom"<?= $iskljuceno ?>></label>
+                        <?php endif; ?>
+                    </div>
+                    <?php if (!$ostalo && !$u_paleti): ?><div class="popis-zbir" data-zbir aria-live="polite"></div><?php endif; ?>
+                </details>
+            </li>
+            <?php
+        };
+        $grupe = spisak_grupe($stavke);
+        ?>
+        <?php if ($grupe[0]['stavke']): ?>
+            <ul class="lista utovar-lista"><?php foreach ($grupe[0]['stavke'] as $st) { $red_utovara($st, 0); } ?></ul>
+        <?php endif; ?>
+        <?php foreach ($grupe as $pid => $g):
+            if ($pid === 0) {
+                continue;
+            } ?>
+            <div class="zbirna-paleta utovar-zbirna">
+                <label class="utovar-cek utovar-grupa">
+                    <input type="checkbox" data-cek-grupa="<?= (int)$pid ?>" aria-label="Štikliraj celu zbirnu paletu <?= e($g['naziv']) ?>">
+                    <span>
+                        <strong><?= ikona('stanje') ?> <?= e($g['naziv']) ?></strong>
+                        <span class="utovar-plan">zbirna paleta – složiti <?= $g['broj'] > 1 ? e(palete_tekst($g['broj'])) . ', na svaku' : 'na jednu paletu' ?>: <?= e(artikala_tekst(count($g['stavke']))) ?></span>
+                    </span>
+                </label>
+                <ul class="lista utovar-lista"><?php foreach ($g['stavke'] as $st) { $red_utovara($st, (int)$pid); } ?></ul>
+            </div>
+        <?php endforeach; ?>
         <details class="utovar-dodaj" data-dodavanje>
             <summary class="btn btn-blok"><?= ikona('plus') ?> Dodaj artikal kog nema na spisku</summary>
             <div class="red-polja razmak-gore">

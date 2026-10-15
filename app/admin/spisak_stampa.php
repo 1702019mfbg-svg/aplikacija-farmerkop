@@ -52,22 +52,30 @@ ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' =>
     <table class="stampa-tabela">
         <thead><tr><th>#</th><th>Artikal</th><th>Količina</th><th class="br">Kom</th><th class="br">≈ kg</th><th class="cek" aria-label="Utovareno">✓</th></tr></thead>
         <tbody>
-        <?php $n = 0; foreach ($stavke as $st):
-            $n++;
-            $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
-            $kg = stavka_kg($st, $kol); ?>
-            <tr>
-                <td><?= $n ?></td>
-                <td><?= e(stavka_naziv($st)) ?><?= $st['sku_id'] === null ? ' <small>(ostalo)</small>' : '' ?><?= $st['dodao_id'] !== null ? ' <small>(dodato pri utovaru)</small>' : '' ?></td>
-                <td><?= e(stavka_unos_tekst($st)) ?><?php if ($utovaren && $st['utovareno'] !== null && (int)$st['utovareno'] !== (int)$st['kolicina']): ?><br><small>utovareno: <?= e(broj((int)$st['utovareno'])) ?></small><?php endif; ?></td>
-                <td class="br"><?= $st['sku_id'] === null ? '' : e(broj($kol)) ?></td>
-                <td class="br"><?= $kg === null ? '—' : e(broj($kg, $kg == floor($kg) ? 0 : 1)) ?></td>
-                <td class="cek"><?= $utovaren ? '✓' : '☐' ?></td>
-            </tr>
-        <?php endforeach; ?>
+        <?php $n = 0; foreach (spisak_grupe($stavke) as $pid => $g):
+            if (!$g['stavke']) {
+                continue;
+            }
+            if ($pid > 0): ?>
+                <tr class="stampa-grupa"><td colspan="6"><strong>Zbirna paleta: <?= e($g['naziv']) ?></strong><?= $g['broj'] > 1 ? ' · ' . e(palete_tekst($g['broj'])) . ' (količina u koloni „Količina“ je za jednu paletu)' : '' ?></td></tr>
+            <?php endif;
+            foreach ($g['stavke'] as $st):
+                $n++;
+                $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
+                $kg = stavka_kg($st, $kol); ?>
+                <tr<?= $pid > 0 ? ' class="stampa-u-paleti"' : '' ?>>
+                    <td><?= $n ?></td>
+                    <td><?= e(stavka_naziv($st)) ?><?= $st['sku_id'] === null ? ' <small>(ostalo)</small>' : '' ?><?= $st['dodao_id'] !== null ? ' <small>(dodato pri utovaru)</small>' : '' ?></td>
+                    <td><?= e(stavka_unos_tekst($st)) ?><?php if ($utovaren && $st['utovareno'] !== null && (int)$st['utovareno'] !== (int)$st['kolicina']): ?><br><small>utovareno: <?= e(broj((int)$st['utovareno'])) ?></small><?php endif; ?></td>
+                    <td class="br"><?= $st['sku_id'] === null ? '' : e(broj($kol)) ?></td>
+                    <td class="br"><?= $kg === null ? '—' : e(broj($kg, $kg == floor($kg) ? 0 : 1)) ?></td>
+                    <td class="cek"><?= $utovaren ? '✓' : '☐' ?></td>
+                </tr>
+            <?php endforeach;
+        endforeach; ?>
         </tbody>
         <tfoot>
-            <tr><td></td><td colspan="2"><strong>Ukupno</strong><?= $z['palete'] > 0 ? ' · ' . e(palete_zbir_tekst($z['palete'])) : '' ?></td><td></td><td class="br"><strong><?= e(broj($z['kg'], 0)) ?></strong></td><td></td></tr>
+            <tr><td></td><td colspan="2"><strong>Ukupno</strong><?= $z['palete'] > 0 ? ' · ' . e(palete_zbir_tekst($z['palete'])) . ($z['zbirnih'] > 0 ? ' (zbirnih: ' . (int)$z['zbirnih'] . ')' : '') : '' ?></td><td></td><td class="br"><strong><?= e(broj($z['kg'], 0)) ?></strong></td><td></td></tr>
         </tfoot>
     </table>
     <?php if ($z['bez_tezine'] || $z['bez_palete']): ?>

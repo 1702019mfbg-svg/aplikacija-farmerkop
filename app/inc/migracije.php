@@ -11,10 +11,12 @@
  *            novi artikli: crni i crveni oblutak, rizla (bela, crna, crvena), perlit, keramzit.
  * Verzija 4: okvirne težine komada (zemlja, malč, perlit, keramzit) i 50 komada po paleti za rizlu.
  * Verzija 5: stavka spiska pamti ko ju je dodao pri utovaru (utovar šlepera na licu mesta).
+ * Verzija 6: zbirne palete na spisku (više artikala na jednoj paleti) – tabela spisak_palete,
+ *            stavka pripada paleti (paleta_id, 0 = posebna stavka).
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 5;
+const SCHEMA_VERZIJA = 6;
 
 function kolona_postoji(string $tabela, string $kolona): bool
 {
@@ -67,6 +69,7 @@ const DDL_SPISKOVI = "CREATE TABLE IF NOT EXISTS spiskovi (
 const DDL_SPISAK_STAVKE = 'CREATE TABLE IF NOT EXISTS spisak_stavke (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     spisak_id INT UNSIGNED NOT NULL,
+    paleta_id INT UNSIGNED NOT NULL DEFAULT 0,
     sku_id INT UNSIGNED NULL DEFAULT NULL,
     naziv VARCHAR(120) NULL DEFAULT NULL,
     jedinica VARCHAR(20) NULL DEFAULT NULL,
@@ -79,11 +82,26 @@ const DDL_SPISAK_STAVKE = 'CREATE TABLE IF NOT EXISTS spisak_stavke (
     dodao_id INT UNSIGNED NULL DEFAULT NULL,
     redosled INT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_stavka (spisak_id, sku_id),
+    UNIQUE KEY uq_stavka_paleta (spisak_id, paleta_id, sku_id),
     KEY idx_stavke_sku (sku_id),
     CONSTRAINT fk_stavke_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id),
     CONSTRAINT fk_stavke_sku FOREIGN KEY (sku_id) REFERENCES sku (id),
     CONSTRAINT fk_stavke_dodao FOREIGN KEY (dodao_id) REFERENCES korisnici (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
+/**
+ * Zbirna paleta: više različitih artikala složenih na jednu paletu (npr. 5 × 5 l, 5 × 10 l, 5 × 50 l).
+ * "broj" = koliko ovakvih paleta (količine stavki su za jednu paletu × broj).
+ */
+const DDL_SPISAK_PALETE = 'CREATE TABLE IF NOT EXISTS spisak_palete (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    spisak_id INT UNSIGNED NOT NULL,
+    naziv VARCHAR(60) NOT NULL,
+    broj SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    redosled INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_palete_spisak (spisak_id),
+    CONSTRAINT fk_palete_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
 const TIPOVI_UNOSA_SQL = "ENUM('proizvodnja','prodaja','kucna_prodaja','korekcija','utovar','povrat')";
@@ -279,10 +297,22 @@ function migracija_5(): void
     }
 }
 
+function migracija_6(): void
+{
+    db()->exec(DDL_SPISAK_PALETE);
+    if (!kolona_postoji('spisak_stavke', 'paleta_id')) {
+        db()->exec('ALTER TABLE spisak_stavke ADD COLUMN paleta_id INT UNSIGNED NOT NULL DEFAULT 0 AFTER spisak_id');
+    }
+    if (indeks_postoji('spisak_stavke', 'uq_stavka')) {
+        // isti artikal sme da bude i posebna stavka i u zbirnoj paleti; novi ključ se dodaje pre brisanja starog
+        db()->exec('ALTER TABLE spisak_stavke ADD UNIQUE KEY uq_stavka_paleta (spisak_id, paleta_id, sku_id), DROP INDEX uq_stavka');
+    }
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
-    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5'];
+    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */
