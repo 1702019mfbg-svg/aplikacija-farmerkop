@@ -94,7 +94,7 @@ const ISTORIJA_POLJA = 'u.id, u.tip, u.kolicina, u.palete, u.paketi, u.napomena,
 function istorija_zbirovi(array $f): array
 {
     [$uslov, $p] = istorija_uslov($f, false);
-    $rez = ['proizvodnja' => 0, 'prodaja' => 0, 'kucna_prodaja' => 0, 'korekcija' => 0, 'broj' => 0];
+    $rez = ['proizvodnja' => 0, 'prodaja' => 0, 'kucna_prodaja' => 0, 'korekcija' => 0, 'utovar' => 0, 'povrat' => 0, 'broj' => 0];
     foreach (db_all('SELECT u.tip, COUNT(*) AS n, SUM(u.kolicina) AS kom ' . ISTORIJA_IZ . ' WHERE ' . $uslov . ' GROUP BY u.tip', $p) as $r) {
         $rez[$r['tip']] = (int)$r['kom'];
         $rez['broj'] += (int)$r['n'];

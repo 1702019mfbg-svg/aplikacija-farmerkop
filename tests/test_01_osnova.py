@@ -60,11 +60,11 @@ try:
         R.provera(t in tabele, "tabela %s postoji" % t)
 
     R.odeljak("Početni katalog")
-    R.provera(sql_int("SELECT COUNT(*) FROM kategorije") == 3, "3 kategorije")
-    R.provera(sql_int("SELECT COUNT(*) FROM artikli") == 8, "8 artikala (Humovit, Humovit premium, Floris, Idea, Cmana, Malč x2, Oblutak)")
-    R.provera(sql_int("SELECT COUNT(*) FROM pakovanja") == 6, "6 pakovanja (5,10,20,25,50 l i 20 kg)")
-    R.provera(sql_int("SELECT COUNT(*) FROM varijante") == 15, "15 varijanti (7 + 3 boje malča, 5 granulacija)")
-    R.provera(sql_int("SELECT COUNT(*) FROM sku") == 17 + 10 + 5, "32 SKU-a")
+    R.provera(sql_int("SELECT COUNT(*) FROM kategorije") == 6, "6 kategorija (zemlja, malč, oblutak, rizla, perlit, keramzit)")
+    R.provera(sql_int("SELECT COUNT(*) FROM artikli") == 15, "15 artikala (5 zemlje, 2 malča, 3 oblutka, 3 rizle, perlit, keramzit)")
+    R.provera(sql_int("SELECT COUNT(*) FROM pakovanja") == 8, "8 pakovanja (5, 10, 20, 25, 35, 50, 100 l i 20 kg)")
+    R.provera(sql_int("SELECT COUNT(*) FROM varijante") == 31, "31 varijanta (7 + 3 boje malča, 3 × 5 granulacija oblutka, 3 × 2 rizle)")
+    R.provera(sql_int("SELECT COUNT(*) FROM sku") == 17 + 10 + 15 + 6 + 2 + 2, "52 SKU-a")
 
     def po_paleti(artikal, kolicina, jedinica="l", varijanta=None):
         q = ("SELECT s.po_paleti FROM sku s JOIN artikli a ON a.id=s.artikal_id JOIN pakovanja p ON p.id=s.pakovanje_id "

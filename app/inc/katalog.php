@@ -14,13 +14,21 @@ const TIPOVI_UNOSA = [
     'prodaja'       => 'Prodaja',
     'kucna_prodaja' => 'Kućna prodaja',
     'korekcija'     => 'Korekcija (popis)',
+    'utovar'        => 'Utovar',
+    'povrat'        => 'Povrat (otkazan utovar)',
 ];
 
-/** Promena stanja jednog reda iz tabele unosi (alias "u"): prodaja smanjuje, ostalo povećava. */
-const SQL_PROMENA = "CASE WHEN u.tip IN ('prodaja','kucna_prodaja') THEN -u.kolicina ELSE u.kolicina END";
+/** Vrste koje smanjuju stanje; ostale ga povećavaju (korekcija može biti i negativna). */
+const TIPOVI_MINUS = ['prodaja', 'kucna_prodaja', 'utovar'];
+
+/** Promena stanja jednog reda iz tabele unosi (alias "u"): prodaja i utovar smanjuju, ostalo povećava. */
+const SQL_PROMENA = "CASE WHEN u.tip IN ('prodaja','kucna_prodaja','utovar') THEN -u.kolicina ELSE u.kolicina END";
+
+/** Težina jednog komada (kg): upisana vrednost, a za pakovanja u kg sama količina pakovanja (20 kg = 20). */
+const SQL_TEZINA = "COALESCE(s.tezina_kg, CASE WHEN p.jedinica = 'kg' THEN p.kolicina END)";
 
 /** Polja koja opisuju SKU; koristi se uz SKU_SPOJ nad tabelom unosi (alias "u"). */
-const SKU_POLJA = 's.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, '
+const SKU_POLJA = 's.id AS sku_id, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, '
     . 'a.naziv_varijante, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica';
 
 const SKU_SPOJ = 'JOIN sku s ON s.id = u.sku_id '
@@ -127,7 +135,7 @@ const SQL_AKTIVAN_SKU = 's.aktivan = 1 AND a.aktivan = 1 AND k.aktivan = 1 AND p
 function sku_aktivan(int $sku_id): ?array
 {
     return db_one(
-        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id '
         . 'JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id '
@@ -140,7 +148,7 @@ function sku_aktivan(int $sku_id): ?array
 function sku_podaci(int $sku_id): ?array
 {
     return db_one(
-        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN pakovanja p ON p.id = s.pakovanje_id '
         . 'LEFT JOIN varijante v ON v.id = s.varijanta_id WHERE s.id = ?',
@@ -167,6 +175,37 @@ function stanja_svih(): array
     return $rez;
 }
 
+/** Rezervisano po SKU-u: zbir stavki spiskova koji čekaju utovar ("Za utovar"). [sku_id => komada] */
+function rezervisano_svih(): array
+{
+    $rez = [];
+    foreach (db_all(
+        "SELECT st.sku_id, SUM(st.kolicina) AS kom FROM spisak_stavke st JOIN spiskovi sp ON sp.id = st.spisak_id
+         WHERE sp.status = 'za_utovar' GROUP BY st.sku_id"
+    ) as $r) {
+        $rez[(int)$r['sku_id']] = (int)$r['kom'];
+    }
+    return $rez;
+}
+
+/** Težina jednog komada u kg (null = nije upisana). Prima red sa tezina_kg, pak_kolicina i jedinica. */
+function tezina_kom(array $r): ?float
+{
+    if (isset($r['tezina_kg']) && $r['tezina_kg'] !== null && (float)$r['tezina_kg'] > 0) {
+        return (float)$r['tezina_kg'];
+    }
+    return ($r['jedinica'] ?? '') === 'kg' ? (float)$r['pak_kolicina'] : null;
+}
+
+/** "12,5 kg", "1.250 kg", "2,4 t" za velike težine. */
+function kg_tekst(float $kg): string
+{
+    if ($kg >= 10000) {
+        return broj($kg / 1000, 1) . ' t';
+    }
+    return broj($kg, $kg == floor($kg) ? 0 : 1) . ' kg';
+}
+
 /** Danas proizvedeno i prodato po SKU-u: [sku_id => ['proizvedeno' => n, 'prodato' => n]]. */
 function promet_danas(): array
 {
@@ -174,7 +213,7 @@ function promet_danas(): array
     $redovi = db_all(
         "SELECT u.sku_id,
                 SUM(CASE WHEN u.tip = 'proizvodnja' THEN u.kolicina ELSE 0 END) AS proizvedeno,
-                SUM(CASE WHEN u.tip IN ('prodaja','kucna_prodaja') THEN u.kolicina ELSE 0 END) AS prodato
+                SUM(CASE WHEN u.tip IN ('prodaja','kucna_prodaja','utovar') THEN u.kolicina ELSE 0 END) AS prodato
          FROM unosi u
          WHERE u.obrisan = 0 AND u.nastalo >= ? AND u.nastalo < ?
          GROUP BY u.sku_id",

@@ -1,4 +1,4 @@
-/* Artikal: "Prepiši vrednosti iz prvog na sve ostale" (paleta i minimum po pakovanju). */
+/* Artikal: "Prepiši vrednosti iz prvog na sve ostale" (paket, paleta, težina i minimum po pakovanju). */
 (function () {
     'use strict';
     document.addEventListener('click', function (e) {
@@ -12,6 +12,7 @@
             izvor[prvi[i].getAttribute('data-pak')] = {
                 pp: prvi[i].querySelector('[data-polje="pp"]').value,
                 po: prvi[i].querySelector('[data-polje="po"]').value,
+                kg: prvi[i].querySelector('[data-polje="kg"]').value,
                 min: prvi[i].querySelector('[data-polje="min"]').value
             };
         }
@@ -22,6 +23,7 @@
                 if (v) {
                     redovi[r].querySelector('[data-polje="pp"]').value = v.pp;
                     redovi[r].querySelector('[data-polje="po"]').value = v.po;
+                    redovi[r].querySelector('[data-polje="kg"]').value = v.kg;
                     redovi[r].querySelector('[data-polje="min"]').value = v.min;
                 }
             }

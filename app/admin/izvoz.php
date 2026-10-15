@@ -31,7 +31,7 @@ fwrite($izlaz, implode(';', array_map('csv_tekst', $kolone)) . "\r\n");
 
 while (($r = $st->fetch()) !== false) {
     $kom = (int)$r['kolicina'];
-    $promena = in_array($r['tip'], ['prodaja', 'kucna_prodaja'], true) ? -$kom : $kom;
+    $promena = in_array($r['tip'], TIPOVI_MINUS, true) ? -$kom : $kom;
     $ukupno = $kom * (float)$r['pak_kolicina'];
     $red = [
         (string)$r['id'],

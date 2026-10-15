@@ -291,7 +291,7 @@ def sku_id(artikal, kolicina, jedinica="l", varijanta=None):
 
 
 def stanje(sku):
-    return sql_int("SELECT COALESCE(SUM(CASE WHEN tip IN ('prodaja','kucna_prodaja') THEN -kolicina ELSE kolicina END),0) FROM unosi WHERE sku_id=%d AND obrisan=0" % sku)
+    return sql_int("SELECT COALESCE(SUM(CASE WHEN tip IN ('prodaja','kucna_prodaja','utovar') THEN -kolicina ELSE kolicina END),0) FROM unosi WHERE sku_id=%d AND obrisan=0" % sku)
 
 
 def prijavi_radnika(site, ime_id, pin):

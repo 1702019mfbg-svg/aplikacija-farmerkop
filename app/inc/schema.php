@@ -100,6 +100,7 @@ function schema_sql(): array
             pakovanje_id INT UNSIGNED NOT NULL,
             po_paleti SMALLINT UNSIGNED NULL DEFAULT NULL,
             po_paketu SMALLINT UNSIGNED NULL DEFAULT NULL,
+            tezina_kg DECIMAL(7,2) NULL DEFAULT NULL,
             min_zaliha INT UNSIGNED NOT NULL DEFAULT 0,
             aktivan TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY (id),
@@ -119,19 +120,23 @@ function schema_sql(): array
         ) $tabela",
 
         DDL_UVOZ_MAPIRANJE,
+        DDL_SPISKOVI,
+        DDL_SPISAK_STAVKE,
 
-        // Svi unosi: proizvodnja, prodaja, kućna prodaja (radnik) i korekcija stanja (popis).
+        // Sva kretanja zaliha: proizvodnja, prodaja, kućna prodaja (radnik), korekcija stanja (popis),
+        // utovar po spisku (skida stanje) i povrat (otkazan utovar, vraća stanje).
         // kolicina je u komadima; kod korekcije može biti negativna. "palete" je samo podatak
         // da je unos urađen preko paleta (kolicina je već preračunata u komade).
         "CREATE TABLE IF NOT EXISTS unosi (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            tip ENUM('proizvodnja','prodaja','kucna_prodaja','korekcija') NOT NULL,
+            tip " . TIPOVI_UNOSA_SQL . " NOT NULL,
             sku_id INT UNSIGNED NOT NULL,
             kolicina INT NOT NULL,
             palete INT UNSIGNED NULL DEFAULT NULL,
             paketi INT UNSIGNED NULL DEFAULT NULL,
             korisnik_id INT UNSIGNED NOT NULL,
             kupac_id INT UNSIGNED NULL DEFAULT NULL,
+            spisak_id INT UNSIGNED NULL DEFAULT NULL,
             napomena VARCHAR(255) NULL DEFAULT NULL,
             nastalo DATETIME NOT NULL,
             uneto DATETIME NOT NULL,
@@ -146,9 +151,11 @@ function schema_sql(): array
             KEY idx_unosi_korisnik (korisnik_id, nastalo),
             KEY idx_unosi_nastalo (nastalo),
             KEY idx_unosi_kupac (kupac_id),
+            KEY idx_unosi_spisak (spisak_id),
             CONSTRAINT fk_unosi_sku FOREIGN KEY (sku_id) REFERENCES sku (id),
             CONSTRAINT fk_unosi_korisnik FOREIGN KEY (korisnik_id) REFERENCES korisnici (id),
-            CONSTRAINT fk_unosi_kupac FOREIGN KEY (kupac_id) REFERENCES kupci (id)
+            CONSTRAINT fk_unosi_kupac FOREIGN KEY (kupac_id) REFERENCES kupci (id),
+            CONSTRAINT fk_unosi_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id)
         ) $tabela",
 
         // Dnevnik izmena: ko je, kad i šta promenio ili obrisao.
@@ -201,7 +208,7 @@ function pocetni_katalog(): array
 /** Pakovanja koja postoje od početka (admin može da dodaje nova). */
 function pocetna_pakovanja(): array
 {
-    return [[5, 'l'], [10, 'l'], [20, 'l'], [25, 'l'], [50, 'l'], [20, 'kg']];
+    return [[5, 'l'], [10, 'l'], [20, 'l'], [25, 'l'], [35, 'l'], [50, 'l'], [100, 'l'], [20, 'kg']];
 }
 
 function ubaci_pocetni_katalog(): void
@@ -215,38 +222,12 @@ function ubaci_pocetni_katalog(): void
         $kat_red += 10;
         db_run('INSERT INTO kategorije (naziv, redosled, aktivan) VALUES (?, ?, 1)', [$kategorija, $kat_red]);
         $kategorija_id = db_id();
-
         $art_red = 0;
         foreach ($artikli as $a) {
             $art_red += 10;
-            db_run(
-                'INSERT INTO artikli (kategorija_id, naziv, oznaka, naziv_varijante, redosled, aktivan) VALUES (?, ?, ?, ?, ?, ?)',
-                [$kategorija_id, $a['naziv'], $a['oznaka'] ?? null, $a['nv'] ?? null, $art_red, $a['aktivan'] ?? 1]
-            );
-            $artikal_id = db_id();
-
-            $varijante = [0];
-            if (!empty($a['var'])) {
-                $varijante = [];
-                $v_red = 0;
-                foreach ($a['var'] as $naziv_varijante) {
-                    $v_red += 10;
-                    db_run('INSERT INTO varijante (artikal_id, naziv, redosled, aktivan) VALUES (?, ?, ?, 1)', [$artikal_id, $naziv_varijante, $v_red]);
-                    $varijante[] = db_id();
-                }
-            }
-
-            foreach ($a['pak'] as $pak) {
-                [$kolicina, $jedinica, $po_paleti] = $pak;
-                $po_paketu = $pak[3] ?? null;
-                $pakovanje_id = (int)db_val('SELECT id FROM pakovanja WHERE kolicina = ? AND jedinica = ?', [$kolicina, $jedinica]);
-                foreach ($varijante as $varijanta_id) {
-                    db_run(
-                        'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, po_paketu, min_zaliha, aktivan) VALUES (?, ?, ?, ?, ?, 0, 1)',
-                        [$artikal_id, $varijanta_id, $pakovanje_id, $po_paleti, $po_paketu]
-                    );
-                }
-            }
+            ubaci_artikal($kategorija_id, $a, $art_red);
         }
     }
+    // Artikli dodati kasnije (verzija 3) – nova instalacija ih dobija odmah.
+    ubaci_dodatke_v3();
 }

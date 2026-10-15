@@ -13,12 +13,12 @@ declare(strict_types=1);
 /** Uticaj unosa na stanje: prodaja oduzima, ostalo dodaje (korekcija može biti i negativna). */
 function unos_efekat(string $tip, int $kolicina): int
 {
-    return in_array($tip, ['prodaja', 'kucna_prodaja'], true) ? -$kolicina : $kolicina;
+    return in_array($tip, TIPOVI_MINUS, true) ? -$kolicina : $kolicina;
 }
 
 function je_prodaja(string $tip): bool
 {
-    return in_array($tip, ['prodaja', 'kucna_prodaja'], true);
+    return in_array($tip, TIPOVI_MINUS, true);
 }
 
 /** Zaključava red SKU-a do kraja transakcije. */

@@ -109,7 +109,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
 
 <div class="stat-mreza tri">
     <div class="stat stat-uspeh"><span class="broj"><?= e(broj($zbir['proizvodnja'])) ?></span><span class="opis">proizvedeno (kom)</span></div>
-    <div class="stat"><span class="broj"><?= e(broj($zbir['prodaja'] + $zbir['kucna_prodaja'])) ?></span><span class="opis">prodato (kom)</span></div>
+    <div class="stat"><span class="broj"><?= e(broj($zbir['prodaja'] + $zbir['kucna_prodaja'] + $zbir['utovar'] - $zbir['povrat'])) ?></span><span class="opis">prodato i utovareno (kom)</span></div>
     <div class="stat"><span class="broj"><?= e(broj($zbir['broj'])) ?></span><span class="opis">unosa</span></div>
 </div>
 
@@ -125,7 +125,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
         <ul class="lista">
             <?php foreach ($redovi as $u):
                 $kom = (int)$u['kolicina'];
-                $predznak = in_array($u['tip'], ['prodaja', 'kucna_prodaja'], true) ? '−' : '+';
+                $predznak = in_array($u['tip'], TIPOVI_MINUS, true) ? '−' : '+';
                 $prikaz_kom = $u['tip'] === 'korekcija' ? ($kom >= 0 ? '+' : '−') . broj(abs($kom)) : $predznak . broj($kom);
                 ?>
                 <li<?= $u['obrisan'] ? ' class="unos-obrisan"' : '' ?>>

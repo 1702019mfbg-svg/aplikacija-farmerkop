@@ -154,18 +154,24 @@ if (je_post()) {
     } elseif ($akcija === 'vrednosti') {
         $po_unos = (array)($_POST['po'] ?? []);
         $pp_unos = (array)($_POST['pp'] ?? []);
+        $kg_unos = (array)($_POST['kg'] ?? []);
         $min_unos = (array)($_POST['min'] ?? []);
         $greske = [];
         $izmene = [];
         $upozorenja = [];
-        foreach (db_all('SELECT s.id, s.po_paleti, s.po_paketu, s.min_zaliha, p.kolicina AS pak_kolicina, p.jedinica FROM sku s JOIN pakovanja p ON p.id = s.pakovanje_id WHERE s.artikal_id = ?', [$id]) as $s) {
+        foreach (db_all('SELECT s.id, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, p.kolicina AS pak_kolicina, p.jedinica FROM sku s JOIN pakovanja p ON p.id = s.pakovanje_id WHERE s.artikal_id = ?', [$id]) as $s) {
             $sid = (int)$s['id'];
-            if (!array_key_exists($sid, $po_unos) && !array_key_exists($sid, $pp_unos) && !array_key_exists($sid, $min_unos)) {
+            if (!array_key_exists($sid, $po_unos) && !array_key_exists($sid, $pp_unos) && !array_key_exists($sid, $min_unos) && !array_key_exists($sid, $kg_unos)) {
                 continue;
             }
             $po = array_key_exists($sid, $po_unos) ? trim((string)$po_unos[$sid]) : ($s['po_paleti'] === null ? '' : (string)$s['po_paleti']);
             $pp = array_key_exists($sid, $pp_unos) ? trim((string)$pp_unos[$sid]) : ($s['po_paketu'] === null ? '' : (string)$s['po_paketu']);
+            $kg = array_key_exists($sid, $kg_unos) ? str_replace(',', '.', trim((string)$kg_unos[$sid])) : ($s['tezina_kg'] === null ? '' : (string)(float)$s['tezina_kg']);
             $mn = array_key_exists($sid, $min_unos) ? trim((string)$min_unos[$sid]) : (string)$s['min_zaliha'];
+            if ($kg !== '' && (!preg_match('/^\d{1,4}(\.\d{1,2})?$/', $kg) || (float)$kg <= 0)) {
+                $greske[] = 'Težina jednog komada mora biti broj veći od 0 (npr. 5 ili 12,5 kg).';
+                continue;
+            }
             if ($po !== '' && (!ctype_digit($po) || (int)$po < 1 || (int)$po > 65535)) {
                 $greske[] = 'Komada po paleti mora biti ceo broj od 1 do 65535.';
                 continue;
@@ -181,17 +187,17 @@ if (je_post()) {
             if ($po !== '' && $pp !== '' && (int)$po % (int)$pp !== 0) {
                 $upozorenja[] = pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica']) . ': paleta (' . (int)$po . ' kom) nije deljiva sa paketom (' . (int)$pp . ' kom)';
             }
-            $izmene[] = [$sid, $po === '' ? null : (int)$po, $pp === '' ? null : (int)$pp, $mn === '' ? 0 : (int)$mn];
+            $izmene[] = [$sid, $po === '' ? null : (int)$po, $pp === '' ? null : (int)$pp, $kg === '' ? null : round((float)$kg, 2), $mn === '' ? 0 : (int)$mn];
         }
         if ($greske) {
             flash_dodaj('greska', $greske[0]);
         } else {
             db_trans(static function () use ($izmene): void {
-                foreach ($izmene as [$sid, $po, $pp, $mn]) {
-                    db_run('UPDATE sku SET po_paleti = ?, po_paketu = ?, min_zaliha = ? WHERE id = ?', [$po, $pp, $mn, $sid]);
+                foreach ($izmene as [$sid, $po, $pp, $kg, $mn]) {
+                    db_run('UPDATE sku SET po_paleti = ?, po_paketu = ?, tezina_kg = ?, min_zaliha = ? WHERE id = ?', [$po, $pp, $kg, $mn, $sid]);
                 }
             });
-            dnevnik_podesavanje('Izmenjeni minimumi, komada po paleti i u paketu za artikal ' . $a['naziv'], 'podesavanje', $id);
+            dnevnik_podesavanje('Izmenjeni minimumi, komada po paleti i u paketu i težina za artikal ' . $a['naziv'], 'podesavanje', $id);
             flash_dodaj('uspeh', 'Sačuvano.');
             if ($upozorenja) {
                 flash_dodaj('upozorenje', 'Proverite brojeve: ' . implode('; ', $upozorenja) . '. Sačuvano je kako ste upisali.');
@@ -366,11 +372,11 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
     <?= csrf_polje() ?>
     <input type="hidden" name="akcija" value="vrednosti">
     <input type="hidden" name="id" value="<?= $id ?>">
-    <div class="kartica-naslov"><h2>Paket, paleta i minimum zalihe</h2></div>
+    <div class="kartica-naslov"><h2>Paket, paleta, težina i minimum</h2></div>
     <?php if (!$grupe): ?>
         <p class="pomoc bez-margine">Prvo izaberite pakovanja iznad.</p>
     <?php else: ?>
-        <p class="pomoc"><strong>Komada u paketu</strong> (transportno pakovanje) i <strong>komada po paleti</strong> koriste se kad se unosi po paketima ili paletama; prazno = ne nudi se taj način unosa. <strong>Minimum</strong> je broj komada ispod kog se na Stanju pali crveno upozorenje (0 = bez upozorenja).</p>
+        <p class="pomoc"><strong>Komada u paketu</strong> (transportno pakovanje) i <strong>komada po paleti</strong> koriste se kad se unosi po paketima ili paletama; prazno = ne nudi se taj način unosa. <strong>Kg/kom</strong> je okvirna težina jednog komada, za težinu tovara na spisku za utovar (kod pakovanja u kg ne mora da se upisuje). <strong>Minimum</strong> je broj komada ispod kog se na Stanju pali crveno upozorenje (0 = bez upozorenja).</p>
         <?php if (count($grupe) > 1): ?>
             <button type="button" class="btn btn-mali razmak-dole" data-kopiraj-sve>Prepiši vrednosti iz prvog na sve ostale</button>
         <?php endif; ?>
@@ -382,7 +388,7 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
                 <?php if ($vid === 0 && $imam_stara): ?>
                     <p class="poruka poruka-upozorenje">Ovo su stara pakovanja bez izbora. Ne nude se za unos jer artikal sad ima varijante.</p>
                 <?php endif; ?>
-                <div class="matrica-zaglavlje" aria-hidden="true"><span>Pakovanje</span><span>U paketu</span><span>Po paleti</span><span>Minimum</span></div>
+                <div class="matrica-zaglavlje" aria-hidden="true"><span>Pak.</span><span>U paketu</span><span>Po paleti</span><span>Kg/kom</span><span>Min.</span></div>
                 <?php foreach ($redovi as $s): ?>
                     <div class="matrica-red" data-pak="<?= (int)$s['pakovanje_id'] ?>">
                         <strong><?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?></strong>
@@ -390,13 +396,16 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
                                value="<?= $s['po_paketu'] === null ? '' : (int)$s['po_paketu'] ?>" placeholder="—" aria-label="Komada u paketu, <?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?>" data-polje="pp">
                         <input class="polje" name="po[<?= (int)$s['id'] ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
                                value="<?= $s['po_paleti'] === null ? '' : (int)$s['po_paleti'] ?>" placeholder="—" aria-label="Komada po paleti, <?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?>" data-polje="po">
+                        <input class="polje" name="kg[<?= (int)$s['id'] ?>]" type="text" inputmode="decimal" maxlength="7"
+                               value="<?= $s['tezina_kg'] === null ? '' : e(rtrim(rtrim(number_format((float)$s['tezina_kg'], 2, ',', ''), '0'), ',')) ?>"
+                               placeholder="<?= $s['jedinica'] === 'kg' ? e(trim(pakovanje_naziv($s['pak_kolicina'], ''))) : '—' ?>" aria-label="Težina jednog komada u kg, <?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?>" data-polje="kg">
                         <input class="polje" name="min[<?= (int)$s['id'] ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8"
                                value="<?= (int)$s['min_zaliha'] ?>" aria-label="Minimum, <?= e(pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?>" data-polje="min">
                     </div>
                 <?php endforeach; ?>
             </details>
         <?php $prva = false; endforeach; ?>
-        <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj pakete, palete i minimum</button>
+        <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj pakete, palete, težinu i minimum</button>
     <?php endif; ?>
 </form>
 <?php

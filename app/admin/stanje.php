@@ -1,7 +1,8 @@
 <?php
 /**
  * Administrator – Stanje zaliha po artiklu, varijanti i pakovanju.
- * Stanje = proizvedeno − prodato (+ korekcije popisa). Crveno kad je ispod minimuma.
+ * Stanje = proizvedeno − prodato − utovareno (± korekcije popisa). Crveno kad je ispod minimuma ili u minusu.
+ * Rezervisano = na spiskovima koji čekaju utovar; slobodno = stanje − rezervisano.
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -20,6 +21,7 @@ $redovi = db_all(
     . 'ORDER BY k.redosled, k.id, a.redosled, a.id, v.redosled, v.id, p.jedinica, p.kolicina'
 );
 $stanja = stanja_svih();
+$rezervisano = rezervisano_svih();
 $danas = promet_danas();
 
 $kategorije = [];
@@ -32,11 +34,13 @@ foreach ($redovi as $r) {
     $st = $stanja[$id] ?? 0;
     $aktivan = $r['sku_aktivan'] && $r['artikal_aktivan'] && $r['kat_aktivna'] && $r['pak_aktivno']
         && ($r['varijanta'] === null || $r['var_aktivna']);
-    if (!$aktivan && $st === 0) {
+    if (!$aktivan && $st === 0 && empty($rezervisano[$id])) {
         continue;       // isključeni SKU-ovi se prikazuju samo dok na stanju još ima nečega
     }
     $min = (int)$r['min_zaliha'];
-    $nisko = $min > 0 && $st < $min;
+    $minus = $st < 0;
+    $nisko = $minus || ($min > 0 && $st < $min);
+    $rez = $rezervisano[$id] ?? 0;
     $proizv = $danas[$id]['proizvedeno'] ?? 0;
     $prodato = $danas[$id]['prodato'] ?? 0;
     $ukupno_proizvedeno += $proizv;
@@ -62,6 +66,8 @@ foreach ($redovi as $r) {
         'stanje'   => $st,
         'min'      => $min,
         'nisko'    => $nisko,
+        'minus'    => $minus,
+        'rez'      => $rez,
         'po'       => $r['po_paleti'] === null ? null : (int)$r['po_paleti'],
         'pp'       => $r['po_paketu'] === null ? null : (int)$r['po_paketu'],
         'proizv'   => $proizv,
@@ -119,11 +125,16 @@ ui_start('Stanje', ['nav' => 'admin', 'aktivno' => 'stanje']);
                         <div class="sku-ime"><?= e($s['naziv']) ?><?php if (!$s['aktivan']): ?> <span class="znacka">isključen</span><?php endif; ?></div>
                         <?php $pal = razlaganje($s['stanje'], $s['po'], $s['pp']); ?>
                         <?php if ($pal !== ''): ?><div class="sku-pal">= <?= e($pal) ?></div><?php endif; ?>
-                        <?php if ($s['nisko']): ?>
+                        <?php if ($s['minus']): ?>
+                            <div class="sku-upoz"><?= ikona('upozorenje', 'ikona ikona-mala') ?> u minusu – utovareno više nego što je bilo u programu; uradite popis</div>
+                        <?php elseif ($s['nisko']): ?>
                             <div class="sku-upoz"><?= ikona('upozorenje', 'ikona ikona-mala') ?> ispod minimuma (<?= e(broj($s['min'])) ?>)</div>
                         <?php endif; ?>
+                        <?php if ($s['rez'] > 0): $slobodno = $s['stanje'] - $s['rez']; ?>
+                            <div class="sku-rez">rezervisano <?= e(broj($s['rez'])) ?> · slobodno <strong class="<?= $slobodno < 0 ? 'tekst-crveno' : '' ?>"><?= $slobodno < 0 ? '−' . e(broj(abs($slobodno))) : e(broj($slobodno)) ?></strong></div>
+                        <?php endif; ?>
                     </div>
-                    <div class="sku-stanje"><?= e(broj($s['stanje'])) ?></div>
+                    <div class="sku-stanje"><?= $s['stanje'] < 0 ? '−' . e(broj(abs($s['stanje']))) : e(broj($s['stanje'])) ?></div>
                     <div class="sku-meta">
                         danas: +<?= e(broj($s['proizv'])) ?> / −<?= e(broj($s['prodato'])) ?>
                         · ukupno <?= e(broj($s['ukupno_kolicina'], $s['ukupno_kolicina'] == floor($s['ukupno_kolicina']) ? 0 : 1)) ?> <?= e($s['jedinica']) ?>

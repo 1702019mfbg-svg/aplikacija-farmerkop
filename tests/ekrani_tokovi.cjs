@@ -227,12 +227,17 @@ module.exports = {
         tvrdi((await grupe.count()) === 7, '7 grupa (po boji)');
         await grupe.nth(0).locator('[data-polje="min"]').first().fill('15');
         await grupe.nth(0).locator('[data-polje="po"]').first().fill('42');
+        await grupe.nth(0).locator('[data-polje="kg"]').first().fill('9,5');
         await page.locator('[data-kopiraj-sve]').click();
+        tvrdi((await grupe.nth(4).locator('[data-polje="kg"]').first().inputValue()) === '9,5', 'težina je prepisana na sve boje');
         tvrdi((await grupe.nth(6).locator('[data-polje="min"]').first().inputValue()) === '15', 'minimum je prepisan na poslednju boju');
         tvrdi((await grupe.nth(3).locator('[data-polje="po"]').first().inputValue()) === '42', 'paleta je prepisana na sve boje');
-        await page.getByRole('button', { name: 'Sačuvaj pakete, palete i minimum' }).click();
+        await page.getByRole('button', { name: 'Sačuvaj pakete, palete, težinu i minimum' }).click();
         await page.waitForSelector('.poruka-uspeh');
         tvrdi((await page.locator('[data-grupa]').nth(5).locator('[data-polje="min"]').first().inputValue()) === '15', 'sačuvano za sve boje');
+        tvrdi((await page.locator('[data-grupa]').nth(6).locator('[data-polje="kg"]').first().inputValue()) === '9,5', 'težina sačuvana za sve boje');
+        await page.locator('[data-grupa]').nth(0).scrollIntoViewIfNeeded();
+        await p.slika('54b-artikal-tezina', false);
 
         // Pakovanja
         await page.goto(p.base + '/admin/pakovanja.php');

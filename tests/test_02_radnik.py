@@ -39,7 +39,7 @@ try:
     import json
     katalog = json.loads(kat.group(1)) if kat else {}
     nazivi = [a["naziv"] for k in katalog.get("kategorije", []) for a in k["artikli"]]
-    R.provera(nazivi == ["Humovit", "Humovit premium", "Floris Savacoop", "Idea", "Malč Farmerkop", "Malč Floris Savacoop", "Beli oblutak"], "u izboru su svi aktivni artikli, bez Cmane", nazivi)
+    R.provera(nazivi == ["Humovit", "Humovit premium", "Floris Savacoop", "Idea", "Malč Farmerkop", "Malč Floris Savacoop", "Beli oblutak", "Crni oblutak", "Crveni oblutak", "Bela rizla", "Crna rizla", "Crvena rizla", "Perlit", "Keramzit"], "u izboru su svi aktivni artikli, bez Cmane", nazivi)
     idea = next(a for k in katalog["kategorije"] for a in k["artikli"] if a["naziv"] == "Idea")
     po_idea = {s["p"]: s["po"] for s in idea["sku"]}
     R.provera(po_idea == {"5 l": 450, "10 l": 225, "20 l": 120, "25 l": 120}, "Idea: 5 l=450, 10 l=225, 20 l=120, 25 l=120 komada na paleti", po_idea)

@@ -58,6 +58,8 @@ try:
     pre = {
         "unosi": sql("SELECT COUNT(*) FROM unosi"), "korisnici": sql("SELECT COUNT(*) FROM korisnici"), "sku": sql("SELECT COUNT(*) FROM sku"),
         "artikli": sql("SELECT COUNT(*) FROM artikli"), "kupci": sql("SELECT COUNT(*) FROM kupci"),
+        "max_sku": sql("SELECT MAX(id) FROM sku"), "max_art": sql("SELECT MAX(id) FROM artikli"),
+        "stari_artikli": sql("SELECT GROUP_CONCAT(CONCAT(id,':',naziv,':',aktivan,':',kategorija_id) ORDER BY id SEPARATOR '|') FROM artikli"),
         "stanja": sql("SELECT sku_id, SUM(CASE WHEN tip IN ('prodaja','kucna_prodaja') THEN -kolicina ELSE kolicina END) FROM unosi WHERE obrisan=0 GROUP BY sku_id ORDER BY sku_id"),
         "hesevi": sql("SELECT GROUP_CONCAT(hes ORDER BY id) FROM korisnici"),
         "paleta": sql("SELECT GROUP_CONCAT(po_paleti ORDER BY id) FROM sku"),
@@ -76,21 +78,24 @@ try:
         statusi = list(ex.map(zahtev, range(8)))
     R.provera(statusi == [200] * 8, "8 istovremenih prvih zahteva: svi su uspeli (nema greške 500)", statusi)
     log = novi.log()
-    R.provera(log.count("nadogradnja baze na verziju 2") == 1, "nadogradnja se izvršila tačno jednom", log.count("nadogradnja baze na verziju 2"))
+    R.provera(log.count("nadogradnja baze na verziju 2") == 1 and log.count("nadogradnja baze na verziju 3") == 1, "nadogradnje 2 i 3 su se izvršile tačno jednom", (log.count("verziju 2"), log.count("verziju 3")))
     R.provera(not novi.php_problemi(), "bez PHP upozorenja pri nadogradnji", novi.php_problemi()[:3])
 
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "2", "baza je sada na verziji 2")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "3", "baza je sada na verziji 3")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND ((table_name='sku' AND column_name='po_paketu') OR (table_name='unosi' AND column_name='paketi'))" % DB_NAME) == 2, "dodate su kolone po_paketu i paketi")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='%s' AND table_name='uvoz_mapiranje'" % DB_NAME) == 1, "dodata je tabela uvoz_mapiranje")
 
     # ── 3. Podaci su netaknuti ───────────────────────────────────────────────
     R.odeljak("Podaci posle nadogradnje")
-    for ime, upit in [("unosi", "SELECT COUNT(*) FROM unosi"), ("korisnici", "SELECT COUNT(*) FROM korisnici"), ("sku", "SELECT COUNT(*) FROM sku"),
-                      ("artikli", "SELECT COUNT(*) FROM artikli"), ("kupci", "SELECT COUNT(*) FROM kupci")]:
+    for ime, upit in [("unosi", "SELECT COUNT(*) FROM unosi"), ("korisnici", "SELECT COUNT(*) FROM korisnici"),
+                      ("sku", "SELECT COUNT(*) FROM sku WHERE id <= %s" % pre["max_sku"]),
+                      ("artikli", "SELECT COUNT(*) FROM artikli WHERE id <= %s" % pre["max_art"]), ("kupci", "SELECT COUNT(*) FROM kupci")]:
         R.provera(sql(upit) == pre[ime], "broj redova nepromenjen: " + ime, (sql(upit), pre[ime]))
+    R.provera(sql("SELECT GROUP_CONCAT(CONCAT(id,':',naziv,':',aktivan,':',kategorija_id) ORDER BY id SEPARATOR '|') FROM artikli WHERE id <= %s" % pre["max_art"]).replace("Cmana", "Čmana") == pre["stari_artikli"], "stari artikli su isti (osim naziva Cmana)")
+    R.provera(sql_int("SELECT COUNT(*) FROM artikli WHERE id > %s" % pre["max_art"]) == 7, "dodato je 7 novih artikala (crni i crveni oblutak, 3 rizle, perlit, keramzit)")
     R.provera(sql("SELECT sku_id, SUM(CASE WHEN tip IN ('prodaja','kucna_prodaja') THEN -kolicina ELSE kolicina END) FROM unosi WHERE obrisan=0 GROUP BY sku_id ORDER BY sku_id") == pre["stanja"], "stanja svih artikala su ista")
     R.provera(sql("SELECT GROUP_CONCAT(hes ORDER BY id) FROM korisnici") == pre["hesevi"], "šifre i PIN-ovi (heševi) su isti")
-    R.provera(sql("SELECT GROUP_CONCAT(po_paleti ORDER BY id) FROM sku") == pre["paleta"], "podešene palete su iste (i izmena vlasnika: Idea 10 l = 230)")
+    R.provera(sql("SELECT GROUP_CONCAT(po_paleti ORDER BY id) FROM sku WHERE id <= %s" % pre["max_sku"]) == pre["paleta"], "podešene palete su iste (i izmena vlasnika: Idea 10 l = 230)")
     R.provera(sql("SELECT po_paleti, min_zaliha FROM sku WHERE id=%d" % idea10) == "230\t50", "vlasnikova podešavanja (paleta 230, minimum 50) nisu prepisana")
     R.provera(sql("SELECT COUNT(*) FROM unosi WHERE paketi IS NOT NULL") == "0", "stari unosi nemaju pakete (NULL)")
 
@@ -131,7 +136,7 @@ try:
     novi = Site()
     Client(novi.base).get("/login.php")
     R.provera(novi.log().count("nadogradnja baze") == 0, "pri ponovnom pokretanju nadogradnja se ne ponavlja")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "2", "verzija ostaje 2")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "3", "verzija ostaje 3")
     R.provera(not novi.php_problemi(), "bez PHP upozorenja", novi.php_problemi()[:3])
 
     # ── 6. Baza bez reda o verziji (stariji nepotpun zapis) ──────────────────
@@ -141,7 +146,8 @@ try:
     novi.stop()
     novi = Site()
     st = Client(novi.base).get("/login.php").status
-    R.provera(st == 200 and sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "2", "bez zapisa o verziji tretira se kao verzija 1 i nadograđuje se", st)
+    R.provera(st == 200 and sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "3", "bez zapisa o verziji tretira se kao verzija 1 i nadograđuje se", st)
+    R.provera(sql_int("SELECT COUNT(*) FROM artikli WHERE naziv IN ('Perlit','Keramzit','Bela rizla','Crni oblutak')") == 4, "ponovljena nadogradnja ne duplira nove artikle")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND table_name='sku' AND column_name='po_paketu'" % DB_NAME) == 1, "kolona je ponovo napravljena")
 finally:
     for s in (stari, novi):

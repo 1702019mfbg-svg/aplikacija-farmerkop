@@ -144,7 +144,7 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 | **Prodaja** | Unos prodaje (kupac, artikal, količina). Program ne dozvoljava da se proda više nego što ima. Raniji kupci se pamte |
 | **Istorija** | Svi unosi sa filterima; ispravka i brisanje (uz zapis ko i kad); **Izvoz u Excel (CSV)** |
 | **Radnici** | Dodavanje, PIN, gašenje i vraćanje pristupa, pregled ko je koliko proizveo po danima |
-| **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
+| **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, težina komada, **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
 
 **Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa. Sve se čuva u komadima; palete i paketi su samo način unosa.
 
@@ -204,7 +204,9 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
-**Šta je novo u ovoj verziji:** paketi (transportno pakovanje) kao treći način unosa, popis u paletama + paketima + komadima, uvoz stanja iz fajla, naziv „Cmana supstrat“, i zaštite u Podešavanjima artikala (potvrda pre „Isključi“, ne može da se sačuva artikal bez ijednog pakovanja, crvena oznaka „nema pakovanja“, dugme „Vrati artikal na stanje bez varijanti“). Komada u paketu se podešava po pakovanju: *Podešavanja → Artikli → Uredi → pakete, palete i minimum*.
+**Novo – spisak za utovar, faza 1 (verzija baze 3):** novi artikli (crni i crveni oblutak u svim granulacijama; bela, crna i crvena rizla – sitnija i krupnija, 20 kg; perlit 5 l (20 u paketu) i 100 l; keramzit 5 l (8 u paketu) i 35 l), kolona **Kg/kom** (okvirna težina jednog komada, za težinu tovara) u *Podešavanja → Artikli → Uredi*, i priprema baze za spiskove za utovar. Ako ste neki od ovih artikala već ranije sami dodali, ne pravi se duplikat.
+
+**Prethodno ažuriranje:** paketi (transportno pakovanje) kao treći način unosa, popis u paletama + paketima + komadima, uvoz stanja iz fajla, naziv „Cmana supstrat“, i zaštite u Podešavanjima artikala (potvrda pre „Isključi“, ne može da se sačuva artikal bez ijednog pakovanja, crvena oznaka „nema pakovanja“, dugme „Vrati artikal na stanje bez varijanti“). Komada u paketu se podešava po pakovanju: *Podešavanja → Artikli → Uredi → pakete, palete i minimum*.
 
 ---
 

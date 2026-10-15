@@ -67,9 +67,9 @@ try:
     R.odeljak("Stanje – prazno")
     o = adm.get("/admin/stanje.php")
     R.provera(o.status == 200 and "Farmerkop · Vlasnik" in o.text, "stranica Stanje se otvara")
-    R.provera(o.text.count('<div class="sku-red') == 29, "prikazano je 29 aktivnih SKU-ova (bez isključene Cmane)", o.text.count('<div class="sku-red'))
+    R.provera(o.text.count('<div class="sku-red') == 49, "prikazano je 49 aktivnih SKU-ova (bez isključene Cmane)", o.text.count('<div class="sku-red'))
     st = stanje_redovi(o.text)
-    R.provera(list(st.keys()) == ["Humovit", "Humovit premium", "Floris Savacoop", "Idea", "Malč Farmerkop", "Malč Floris Savacoop", "Beli oblutak"], "artikli idu redom iz kataloga", list(st.keys()))
+    R.provera(list(st.keys()) == ["Humovit", "Humovit premium", "Floris Savacoop", "Idea", "Malč Farmerkop", "Malč Floris Savacoop", "Beli oblutak", "Crni oblutak", "Crveni oblutak", "Bela rizla", "Crna rizla", "Crvena rizla", "Perlit", "Keramzit"], "artikli idu redom iz kataloga", list(st.keys()))
     R.provera(list(st["Humovit"]["redovi"].keys()) == ["5 l", "10 l", "25 l", "50 l"], "Humovit po pakovanju: 5, 10, 25, 50 l", list(st["Humovit"]["redovi"].keys()))
     R.provera(list(st["Humovit premium"]["redovi"].keys()) == ["20 l", "50 l"], "Humovit premium: 20 i 50 l")
     R.provera(list(st["Idea"]["redovi"].keys()) == ["5 l", "10 l", "20 l", "25 l"], "Idea: 5, 10, 20, 25 l")
@@ -140,7 +140,7 @@ try:
     sql("INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, nastalo, uneto) VALUES ('proizvodnja', %d, 12, %d, NOW(), NOW())" % (cm, ids["Jelena"]))
     o = adm.get("/admin/stanje.php")
     R.provera("Cmana supstrat" in o.text and ">12<" in o.text and "isključen" in o.text, "isključena Cmana sa stanjem 12 se prikazuje sa oznakom 'isključen'")
-    R.provera(o.text.count('<div class="sku-red') == 30, "30 redova (29 + Cmana 10 l)", o.text.count('<div class="sku-red'))
+    R.provera(o.text.count('<div class="sku-red') == 50, "50 redova (49 + Cmana 10 l)", o.text.count('<div class="sku-red'))
     sql("DELETE FROM unosi WHERE sku_id=%d" % cm)
 
     # ── 5. Prodaja: ekran ────────────────────────────────────────────────────

@@ -53,14 +53,14 @@ try:
 
     # ── 1. Stanje baze posle nove instalacije ────────────────────────────────
     R.odeljak("Nova instalacija: kolone, vrednosti, verzija")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "2", "schema_verzija = 2")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "3", "schema_verzija = 3")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND ((table_name='sku' AND column_name='po_paketu') OR (table_name='unosi' AND column_name='paketi'))" % DB_NAME) == 2, "postoje kolone sku.po_paketu i unosi.paketi")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='%s' AND table_name='uvoz_mapiranje'" % DB_NAME) == 1, "postoji tabela uvoz_mapiranje")
     pp = {re.sub(r"(\d+)\.00", r"\1", r.split("\t")[0]): r.split("\t")[1] for r in sql(
         "SELECT CONCAT(a.naziv,' ',p.kolicina+0,' ',p.jedinica), IFNULL(s.po_paketu,'NULL') FROM sku s JOIN artikli a ON a.id=s.artikal_id JOIN pakovanja p ON p.id=s.pakovanje_id WHERE a.naziv IN ('Humovit','Idea')").split("\n")}
     R.provera(pp == {"Humovit 5 l": "10", "Humovit 10 l": "6", "Humovit 25 l": "NULL", "Humovit 50 l": "NULL",
                      "Idea 5 l": "10", "Idea 10 l": "5", "Idea 20 l": "NULL", "Idea 25 l": "NULL"}, "komada u paketu: Humovit 5 l=10, 10 l=6; Idea 5 l=10, 10 l=5", pp)
-    R.provera(sql("SELECT COUNT(*) FROM sku s JOIN artikli a ON a.id=s.artikal_id WHERE a.naziv NOT IN ('Humovit','Idea') AND s.po_paketu IS NOT NULL") == "0", "ostali artikli nemaju paket dok se ne podesi")
+    R.provera(sql("SELECT COUNT(*) FROM sku s JOIN artikli a ON a.id=s.artikal_id WHERE a.naziv NOT IN ('Humovit','Idea','Perlit','Keramzit') AND s.po_paketu IS NOT NULL") == "0", "ostali artikli nemaju paket dok se ne podesi (paket imaju Humovit, Idea, Perlit i Keramzit)")
     R.provera(sql("SELECT COUNT(*) FROM sku WHERE po_paketu IS NOT NULL AND po_paleti IS NOT NULL AND po_paleti % po_paketu <> 0") == "0", "paleta je uvek ceo broj paketa (Humovit: 45 paketa, Idea: 45 paketa)")
     R.provera(sql("SELECT po_paleti/po_paketu FROM sku WHERE id=%d" % idea10) == "45.0000", "Idea 10 l: 225 komada = 45 paketa × 5")
     R.provera(sql("SELECT naziv FROM artikli WHERE naziv LIKE 'C%mana%'") == "Cmana supstrat", "artikal se zove Cmana (bez kvačice)")
@@ -301,18 +301,18 @@ try:
     R.provera({s["p"]: (s["po"], s["pp"]) for s in k["sku"]} == {"5 l": (450, 10), "10 l": (270, 6), "25 l": (120, 0), "50 l": (40, 0)}, "ponovnim štikliranjem Humovit se vraća sa svim paletama i paketima", {s["p"]: (s["po"], s["pp"]) for s in k["sku"]})
 
     R.odeljak("Povratak na artikal bez varijanti")
-    adm.post("/admin/artikli.php", {"akcija": "novi_artikal", "naziv": "Perlit", "kategorija_id": sql_int("SELECT id FROM kategorije WHERE naziv='Malč'"), "nv": ""})
-    perlit = sql_int("SELECT id FROM artikli WHERE naziv='Perlit'")
+    adm.post("/admin/artikli.php", {"akcija": "novi_artikal", "naziv": "Treset", "kategorija_id": sql_int("SELECT id FROM kategorije WHERE naziv='Malč'"), "nv": ""})
+    perlit = sql_int("SELECT id FROM artikli WHERE naziv='Treset'")
     adm.get("/admin/artikal.php?id=%d" % perlit)
     adm.post("/admin/artikal.php", {"akcija": "pakovanja", "id": perlit, "pak[]": [pak_id("5 l"), pak_id("10 l")]})
     adm.post("/admin/artikal.php", {"akcija": "var_nova", "id": perlit, "naziv": "Fini", "nv": "Frakcija"})
-    R.provera(katalog(jelena)["Perlit"]["varijante"] == [{"id": sql_int("SELECT id FROM varijante WHERE naziv='Fini'"), "naziv": "Fini"}], "Perlit sada ima varijantu 'Fini'")
+    R.provera(katalog(jelena)["Treset"]["varijante"] == [{"id": sql_int("SELECT id FROM varijante WHERE naziv='Fini'"), "naziv": "Fini"}], "Treset sada ima varijantu 'Fini'")
     o = adm.get("/admin/artikal.php?id=%d" % perlit)
     R.provera("Vrati artikal na stanje bez varijanti" in o.text, "ponuđeno je dugme za povratak na stanje bez varijanti")
     o = adm.post("/admin/artikal.php", {"akcija": "bez_varijanti", "id": perlit})
     R.provera("vraćen na stanje bez varijanti" in poruke(o), "povratak je urađen", poruke(o))
-    k = katalog(jelena)["Perlit"]
-    R.provera(k["varijante"] == [] and sorted(s["p"] for s in k["sku"]) == ["10 l", "5 l"], "radnici opet vide Perlit bez varijanti, sa 5 l i 10 l", k["varijante"])
+    k = katalog(jelena)["Treset"]
+    R.provera(k["varijante"] == [] and sorted(s["p"] for s in k["sku"]) == ["10 l", "5 l"], "radnici opet vide Treset bez varijanti, sa 5 l i 10 l", k["varijante"])
     o = adm.get("/admin/artikal.php?id=%d" % perlit)
     R.provera("(isključeno)" in o.text and "Vrati artikal na stanje bez varijanti" not in o.text, "varijanta 'Fini' je isključena (ne obrisana), a dugme za povratak se više ne nudi")
     # varijanta se može ponovo uključiti i artikal radi sa varijantama
@@ -323,7 +323,7 @@ try:
     adm.post("/admin/artikal.php", {"akcija": "var_status", "id": perlit, "vid": vid})
     adm.get("/admin/artikal.php?id=%d" % perlit)
     adm.post("/admin/artikal.php", {"akcija": "pakovanja", "id": perlit, "pak[]": [pak_id("5 l"), pak_id("10 l")]})
-    R.provera(katalog(jelena)["Perlit"]["varijante"] == [], "i čuvanjem pakovanja posle isključenja svih varijanti artikal se vraća u upotrebu")
+    R.provera(katalog(jelena)["Treset"]["varijante"] == [], "i čuvanjem pakovanja posle isključenja svih varijanti artikal se vraća u upotrebu")
 
     R.odeljak("Greške na serveru")
     R.provera(not site.php_problemi(), "u logu PHP servera nema upozorenja ni grešaka", site.php_problemi()[:5])
