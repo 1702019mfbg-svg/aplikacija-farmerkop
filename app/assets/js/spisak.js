@@ -36,7 +36,7 @@
     document.addEventListener('change', function (e) {
         var sel = e.target;
         if (!sel.hasAttribute || !sel.hasAttribute('data-izbor-sku')) { return; }
-        var forma = sel.closest('form');
+        var forma = sel.closest('[data-dodavanje]') || sel.closest('form');
         var red = forma.querySelector('[data-popis]');
         var o = sel.options[sel.selectedIndex];
         var po = o ? (o.getAttribute('data-po') || '0') : '0';

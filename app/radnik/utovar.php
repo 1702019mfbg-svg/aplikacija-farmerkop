@@ -1,7 +1,8 @@
 <?php
 /**
  * Utovar (radnik, a može i administrator): spiskovi koji čekaju utovar i potvrda utovara.
- * Radnik štiklira svaku stavku, po potrebi ispravi količinu i potvrdi – tek tada se skida stanje.
+ * Radnik štiklira svaku stavku, po potrebi utovari više ili manje od plana (npr. šleper na licu mesta),
+ * doda artikal kog nema na spisku i potvrdi – tek tada se skida stanje.
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -20,11 +21,44 @@ if (je_post()) {
         flash_dodaj('greska', 'Spisak ne postoji.');
         preusmeri('radnik/utovar.php');
     }
+    $stanje_forme = array_intersect_key($_POST, array_flip(['ok', 'pal', 'pak', 'kom', 'o_kol']));
+
+    // ── Dodavanje artikla kog nema na spisku (utovar na licu mesta) ──
+    if (post_str('akcija', 10) === 'dodaj') {
+        $_SESSION['utovar_forma'][$id] = $stanje_forme;      // štiklirano i upisano ostaje posle dodavanja
+        $novi = [post_str('novi_pal', 8), post_str('novi_pak', 8), post_str('novi_kom', 8)];
+        if (post_int('novi_sku') === 0 && implode('', $novi) === '') {
+            flash_dodaj('info', 'Ništa nije dodato. Kad završite utovar, dodirnite „Potvrdi utovar“.');
+            preusmeri($nazad);
+        }
+        $sku = sku_aktivan(post_int('novi_sku'));
+        if ($sku === null) {
+            flash_dodaj('greska', 'Izaberite artikal koji dodajete na spisak.');
+            preusmeri($nazad);
+        }
+        $r = popis_vrednost('', $novi[0], $novi[1], $novi[2], $sku);
+        if (isset($r['greska']) || !$r['komadi']) {
+            flash_dodaj('greska', $r['greska'] ?? 'Upišite koliko je utovareno (palete, paketi i/ili komadi).');
+            preusmeri($nazad);
+        }
+        $rez = spisak_dodaj_pri_utovaru($id, $sku, (int)$r['komadi'], (int)$novi[0], (int)$novi[1], (int)$novi[2], (int)$korisnik['id']);
+        if (!$rez['ok']) {
+            flash_dodaj('greska', (string)$rez['greska']);
+            preusmeri($nazad);
+        }
+        $ok = is_array($stanje_forme['ok'] ?? null) ? $stanje_forme['ok'] : [];
+        $ok[(int)$rez['stavka_id']] = '1';                      // dodato pri utovaru = utovareno
+        $_SESSION['utovar_forma'][$id]['ok'] = $ok;
+        spisak_dnevnik($id, 'pri utovaru dodato ' . sku_naziv($sku) . ': ' . broj((int)$r['komadi']) . ' kom (' . $korisnik['ime'] . ')');
+        flash_dodaj('uspeh', 'Dodato na spisak: ' . sku_naziv($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (štiklirano). Kad završite utovar, potvrdite ga.');
+        preusmeri($nazad);
+    }
+
     [$kolicine, $greska] = utovar_iz_posta(spisak_stavke($id));
     if ($greska !== null) {
         flash_dodaj('greska', $greska);
         // da se izbor ne izgubi: štiklirane stavke i ispravke ostaju u sesiji samo za ovaj prikaz
-        $_SESSION['utovar_forma'][$id] = array_intersect_key($_POST, array_flip(['ok', 'pal', 'pak', 'kom', 'o_kol']));
+        $_SESSION['utovar_forma'][$id] = $stanje_forme;
         preusmeri($nazad);
     }
     $rez = spisak_potvrdi_utovar($id, $kolicine, (int)$korisnik['id']);
@@ -75,12 +109,11 @@ if ($id > 0) {
     <?php if ($sp['status'] === 'utovareno'): ?>
         <div class="poruka poruka-uspeh" role="status">Utovareno <?= e(datum_vreme_srp((string)$sp['utovareno_u'])) ?> (<?= e($sp['utovario'] ?? '') ?>).</div>
     <?php else: ?>
-    <form method="post" class="kartica" autocomplete="off" action="<?= e(url('radnik/utovar.php')) ?>" data-utovar
-          data-potvrda="Potvrditi utovar? Stanje će biti skinuto i spisak se više ne menja.">
+    <form method="post" class="kartica" autocomplete="off" action="<?= e(url('radnik/utovar.php')) ?>" data-utovar>
         <?= csrf_polje() ?>
         <input type="hidden" name="id" value="<?= $id ?>">
         <div class="kartica-naslov"><h2>Štiklirajte šta je utovareno</h2></div>
-        <p class="pomoc">Ako je utovareno drugačije od plana, dodirnite <strong>Drugačija količina</strong> i upišite stvarno utovareno (0 ako nije utovareno ništa).</p>
+        <p class="pomoc">Ako je utovareno <strong>više ili manje</strong> od plana (npr. u šleper stane više), dodirnite <strong>Više ili manje od plana</strong> i upišite stvarno utovareno (0 ako nije utovareno ništa). Artikal kog nema na spisku dodajte dole.</p>
         <ul class="lista utovar-lista">
             <?php foreach ($stavke as $st):
                 $sid = (int)$st['stavka_id'];
@@ -92,11 +125,12 @@ if ($id > 0) {
                         <input type="checkbox" name="ok[<?= $sid ?>]" value="1"<?= $stiklirano ? ' checked' : '' ?> data-cek>
                         <span>
                             <strong><?= e(stavka_naziv($st)) ?></strong>
+                            <?php if ($st['dodao_id'] !== null): ?><span class="znacka">dodato pri utovaru</span><?php endif; ?>
                             <span class="utovar-plan"><?= e(stavka_unos_tekst($st)) ?><?= !$ostalo && ((int)$st['u_palete'] > 0 || (int)$st['u_paketi'] > 0) ? ' = ' . e(broj((int)$st['kolicina'])) . ' kom' : '' ?></span>
                         </span>
                     </label>
                     <details class="utovar-izmena"<?= $izmenjeno ? ' open' : '' ?>>
-                        <summary>Drugačija količina</summary>
+                        <summary>Više ili manje od plana</summary>
                         <div class="stavka-izmena" data-popis data-po="<?= (int)$st['po_paleti'] ?>" data-pp="<?= (int)$st['po_paketu'] ?>" data-sada="<?= (int)$st['kolicina'] ?>">
                             <?php if ($ostalo): ?>
                                 <label class="mala-oznaka"><?= e($st['ostalo_jedinica'] ?: 'kom') ?><input class="polje" name="o_kol[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= e($f('o_kol', $sid) ?? (string)(int)$st['kolicina']) ?>"<?= $izmenjeno ? '' : ' disabled' ?>></label>
@@ -111,8 +145,32 @@ if ($id > 0) {
                 </li>
             <?php endforeach; ?>
         </ul>
+        <details class="utovar-dodaj" data-dodavanje>
+            <summary class="btn btn-blok"><?= ikona('plus') ?> Dodaj artikal kog nema na spisku</summary>
+            <div class="red-polja razmak-gore">
+                <label for="novi_sku">Artikal i pakovanje</label>
+                <select class="polje" id="novi_sku" name="novi_sku" data-izbor-sku>
+                    <option value="">— izaberite —</option>
+                    <?php foreach (spisak_izbor_sku() as $artikal => $redovi): ?>
+                        <optgroup label="<?= e($artikal) ?>">
+                            <?php foreach ($redovi as [$sku_id, $naziv, $po, $pp]): ?>
+                                <option value="<?= $sku_id ?>" data-po="<?= $po ?>" data-pp="<?= $pp ?>"><?= e($artikal . ' · ' . $naziv) ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="popis-polja" data-popis data-po="0" data-pp="0">
+                <label class="mala-oznaka" data-polje-pal>paleta<input class="polje" name="novi_pal" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pal"></label>
+                <label class="mala-oznaka" data-polje-pak>paketa<input class="polje" name="novi_pak" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pak"></label>
+                <label class="mala-oznaka">komada<input class="polje" name="novi_kom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="0" data-p="kom"></label>
+            </div>
+            <p class="popis-zbir" data-zbir aria-live="polite"></p>
+            <button class="btn btn-braon btn-blok" type="submit" name="akcija" value="dodaj" data-dodaj>Dodaj na spisak</button>
+        </details>
         <p class="utovar-brojac" data-brojac aria-live="polite"></p>
-        <button class="btn btn-primary btn-veliko btn-blok" type="submit" data-potvrdi><?= ikona('kvacica') ?> Potvrdi utovar</button>
+        <button class="btn btn-primary btn-veliko btn-blok" type="submit" name="akcija" value="potvrdi" data-potvrdi
+                data-potvrda="Potvrditi utovar? Stanje će biti skinuto i spisak se više ne menja."><?= ikona('kvacica') ?> Potvrdi utovar</button>
     </form>
     <?php endif; ?>
     <?php

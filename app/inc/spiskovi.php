@@ -40,10 +40,11 @@ function spisak_stavke(int $spisak_id): array
     return db_all(
         'SELECT st.id AS stavka_id, st.spisak_id, st.sku_id, st.naziv AS ostalo_naziv, st.jedinica AS ostalo_jedinica,
                 st.tezina_kg AS ostalo_kg, st.kolicina, st.palete AS u_palete, st.paketi AS u_paketi, st.komadi AS u_komadi,
-                st.utovareno, st.redosled,
+                st.utovareno, st.redosled, st.dodao_id, d.ime AS dodao,
                 s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
                 p.kolicina AS pak_kolicina, p.jedinica
          FROM spisak_stavke st
+         LEFT JOIN korisnici d ON d.id = st.dodao_id
          LEFT JOIN sku s ON s.id = st.sku_id
          LEFT JOIN artikli a ON a.id = s.artikal_id
          LEFT JOIN pakovanja p ON p.id = s.pakovanje_id
@@ -412,7 +413,7 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
         } else {
             $opis = ($utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom' : stavka_unos_tekst($st) . ((int)$st['u_palete'] > 0 || (int)$st['u_paketi'] > 0 ? ' = ' . broj($kol) . ' kom' : ''));
         }
-        $l[] = $n . '. ' . stavka_naziv($st) . ' – ' . $opis;
+        $l[] = $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
     }
     $l[] = '';
     $l[] = 'Ukupno: ' . ($z['palete'] > 0 ? palete_zbir_tekst($z['palete']) . ', ' : '') . '≈ ' . kg_tekst($z['kg']);
@@ -420,4 +421,29 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
         $l[] = 'Napomena: ' . $sp['napomena'];
     }
     return implode("\n", $l);
+}
+
+/**
+ * Utovar šlepera na licu mesta: radnik (ili administrator) dodaje artikal kog nema na spisku, dok spisak
+ * čeka utovar. Stavka pamti ko ju je dodao. Vraća ['ok' => bool, 'greska' => ?string, 'stavka_id' => ?int].
+ */
+function spisak_dodaj_pri_utovaru(int $id, array $sku, int $komadi, int $pal, int $pak, int $kom, int $korisnik_id): array
+{
+    return db_trans(static function () use ($id, $sku, $komadi, $pal, $pak, $kom, $korisnik_id): array {
+        $sp = spisak_zakljucaj($id);
+        if ($sp === null || $sp['status'] !== 'za_utovar') {
+            return ['ok' => false, 'greska' => 'Spisak više ne čeka utovar.', 'stavka_id' => null];
+        }
+        if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND sku_id = ?', [$id, (int)$sku['sku_id']]) !== null) {
+            return ['ok' => false, 'greska' => sku_naziv($sku) . ' je već na spisku – kod te stavke dodirnite „Više ili manje od plana“ i upišite količinu.', 'stavka_id' => null];
+        }
+        $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;
+        db_run(
+            'INSERT INTO spisak_stavke (spisak_id, sku_id, kolicina, palete, paketi, komadi, dodao_id, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$id, (int)$sku['sku_id'], $komadi, $pal, $pak, $kom, $korisnik_id, $red]
+        );
+        $stavka_id = db_id();
+        db_run('UPDATE spiskovi SET izmenjen = ? WHERE id = ?', [sada(), $id]);
+        return ['ok' => true, 'greska' => null, 'stavka_id' => $stavka_id];
+    });
 }

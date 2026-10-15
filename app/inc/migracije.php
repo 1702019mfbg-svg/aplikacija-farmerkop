@@ -10,10 +10,11 @@
  *            nove vrste kretanja zaliha (utovar, povrat) i veza unosa sa spiskom;
  *            novi artikli: crni i crveni oblutak, rizla (bela, crna, crvena), perlit, keramzit.
  * Verzija 4: okvirne težine komada (zemlja, malč, perlit, keramzit) i 50 komada po paleti za rizlu.
+ * Verzija 5: stavka spiska pamti ko ju je dodao pri utovaru (utovar šlepera na licu mesta).
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 4;
+const SCHEMA_VERZIJA = 5;
 
 function kolona_postoji(string $tabela, string $kolona): bool
 {
@@ -75,12 +76,14 @@ const DDL_SPISAK_STAVKE = 'CREATE TABLE IF NOT EXISTS spisak_stavke (
     paketi INT UNSIGNED NOT NULL DEFAULT 0,
     komadi INT UNSIGNED NOT NULL DEFAULT 0,
     utovareno INT UNSIGNED NULL DEFAULT NULL,
+    dodao_id INT UNSIGNED NULL DEFAULT NULL,
     redosled INT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     UNIQUE KEY uq_stavka (spisak_id, sku_id),
     KEY idx_stavke_sku (sku_id),
     CONSTRAINT fk_stavke_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id),
-    CONSTRAINT fk_stavke_sku FOREIGN KEY (sku_id) REFERENCES sku (id)
+    CONSTRAINT fk_stavke_sku FOREIGN KEY (sku_id) REFERENCES sku (id),
+    CONSTRAINT fk_stavke_dodao FOREIGN KEY (dodao_id) REFERENCES korisnici (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
 const TIPOVI_UNOSA_SQL = "ENUM('proizvodnja','prodaja','kucna_prodaja','korekcija','utovar','povrat')";
@@ -265,10 +268,21 @@ function migracija_4(): void
     db_trans('postavi_tezine_v4');
 }
 
+/** "dodao_id": stavka koju je radnik dodao pri utovaru (NULL = plan administratora). */
+function migracija_5(): void
+{
+    if (!kolona_postoji('spisak_stavke', 'dodao_id')) {
+        db()->exec('ALTER TABLE spisak_stavke ADD COLUMN dodao_id INT UNSIGNED NULL DEFAULT NULL AFTER utovareno');
+    }
+    if (!ogranicenje_postoji('spisak_stavke', 'fk_stavke_dodao')) {
+        db()->exec('ALTER TABLE spisak_stavke ADD CONSTRAINT fk_stavke_dodao FOREIGN KEY (dodao_id) REFERENCES korisnici (id)');
+    }
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
-    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4'];
+    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

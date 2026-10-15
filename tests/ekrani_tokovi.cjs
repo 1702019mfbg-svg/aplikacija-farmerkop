@@ -528,7 +528,7 @@ module.exports = {
         rp.once('dialog', (d) => { upozorenje = d.message(); d.accept(); });
         await rp.locator('[data-potvrdi]').click();
         await rp.waitForTimeout(300);
-        tvrdi(upozorenje.includes('Štiklirajte svaku stavku'), 'bez štikliranja: upozorenje (' + upozorenje + ')');
+        tvrdi(upozorenje.includes('Štiklirajte svaku stavku') && upozorenje.includes('Više ili manje od plana'), 'bez štikliranja: upozorenje (' + upozorenje + ')');
         tvrdi(rp.url().includes('/radnik/utovar.php?id='), 'ostaje na spisku');
         await rp.locator('.utovar-cek', { hasText: 'Humovit · 10 l' }).click();
         await rp.locator('.utovar-cek', { hasText: 'Beli oblutak' }).click();
@@ -541,12 +541,28 @@ module.exports = {
         await st.locator('[data-p="pal"]').fill('0');
         await st.locator('[data-p="kom"]').fill('200');
         tvrdi((await st.locator('[data-zbir]').innerText()).includes('= 200 kom'), 'zbir ispravke: ' + await st.locator('[data-zbir]').innerText());
+        // šleper na licu mesta: stane još jedna paleta malča – radnik je dodaje
+        await rp.locator('.utovar-dodaj > summary').click();
+        await rp.selectOption('#novi_sku', { label: 'Malč Farmerkop · Crveni · 50 l' });
+        tvrdi(!(await rp.locator('.utovar-dodaj [data-polje-pak]').isVisible()), 'malč nema pakete');
+        await rp.fill('[name="novi_pal"]', '1');
+        tvrdi((await rp.locator('.utovar-dodaj [data-zbir]').innerText()).includes('= 40 kom'), 'zbir dodavanja: ' + await rp.locator('.utovar-dodaj [data-zbir]').innerText());
+        tvrdi(!(await rp.locator('.utovar-dodaj').innerText()).includes('na stanju'), 'radnik ne vidi stanje');
+        await rp.getByRole('button', { name: 'Dodaj na spisak' }).click();
+        await rp.waitForSelector('.poruka-uspeh');
+        tvrdi((await rp.locator('.poruka-uspeh').innerText()).includes('Malč Farmerkop · Crveni · 50 l – 40 kom'), 'poruka o dodavanju');
+        tvrdi((await rp.locator('[data-cek]:checked').count()) === 3, 'posle dodavanja: sve 3 stavke štiklirane');
+        tvrdi((await rp.locator('[data-brojac]').innerText()).includes('Štiklirano 3 od 3'), 'brojač 3 od 3');
+        const st2 = rp.locator('.utovar-stavka', { hasText: 'Humovit · 10 l' });
+        tvrdi((await st2.locator('[data-p="kom"]').inputValue()) === '200' && !(await st2.locator('[data-p="kom"]').isDisabled()), 'upisana ispravka (200) je sačuvana posle dodavanja');
+        tvrdi((await rp.locator('.utovar-stavka', { hasText: 'Malč Farmerkop' }).innerText()).includes('dodato pri utovaru'), 'dodata stavka je označena');
         await rp.screenshot({ path: process.argv[3] + '/75-radnik-potvrda-' + (p.tema === 'dark' ? 'tamno' : 'svetlo') + '.png', fullPage: true });
         rp.once('dialog', (d) => { tvrdi(d.message().includes('Potvrditi utovar'), 'pitanje: ' + d.message()); d.accept(); });
         await rp.locator('[data-potvrdi]').click();
         await rp.waitForSelector('.poruka-uspeh');
         const por = await rp.locator('.poruka-uspeh').innerText();
         tvrdi(por.includes('Utovar je potvrđen') && por.includes('200 umesto 270'), 'poruka: ' + por);
+        tvrdi(!(await rp.locator('main').innerText()).includes('Vrt i bašta Kraljevo') || (await rp.locator('.spisak-utovareno').count()) === 1, 'spisak je među utovarenima');
         const sirina = await rp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
         tvrdi(sirina, 'radnikov ekran nije širi od telefona');
         await r.ctx.close();
@@ -558,7 +574,7 @@ module.exports = {
         await p.slika('76-spisak-utovaren');
         await page.getByRole('link', { name: /Štampa \/ PDF/ }).click();
         await page.waitForURL('**/admin/spisak_stampa.php?id=*');
-        tvrdi((await page.locator('.stampa-tabela tbody tr').count()) === 2, 'štampa: 2 reda');
+        tvrdi((await page.locator('.stampa-tabela tbody tr').count()) === 3, 'štampa: 3 reda (i dodati malč)');
         await p.slika('77-spisak-stampa');
         await page.emulateMedia({ media: 'print' });
         tvrdi(!(await page.locator('.stampa-akcije').isVisible()), 'pri štampi se dugmad ne vide');

@@ -545,3 +545,10 @@ body.stampa { background: var(--bg); }
     .stampa-list { border: none; padding: 0; }
     .stampa-tabela { font-size: 10.5pt; }
 }
+
+/* ── Utovar na licu mesta: dodavanje artikla ── */
+.utovar-dodaj { margin: 12px 0 12px; }
+.utovar-dodaj > summary { list-style: none; }
+.utovar-dodaj > summary::-webkit-details-marker { display: none; }
+.utovar-dodaj[open] > summary { margin-bottom: 4px; }
+.utovar-dodaj .popis-polja { margin-bottom: 6px; }

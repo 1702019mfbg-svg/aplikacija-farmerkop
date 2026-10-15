@@ -288,6 +288,7 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
                     <div class="stavka-glava">
                         <strong><?= e(stavka_naziv($st)) ?></strong>
                         <?php if ($ostalo): ?><span class="znacka">ostalo – ne vodi se na stanju</span><?php endif; ?>
+                        <?php if ($st['dodao_id'] !== null): ?><span class="znacka status-za_utovar">dodato pri utovaru · <?= e($st['dodao'] ?? '') ?></span><?php endif; ?>
                         <?php if (!$ostalo && $st['oznaka']): ?><span class="znacka znacka-pl"><?= e($st['oznaka']) ?></span><?php endif; ?>
                     </div>
                     <div class="stavka-kol">
@@ -325,7 +326,7 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
 </section>
 
 <?php if ($nacrt): ?>
-    <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>" data-nova-stavka>
+    <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>" data-nova-stavka data-dodavanje>
         <?= csrf_polje() ?>
         <input type="hidden" name="akcija" value="dodaj">
         <input type="hidden" name="id" value="<?= $id ?>">

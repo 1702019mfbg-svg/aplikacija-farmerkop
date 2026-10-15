@@ -67,7 +67,8 @@ python3 tests/test_08_nadogradnja.py       # nadogradnja stare baze (v1 → v2) 
 python3 tests/test_09_uvoz.py              # uvoz stanja: CSV, uparivanje, jedinice, zaštite, pamćenje
 python3 tests/test_10_utovar.py            # spisak za utovar: šema v3, novi artikli, težina, utovar/povrat, rezervisano
 python3 tests/test_11_spisak.py            # spisak za utovar (admin): stavke, ostalo, palete/kg, upozorenja, statusi
-python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli klik, 4 telefona, minus, povrat, štampa
+python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli klik, 4 telefona, minus, povrat, štampa,
+                                           # utovar na licu mesta (više od plana, radnik dodaje artikal)
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

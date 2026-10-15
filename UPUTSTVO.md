@@ -136,7 +136,7 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 - Na dnu je lista njegovih današnjih unosa i ukupan broj za danas.
 - **Pogrešan unos?** Dugme **Obriši** stoji uz poslednji unos još 10 minuta.
 - **Kućna prodaja:** prodaja na licu mesta, isto kao proizvodnja. Radnik ne vidi koliko robe ima; ako unese više nego što ima, program ga odbija.
-- **Utovar:** spiskovi koje je administrator poslao na utovar. Radnik otvori spisak, **štiklira svaku stavku** kad je utovarena, a ako je utovareno drugačije od plana dodirne **Drugačija količina** i upiše stvarno (0 ako nije utovareno ništa) → **Potvrdi utovar**. Tek tada se skida stanje. Dupli dodir ili dva telefona ne mogu da skinu stanje dvaput.
+- **Utovar:** spiskovi koje je administrator poslao na utovar. Radnik otvori spisak, **štiklira svaku stavku** kad je utovarena, a ako je utovareno **više ili manje** od plana (npr. šleper na licu mesta primi više) dodirne **Više ili manje od plana** i upiše stvarno (0 ako nije utovareno ništa). Ako u kamion ide i nešto čega nema na spisku: **Dodaj artikal kog nema na spisku** (artikal, palete/paketi/komadi) – dodata stavka je odmah štiklirana i označena „dodato pri utovaru“. Na kraju **Potvrdi utovar** – tek tada se skida stanje, za stvarno utovarene količine. Dupli dodir ili dva telefona ne mogu da skinu stanje dvaput.
 
 ### Administrator (donja traka)
 | Kartica | Čemu služi |
@@ -220,7 +220,9 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
-**Novo – spisak za utovar, faze 3 i 4:** radnik potvrđuje utovar (kartica **Utovar**), stanje se skida tek tada; otkazivanje utovarenog spiska vraća robu (povrat); štampa, PDF i deljenje spiska. Unosi sa spiska se u Istoriji ne menjaju ručno (vode na spisak).
+**Novo – utovar šlepera na licu mesta (verzija baze 5):** radnik pri utovaru može da utovari više ili manje od plana i da doda artikal kog nema na spisku; vi na spisku, štampi i u Dnevniku izmena vidite šta je dodato i ko je dodao.
+
+**Spisak za utovar, faze 3 i 4:** radnik potvrđuje utovar (kartica **Utovar**), stanje se skida tek tada; otkazivanje utovarenog spiska vraća robu (povrat); štampa, PDF i deljenje spiska. Unosi sa spiska se u Istoriji ne menjaju ručno (vode na spisak).
 
 **Spisak za utovar, faza 2 (verzija baze 4):** kartica **Utovar** u donjoj traci (umesto Prodaje; ručna prodaja je unutra), pravljenje spiskova, rezervacija, broj paleta i težina tovara. Okvirne težine su upisane same: zemlja 5 l ≈ 1,8 kg (i srazmerno za ostala pakovanja), malč 50 l ≈ 15 kg, perlit 100 l ≈ 7 kg, keramzit 35 l ≈ 7 kg; rizla 50 komada po paleti. Težine koje ste već sami upisali se ne menjaju.
 
