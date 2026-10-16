@@ -1,6 +1,7 @@
 <?php
 /**
  * Administrator – Utovar: spiskovi za utovar (filter po statusu) i pravljenje novog spiska.
+ * Spisak je jedan kamion; roba je po mestima istovara (Mesto 1, 2, 3 … – broj upisuje vlasnik, kupac nije obavezan).
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -11,22 +12,33 @@ $admin = zahtevaj_ulogu('admin');
 if (je_post()) {
     csrf_proveri();
     [$p, $greska] = spisak_zaglavlje_iz_posta();
+    $broj_t = post_str('mesto_broj', 4);
+    $broj_t = $broj_t === '' ? '1' : $broj_t;
+    if ($greska === null && (!ctype_digit($broj_t) || (int)$broj_t < 1 || (int)$broj_t > 999)) {
+        $greska = 'Broj mesta mora biti od 1 do 999.';
+    }
     if ($greska !== null) {
         flash_dodaj('greska', $greska);
-        preusmeri('admin/utovar.php?' . http_build_query(['novi' => 1, 'kupac' => $p['kupac'], 'datum' => $p['datum'], 'vozilo' => $p['vozilo'], 'vozac' => $p['vozac'], 'napomena' => $p['napomena']]));
+        preusmeri('admin/utovar.php?' . http_build_query(['novi' => 1, 'kupac' => $p['kupac'], 'datum' => $p['datum'], 'vozilo' => $p['vozilo'], 'vozac' => $p['vozac'], 'napomena' => $p['napomena'], 'mesto_broj' => $broj_t]));
     }
-    $id = db_trans(static function () use ($p, $admin): int {
-        $kupac_id = kupac_id_za($p['kupac']);
+    $id = db_trans(static function () use ($p, $admin, $broj_t): int {
         $sad = sada();
         db_run(
             "INSERT INTO spiskovi (kupac_id, datum, vozilo, vozac, napomena, status, napravio_id, napravljen, izmenjen)
-             VALUES (?, ?, ?, ?, ?, 'nacrt', ?, ?, ?)",
-            [$kupac_id, $p['datum'], $p['vozilo'] ?: null, $p['vozac'] ?: null, $p['napomena'] ?: null, (int)$admin['id'], $sad, $sad]
+             VALUES (NULL, ?, ?, ?, ?, 'nacrt', ?, ?, ?)",
+            [$p['datum'], $p['vozilo'] ?: null, $p['vozac'] ?: null, $p['napomena'] ?: null, (int)$admin['id'], $sad, $sad]
         );
-        return db_id();
+        $id = db_id();
+        // prvo mesto istovara (broj po izboru, kupac nije obavezan); ostala mesta se dodaju na spisku
+        db_run(
+            'INSERT INTO spisak_mesta (spisak_id, broj, kupac_id, adresa, redosled) VALUES (?, ?, ?, NULL, 10)',
+            [$id, (int)$broj_t, $p['kupac'] !== '' ? kupac_id_za($p['kupac']) : null]
+        );
+        return $id;
     });
-    spisak_dnevnik($id, 'napravljen (kupac ' . $p['kupac'] . ', utovar ' . datum_srp($p['datum']) . ')');
-    flash_dodaj('uspeh', 'Spisak #' . $id . ' je napravljen. Dodajte stavke.');
+    $mesto = mesto_naslov((int)$broj_t, $p['kupac']);
+    spisak_dnevnik($id, 'napravljen (utovar ' . datum_srp($p['datum']) . ', ' . $mesto . ')');
+    flash_dodaj('uspeh', 'Spisak #' . $id . ' je napravljen sa mestom „' . $mesto . '“. Dodajte robu za to mesto, pa sledeća mesta (Dodaj mesto).');
     preusmeri('admin/spisak.php?id=' . $id);
 }
 
@@ -51,7 +63,7 @@ $novi_otvoren = get_int('novi') === 1 || !$spiskovi;
 $kupci = db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), poslednja_prodaja DESC, naziv LIMIT 300');
 $nedavni = array_slice(array_column($kupci, 'naziv'), 0, 6);
 $unapred = [
-    'kupac' => get_str('kupac', 120), 'datum' => get_str('datum', 10) ?: date('Y-m-d'),
+    'kupac' => get_str('kupac', 120), 'datum' => get_str('datum', 10) ?: date('Y-m-d'), 'mesto_broj' => get_str('mesto_broj', 4) ?: '1',
     'vozilo' => get_str('vozilo', 60), 'vozac' => get_str('vozac', 60), 'napomena' => get_str('napomena', 255),
 ];
 
@@ -61,21 +73,7 @@ ui_start('Utovar', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js
     <summary class="kartica-naslov"><h2><?= ikona('plus') ?> Novi spisak za utovar</h2></summary>
     <form method="post" autocomplete="off" action="<?= e(url('admin/utovar.php')) ?>">
         <?= csrf_polje() ?>
-        <div class="red-polja">
-            <label for="kupac">Kupac</label>
-            <input class="polje" id="kupac" name="kupac" type="text" maxlength="120" list="lista-kupaca" required
-                   placeholder="Upišite ime ili izaberite ranijeg" value="<?= e($unapred['kupac']) ?>">
-            <datalist id="lista-kupaca">
-                <?php foreach ($kupci as $k): ?><option value="<?= e($k['naziv']) ?>"><?php endforeach; ?>
-            </datalist>
-            <?php if ($nedavni): ?>
-                <div class="izbor-mreza razmak-gore" aria-label="Raniji kupci">
-                    <?php foreach ($nedavni as $n): ?>
-                        <button type="button" class="izbor-dugme" data-kupac="<?= e($n) ?>" aria-pressed="false"><?= e($n) ?></button>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
+        <p class="pomoc">Jedan spisak = jedan kamion. Roba se upisuje po <strong>mestima istovara</strong> (Mesto 1, 2, 3 … – broj upisujete vi), a mesta dodajete na spisku koliko god treba.</p>
         <div class="red-polja">
             <label for="datum">Datum utovara</label>
             <input class="polje" id="datum" name="datum" type="date" required value="<?= e($unapred['datum']) ?>">
@@ -94,8 +92,27 @@ ui_start('Utovar', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js
         </div>
         <div class="red-polja">
             <label for="napomena">Napomena (nije obavezno)</label>
-            <input class="polje" id="napomena" name="napomena" type="text" maxlength="255" placeholder="npr. broj otpremnice, adresa istovara" value="<?= e($unapred['napomena']) ?>">
+            <input class="polje" id="napomena" name="napomena" type="text" maxlength="255" placeholder="npr. ruta, broj otpremnice" value="<?= e($unapred['napomena']) ?>">
         </div>
+        <h3 class="korak-naslov">Prvo mesto istovara</h3>
+        <div class="red-polja mesto-polja">
+            <div class="mesto-broj-polje"><label for="mesto_broj">Broj mesta</label><input class="polje" id="mesto_broj" name="mesto_broj" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= e($unapred['mesto_broj']) ?>"></div>
+            <div class="mesto-kupac-polje">
+                <label for="kupac">Kupac (nije obavezno)</label>
+                <input class="polje" id="kupac" name="kupac" type="text" maxlength="120" list="lista-kupaca"
+                       placeholder="Upišite ime ili izaberite ranijeg" value="<?= e($unapred['kupac']) ?>">
+            </div>
+        </div>
+        <datalist id="lista-kupaca">
+            <?php foreach ($kupci as $k): ?><option value="<?= e($k['naziv']) ?>"><?php endforeach; ?>
+        </datalist>
+        <?php if ($nedavni): ?>
+            <div class="izbor-mreza razmak-dole" aria-label="Raniji kupci">
+                <?php foreach ($nedavni as $n): ?>
+                    <button type="button" class="izbor-dugme" data-kupac="<?= e($n) ?>" aria-pressed="false"><?= e($n) ?></button>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
         <button class="btn btn-primary btn-veliko btn-blok" type="submit">Napravi spisak</button>
     </form>
 </details>
@@ -120,15 +137,16 @@ ui_start('Utovar', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js
             $z = spisak_zbir($stavke, $sp['status'] === 'utovareno'); ?>
             <a class="spisak-kartica spisak-<?= e($sp['status']) ?>" href="<?= e(url('admin/spisak.php?id=' . (int)$sp['id'])) ?>">
                 <span class="spisak-glava">
-                    <strong><?= e($sp['kupac']) ?></strong>
+                    <strong><?= e(spisak_naslov($sp)) ?></strong>
                     <span class="znacka status-<?= e($sp['status']) ?>"><?= e(SPISAK_STATUSI[$sp['status']]) ?></span>
                 </span>
+                <?php if (spisak_kupci($sp) !== ''): ?><span class="spisak-pod"><?= e(spisak_kupci($sp)) ?></span><?php endif; ?>
                 <span class="spisak-pod">
                     #<?= (int)$sp['id'] ?> · <?= e(dan_u_nedelji((string)$sp['datum'])) ?> <?= e(datum_srp((string)$sp['datum'])) ?>
                     <?= $sp['vozilo'] ? ' · ' . e($sp['vozilo']) : '' ?><?= $sp['vozac'] ? ' · ' . e($sp['vozac']) : '' ?>
                 </span>
                 <span class="spisak-zbir">
-                    <?= (int)$z['stavki'] ?> <?= $z['stavki'] === 1 ? 'stavka' : ($z['stavki'] >= 2 && $z['stavki'] <= 4 ? 'stavke' : 'stavki') ?>
+                    <?= e(stavki_tekst((int)$z['stavki'])) ?>
                     <?php if ($z['palete'] > 0): ?> · <?= e(palete_zbir_tekst($z['palete'])) ?><?php endif; ?>
                     <?php if ($z['kg'] > 0): ?> · <?= e(kg_tekst($z['kg'])) ?><?php endif; ?>
                 </span>

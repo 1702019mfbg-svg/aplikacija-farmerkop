@@ -40,16 +40,17 @@ try:
     idea5 = sku_id("Idea", 5)
 
     R.odeljak("Nadogradnja baze sa verzije 5 (kakva je pre zbirnih paleta)")
-    sql("ALTER TABLE spisak_stavke ADD UNIQUE KEY uq_stavka (spisak_id, sku_id), DROP INDEX uq_stavka_paleta, DROP COLUMN paleta_id; "
-        "DROP TABLE spisak_palete; UPDATE podesavanja SET vrednost='5' WHERE kljuc='schema_verzija'")
+    sql("ALTER TABLE spisak_stavke ADD UNIQUE KEY uq_stavka (spisak_id, sku_id), DROP INDEX uq_stavka_mesto, DROP COLUMN paleta_id, DROP COLUMN mesto_id; "
+        "DROP TABLE spisak_palete; DROP TABLE spisak_mesta; ALTER TABLE spiskovi MODIFY kupac_id INT UNSIGNED NOT NULL; "
+        "UPDATE podesavanja SET vrednost='5' WHERE kljuc='schema_verzija'")
     R.provera(not sql("SHOW TABLES LIKE 'spisak_palete'"), "priprema: baza je kao verzija 5")
     Client(site.base).get("/login.php")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "6", "posle prvog otvaranja: verzija 6")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "7", "posle prvog otvaranja: verzija 7")
     R.provera(sql("SHOW TABLES LIKE 'spisak_palete'") == "spisak_palete", "napravljena je tabela zbirnih paleta")
     kljucevi = sql("SELECT GROUP_CONCAT(DISTINCT index_name ORDER BY index_name) FROM information_schema.statistics WHERE table_schema='%s' AND table_name='spisak_stavke'" % DB_NAME)
-    R.provera("uq_stavka_paleta" in kljucevi and "uq_stavka," not in kljucevi + "," and sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND table_name='spisak_stavke' AND column_name='paleta_id'" % DB_NAME) == 1,
-              "stavka ima paleta_id i novi jedinstveni ključ (isti artikal sme i posebno i u zbirnoj paleti)", kljucevi)
-    R.provera(site.log().count("nadogradnja baze na verziju 6") == 1, "nadogradnja 6 se izvršila jednom")
+    R.provera("uq_stavka_mesto" in kljucevi and "uq_stavka," not in kljucevi + "," and "uq_stavka_paleta" not in kljucevi and sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND table_name='spisak_stavke' AND column_name IN ('paleta_id', 'mesto_id')" % DB_NAME) == 2,
+              "stavka ima paleta_id i mesto_id i novi jedinstveni ključ (isti artikal sme i posebno i u zbirnoj paleti)", kljucevi)
+    R.provera(site.log().count("nadogradnja baze na verziju 6") == 1 and site.log().count("nadogradnja baze na verziju 7") == 1, "nadogradnje 6 i 7 su se izvršile po jednom")
 
     for sku, kol, nacin in [(hum10, "2", "palete"), (hum5, "100", "komadi"), (hum50, "1", "palete")]:
         jelena.get("/radnik/index.php")
@@ -61,7 +62,7 @@ try:
     adm.post("/admin/utovar.php", {"kupac": "Cvećara Flora", "datum": danas_bg(), "vozilo": "SU 777-AA"})
     sp = sql_int("SELECT MAX(id) FROM spiskovi")
     o = adm.get(SP + "?id=%d" % sp)
-    R.provera("Nova zbirna paleta" in o.text and 'name="paleta_id" value="0"' in o.text and 'id="paleta_id"' not in o.text, "bez zbirnih paleta nema izbora „Gde ide“")
+    R.provera("Zbirna paleta (više artikala na jednoj paleti)" in o.text and 'name="paleta_id" value="0"' in o.text and 'data-odrediste' not in o.text, "bez zbirnih paleta nema izbora „Gde ide“")
     o = adm.post(SP, {"akcija": "nova_paleta", "id": sp, "p_naziv": "", "p_broj": "1"})
     pid = sql_int("SELECT MAX(id) FROM spisak_palete")
     R.provera(sql("SELECT naziv, broj FROM spisak_palete WHERE id=%d" % pid) == "Zbirna paleta 1\t1", "napravljena „Zbirna paleta 1“ (1 paleta)")

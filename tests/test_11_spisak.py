@@ -66,8 +66,12 @@ try:
     R.provera(o.status == 403, "bez CSRF žetona: 403")
 
     R.odeljak("Novi spisak")
+    o = adm.post("/admin/utovar.php", {"kupac": "", "datum": "2026-10-20", "mesto_broj": "0"})
+    R.provera("Broj mesta mora biti od 1 do 999" in poruke(o) and sql("SELECT COUNT(*) FROM spiskovi") == "0", "broj mesta 0: odbijeno")
     o = adm.post("/admin/utovar.php", {"kupac": "", "datum": "2026-10-20"})
-    R.provera("Upišite ili izaberite kupca" in poruke(o) and sql("SELECT COUNT(*) FROM spiskovi") == "0", "bez kupca: odbijeno")
+    sp0 = sql_int("SELECT MAX(id) FROM spiskovi")
+    R.provera("Spisak #%d je napravljen sa mestom „Mesto 1“" % sp0 in poruke(o) and sql("SELECT broj, kupac_id IS NULL FROM spisak_mesta WHERE spisak_id=%d" % sp0) == "1\t1",
+              "bez kupca: spisak se pravi sa „Mesto 1“ (kupac nije obavezan)", poruke(o))
     o = adm.post("/admin/utovar.php", {"kupac": "Agrocentar", "datum": "2026-02-31"})
     R.provera("datum" in poruke(o) and 'value="Agrocentar"' in o.text, "neispravan datum: odbijeno, upisano ostaje u formi")
     danas = danas_bg()
@@ -168,7 +172,7 @@ try:
     R.provera(sql("SELECT status, otkazao_id IS NULL FROM spiskovi WHERE id=%d" % sp2) == "nacrt\t1", "otkazano → nacrt")
 
     o = adm.get("/admin/utovar.php")
-    R.provera("Aktivni (2)" in tekst(o.text) and "Otkazano (0)" in tekst(o.text), "filteri spiskova sa brojevima")
+    R.provera("Aktivni (3)" in tekst(o.text) and "Otkazano (0)" in tekst(o.text), "filteri spiskova sa brojevima", re.findall(r"(?:Aktivni|Otkazano) \(\d+\)", tekst(o.text)))
     o = adm.get("/admin/utovar.php?f=otkazano")
     R.provera("Nema spiskova" in o.text, "filter Otkazano: prazno")
 
@@ -183,7 +187,7 @@ try:
 
     R.odeljak("Dnevnik izmena")
     d = sql("SELECT GROUP_CONCAT(detalji SEPARATOR ' | ') FROM dnevnik WHERE akcija='spisak'")
-    R.provera("Spisak #%d: napravljen" % sp1 in d and "dodato Humovit · 10 l" in d and "poslat na utovar" in d and "otkazan" in d and "uklonjena stavka" in d, "sve promene spiskova su u dnevniku", d[:400])
+    R.provera("Spisak #%d: napravljen" % sp1 in d and "dodato za Mesto 1 · Agrocentar <b>NS</b>: Humovit · 10 l" in d and "poslat na utovar" in d and "otkazan" in d and "uklonjena stavka" in d, "sve promene spiskova su u dnevniku", d[:400])
     o = adm.get("/admin/dnevnik.php")
     R.provera("Spisak za utovar" in o.text, "Dnevnik izmena prikazuje vrstu „Spisak za utovar“")
 

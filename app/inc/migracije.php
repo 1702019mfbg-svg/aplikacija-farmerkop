@@ -13,10 +13,13 @@
  * Verzija 5: stavka spiska pamti ko ju je dodao pri utovaru (utovar šlepera na licu mesta).
  * Verzija 6: zbirne palete na spisku (više artikala na jednoj paleti) – tabela spisak_palete,
  *            stavka pripada paleti (paleta_id, 0 = posebna stavka).
+ * Verzija 7: jedan utovar (kamion) za više kupaca – mesta istovara (spisak_mesta: broj mesta koji upisuje
+ *            vlasnik, npr. 8, 9, 5 …, kupac nije obavezan), stavke i zbirne palete pripadaju mestu;
+ *            postojeći spiskovi dobijaju Mesto 1 sa svojim kupcem.
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 6;
+const SCHEMA_VERZIJA = 7;
 
 function kolona_postoji(string $tabela, string $kolona): bool
 {
@@ -38,7 +41,7 @@ const DDL_UVOZ_MAPIRANJE = 'CREATE TABLE IF NOT EXISTS uvoz_mapiranje (
 /** Spisak za utovar: kupac, datum, vozilo, vozač i status (stanje se skida tek kad je "utovareno"). */
 const DDL_SPISKOVI = "CREATE TABLE IF NOT EXISTS spiskovi (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    kupac_id INT UNSIGNED NOT NULL,
+    kupac_id INT UNSIGNED NULL DEFAULT NULL,
     datum DATE NOT NULL,
     vozilo VARCHAR(60) NULL DEFAULT NULL,
     vozac VARCHAR(60) NULL DEFAULT NULL,
@@ -69,6 +72,7 @@ const DDL_SPISKOVI = "CREATE TABLE IF NOT EXISTS spiskovi (
 const DDL_SPISAK_STAVKE = 'CREATE TABLE IF NOT EXISTS spisak_stavke (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     spisak_id INT UNSIGNED NOT NULL,
+    mesto_id INT UNSIGNED NOT NULL DEFAULT 0,
     paleta_id INT UNSIGNED NOT NULL DEFAULT 0,
     sku_id INT UNSIGNED NULL DEFAULT NULL,
     naziv VARCHAR(120) NULL DEFAULT NULL,
@@ -82,7 +86,7 @@ const DDL_SPISAK_STAVKE = 'CREATE TABLE IF NOT EXISTS spisak_stavke (
     dodao_id INT UNSIGNED NULL DEFAULT NULL,
     redosled INT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_stavka_paleta (spisak_id, paleta_id, sku_id),
+    UNIQUE KEY uq_stavka_mesto (spisak_id, mesto_id, paleta_id, sku_id),
     KEY idx_stavke_sku (sku_id),
     CONSTRAINT fk_stavke_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id),
     CONSTRAINT fk_stavke_sku FOREIGN KEY (sku_id) REFERENCES sku (id),
@@ -96,12 +100,31 @@ const DDL_SPISAK_STAVKE = 'CREATE TABLE IF NOT EXISTS spisak_stavke (
 const DDL_SPISAK_PALETE = 'CREATE TABLE IF NOT EXISTS spisak_palete (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     spisak_id INT UNSIGNED NOT NULL,
+    mesto_id INT UNSIGNED NOT NULL DEFAULT 0,
     naziv VARCHAR(60) NOT NULL,
     broj SMALLINT UNSIGNED NOT NULL DEFAULT 1,
     redosled INT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_palete_spisak (spisak_id),
     CONSTRAINT fk_palete_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
+/**
+ * Mesto istovara na utovaru (kamionu): broj mesta (kako ga piše vlasnik – 1, 2, 3 ili 8, 9, 5 …), kupac (nije
+ * obavezan), adresa ili napomena; redosled = redosled na spisku (kako se tovari).
+ */
+const DDL_SPISAK_MESTA = 'CREATE TABLE IF NOT EXISTS spisak_mesta (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    spisak_id INT UNSIGNED NOT NULL,
+    broj SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    kupac_id INT UNSIGNED NULL DEFAULT NULL,
+    adresa VARCHAR(255) NULL DEFAULT NULL,
+    redosled INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_mesta_spisak (spisak_id, redosled),
+    KEY idx_mesta_kupac (kupac_id),
+    CONSTRAINT fk_mesta_spisak FOREIGN KEY (spisak_id) REFERENCES spiskovi (id),
+    CONSTRAINT fk_mesta_kupac FOREIGN KEY (kupac_id) REFERENCES kupci (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
 const TIPOVI_UNOSA_SQL = "ENUM('proizvodnja','prodaja','kucna_prodaja','korekcija','utovar','povrat')";
@@ -309,10 +332,39 @@ function migracija_6(): void
     }
 }
 
+/** Postojeći spiskovi: njihov kupac postaje Mesto 1, a sve stavke i zbirne palete idu na to mesto. */
+function prenesi_kupce_u_mesta_v7(): void
+{
+    db_run(
+        'INSERT INTO spisak_mesta (spisak_id, broj, kupac_id, adresa, redosled)
+         SELECT sp.id, 1, sp.kupac_id, NULL, 10 FROM spiskovi sp
+         WHERE sp.kupac_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM spisak_mesta m WHERE m.spisak_id = sp.id)'
+    );
+    db_run('UPDATE spisak_stavke st JOIN spisak_mesta m ON m.spisak_id = st.spisak_id SET st.mesto_id = m.id WHERE st.mesto_id = 0');
+    db_run('UPDATE spisak_palete pl JOIN spisak_mesta m ON m.spisak_id = pl.spisak_id SET pl.mesto_id = m.id WHERE pl.mesto_id = 0');
+}
+
+function migracija_7(): void
+{
+    db()->exec(DDL_SPISAK_MESTA);
+    db()->exec('ALTER TABLE spiskovi MODIFY kupac_id INT UNSIGNED NULL DEFAULT NULL');
+    if (!kolona_postoji('spisak_stavke', 'mesto_id')) {
+        db()->exec('ALTER TABLE spisak_stavke ADD COLUMN mesto_id INT UNSIGNED NOT NULL DEFAULT 0 AFTER spisak_id');
+    }
+    if (!kolona_postoji('spisak_palete', 'mesto_id')) {
+        db()->exec('ALTER TABLE spisak_palete ADD COLUMN mesto_id INT UNSIGNED NOT NULL DEFAULT 0 AFTER spisak_id');
+    }
+    if (indeks_postoji('spisak_stavke', 'uq_stavka_paleta')) {
+        // isti artikal sme da ide za više kupaca na istom utovaru
+        db()->exec('ALTER TABLE spisak_stavke ADD UNIQUE KEY uq_stavka_mesto (spisak_id, mesto_id, paleta_id, sku_id), DROP INDEX uq_stavka_paleta');
+    }
+    db_trans('prenesi_kupce_u_mesta_v7');
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
-    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6'];
+    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

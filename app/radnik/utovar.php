@@ -1,8 +1,9 @@
 <?php
 /**
  * Utovar (radnik, a može i administrator): spiskovi koji čekaju utovar i potvrda utovara.
- * Radnik štiklira svaku stavku, po potrebi utovari više ili manje od plana (npr. šleper na licu mesta),
- * doda artikal kog nema na spisku i potvrdi – tek tada se skida stanje.
+ * Roba je složena po mestima istovara (Mesto 8, 9, 5 …). Radnik štiklira svaku stavku, po potrebi utovari
+ * više ili manje od plana (npr. šleper na licu mesta), doda artikal kog nema na spisku (za izabrano mesto)
+ * i potvrdi – tek tada se skida stanje.
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -41,7 +42,7 @@ if (je_post()) {
             flash_dodaj('greska', $r['greska'] ?? 'Upišite koliko je utovareno (palete, paketi i/ili komadi).');
             preusmeri($nazad);
         }
-        $rez = spisak_dodaj_pri_utovaru($id, $sku, (int)$r['komadi'], (int)$novi[0], (int)$novi[1], (int)$novi[2], (int)$korisnik['id']);
+        $rez = spisak_dodaj_pri_utovaru($id, max(0, post_int('novi_mesto')), $sku, (int)$r['komadi'], (int)$novi[0], (int)$novi[1], (int)$novi[2], (int)$korisnik['id']);
         if (!$rez['ok']) {
             flash_dodaj('greska', (string)$rez['greska']);
             preusmeri($nazad);
@@ -49,8 +50,9 @@ if (je_post()) {
         $ok = is_array($stanje_forme['ok'] ?? null) ? $stanje_forme['ok'] : [];
         $ok[(int)$rez['stavka_id']] = '1';                      // dodato pri utovaru = utovareno
         $_SESSION['utovar_forma'][$id]['ok'] = $ok;
-        spisak_dnevnik($id, 'pri utovaru dodato ' . sku_naziv($sku) . ': ' . broj((int)$r['komadi']) . ' kom (' . $korisnik['ime'] . ')');
-        flash_dodaj('uspeh', 'Dodato na spisak: ' . sku_naziv($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (štiklirano). Kad završite utovar, potvrdite ga.');
+        $za = $rez['mesto'] !== null ? ' za ' . mesto_naslov((int)$rez['mesto']['broj'], $rez['mesto']['kupac']) : '';
+        spisak_dnevnik($id, 'pri utovaru dodato' . $za . ': ' . sku_naziv($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (' . $korisnik['ime'] . ')');
+        flash_dodaj('uspeh', 'Dodato na spisak' . $za . ': ' . sku_naziv($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (štiklirano). Kad završite utovar, potvrdite ga.');
         preusmeri($nazad);
     }
 
@@ -65,7 +67,7 @@ if (je_post()) {
     unset($_SESSION['utovar_forma'][$id]);
     if ($rez['ok']) {
         spisak_dnevnik($id, 'utovareno (potvrdio ' . $korisnik['ime'] . ')' . ($rez['razlike'] ? '; drugačije od plana: ' . implode('; ', $rez['razlike']) : ''));
-        flash_dodaj('uspeh', 'Utovar je potvrđen: ' . $sp['kupac'] . ', spisak #' . $id . '. Stanje je skinuto.'
+        flash_dodaj('uspeh', 'Utovar je potvrđen: ' . spisak_naslov($sp) . ', spisak #' . $id . '. Stanje je skinuto.'
             . ($rez['razlike'] ? ' Drugačije od plana: ' . implode('; ', $rez['razlike']) . '.' : ''));
         preusmeri($je_admin ? 'admin/spisak.php?id=' . $id : 'radnik/utovar.php');
     }
@@ -83,6 +85,7 @@ if ($id > 0) {
         preusmeri('radnik/utovar.php');
     }
     $stavke = spisak_stavke($id);
+    $mesta = spisak_mesta($id);
     $z = spisak_zbir($stavke, $sp['status'] === 'utovareno');
     $forma = $_SESSION['utovar_forma'][$id] ?? [];
     unset($_SESSION['utovar_forma'][$id]);
@@ -93,9 +96,10 @@ if ($id > 0) {
     <p><a class="btn btn-mali" href="<?= e(url('radnik/utovar.php')) ?>"><?= ikona('nazad') ?> Svi spiskovi</a></p>
     <section class="kartica">
         <div class="kartica-naslov">
-            <h2><?= e($sp['kupac']) ?></h2>
+            <h2><?= e(spisak_naslov($sp)) ?></h2>
             <span class="znacka status-<?= e($sp['status']) ?>"><?= e(SPISAK_STATUSI[$sp['status']]) ?></span>
         </div>
+        <?php if (spisak_kupci($sp) !== ''): ?><p class="spisak-kupci"><?= e(spisak_kupci($sp)) ?></p><?php endif; ?>
         <dl class="spisak-podaci">
             <div><dt>Utovar</dt><dd><?= e(dan_u_nedelji((string)$sp['datum'])) ?>, <?= e(datum_srp((string)$sp['datum'])) ?></dd></div>
             <?php if ($sp['vozilo']): ?><div><dt>Vozilo</dt><dd><?= e($sp['vozilo']) ?></dd></div><?php endif; ?>
@@ -151,28 +155,56 @@ if ($id > 0) {
             </li>
             <?php
         };
-        $grupe = spisak_grupe($stavke);
         ?>
-        <?php if ($grupe[0]['stavke']): ?>
-            <ul class="lista utovar-lista"><?php foreach ($grupe[0]['stavke'] as $st) { $red_utovara($st, 0); } ?></ul>
-        <?php endif; ?>
-        <?php foreach ($grupe as $pid => $g):
-            if ($pid === 0) {
+        <?php foreach (spisak_po_mestima($stavke, $mesta) as $mid => $grupa):
+            if (!$grupa['stavke']) {
                 continue;
-            } ?>
-            <div class="zbirna-paleta utovar-zbirna">
-                <label class="utovar-cek utovar-grupa">
-                    <input type="checkbox" data-cek-grupa="<?= (int)$pid ?>" aria-label="Štikliraj celu zbirnu paletu <?= e($g['naziv']) ?>">
-                    <span>
-                        <strong><?= ikona('stanje') ?> <?= e($g['naziv']) ?></strong>
-                        <span class="utovar-plan">zbirna paleta – složiti <?= $g['broj'] > 1 ? e(palete_tekst($g['broj'])) . ', na svaku' : 'na jednu paletu' ?>: <?= e(artikala_tekst(count($g['stavke']))) ?></span>
-                    </span>
-                </label>
-                <ul class="lista utovar-lista"><?php foreach ($g['stavke'] as $st) { $red_utovara($st, (int)$pid); } ?></ul>
-            </div>
+            }
+            $m = $grupa['mesto']; ?>
+            <section class="utovar-mesto" id="mesto-<?= (int)$mid ?>" aria-labelledby="mesto-<?= (int)$mid ?>-naslov">
+                <div class="mesto-glava">
+                    <?php if ($m !== null): ?><span class="mesto-krug" aria-hidden="true"><?= (int)$m['broj'] ?></span><?php endif; ?>
+                    <div class="mesto-ime">
+                        <h3 id="mesto-<?= (int)$mid ?>-naslov"><?= $m !== null ? 'Mesto ' . (int)$m['broj'] : 'Bez mesta' ?></h3>
+                        <?php if ($m !== null && $m['kupac'] !== null): ?><span class="mesto-kupac"><?= e($m['kupac']) ?></span><?php endif; ?>
+                        <?php if ($m !== null && $m['adresa'] !== null): ?><span class="mesto-adresa"><?= e($m['adresa']) ?></span><?php endif; ?>
+                    </div>
+                </div>
+                <?php if ($grupa['grupe'][0]['stavke']): ?>
+                    <ul class="lista utovar-lista"><?php foreach ($grupa['grupe'][0]['stavke'] as $st) { $red_utovara($st, 0); } ?></ul>
+                <?php endif; ?>
+                <?php foreach ($grupa['grupe'] as $pid => $g):
+                    if ($pid === 0) {
+                        continue;
+                    } ?>
+                    <div class="zbirna-paleta utovar-zbirna">
+                        <label class="utovar-cek utovar-grupa">
+                            <input type="checkbox" data-cek-grupa="<?= (int)$pid ?>" aria-label="Štikliraj celu zbirnu paletu <?= e($g['naziv']) ?>">
+                            <span>
+                                <strong><?= ikona('stanje') ?> <?= e($g['naziv']) ?></strong>
+                                <span class="utovar-plan">zbirna paleta – složiti <?= $g['broj'] > 1 ? e(palete_tekst($g['broj'])) . ', na svaku' : 'na jednu paletu' ?>: <?= e(artikala_tekst(count($g['stavke']))) ?></span>
+                            </span>
+                        </label>
+                        <ul class="lista utovar-lista"><?php foreach ($g['stavke'] as $st) { $red_utovara($st, (int)$pid); } ?></ul>
+                    </div>
+                <?php endforeach; ?>
+            </section>
         <?php endforeach; ?>
         <details class="utovar-dodaj" data-dodavanje>
             <summary class="btn btn-blok"><?= ikona('plus') ?> Dodaj artikal kog nema na spisku</summary>
+            <?php if (count($mesta) > 1): ?>
+                <div class="red-polja razmak-gore">
+                    <label for="novi_mesto">Za mesto</label>
+                    <select class="polje" id="novi_mesto" name="novi_mesto">
+                        <option value="">— za koje mesto? —</option>
+                        <?php foreach ($mesta as $m): ?>
+                            <option value="<?= (int)$m['id'] ?>"><?= e(mesto_naslov((int)$m['broj'], $m['kupac'])) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            <?php else: ?>
+                <input type="hidden" name="novi_mesto" value="<?= $mesta ? (int)$mesta[0]['id'] : 0 ?>">
+            <?php endif; ?>
             <div class="red-polja razmak-gore">
                 <label for="novi_sku">Artikal i pakovanje</label>
                 <select class="polje" id="novi_sku" name="novi_sku" data-izbor-sku>
@@ -217,9 +249,10 @@ ui_start('Utovar', $nav);
         <?php foreach ($spiskovi as $sp):
             $z = spisak_zbir(spisak_stavke((int)$sp['id'])); ?>
             <a class="spisak-kartica spisak-za_utovar" href="<?= e(url('radnik/utovar.php?id=' . (int)$sp['id'])) ?>">
-                <span class="spisak-glava"><strong><?= e($sp['kupac']) ?></strong><span class="znacka status-za_utovar">Za utovar</span></span>
+                <span class="spisak-glava"><strong><?= e(spisak_naslov($sp)) ?></strong><span class="znacka status-za_utovar">Za utovar</span></span>
+                <?php if (spisak_kupci($sp) !== ''): ?><span class="spisak-pod"><?= e(spisak_kupci($sp)) ?></span><?php endif; ?>
                 <span class="spisak-pod">#<?= (int)$sp['id'] ?> · <?= e(dan_u_nedelji((string)$sp['datum'])) ?> <?= e(datum_srp((string)$sp['datum'])) ?><?= $sp['vozilo'] ? ' · ' . e($sp['vozilo']) : '' ?></span>
-                <span class="spisak-zbir"><?= (int)$z['stavki'] ?> stavki<?= $z['palete'] > 0 ? ' · ' . e(palete_zbir_tekst($z['palete'])) : '' ?> · ≈ <?= e(kg_tekst($z['kg'])) ?></span>
+                <span class="spisak-zbir"><?= e(stavki_tekst((int)$z['stavki'])) ?><?= $z['palete'] > 0 ? ' · ' . e(palete_zbir_tekst($z['palete'])) : '' ?> · ≈ <?= e(kg_tekst($z['kg'])) ?></span>
             </a>
         <?php endforeach; ?>
     </div>
@@ -230,7 +263,7 @@ ui_start('Utovar', $nav);
     <div class="spiskovi">
         <?php foreach ($danas as $sp): ?>
             <a class="spisak-kartica spisak-utovareno" href="<?= e(url('radnik/utovar.php?id=' . (int)$sp['id'])) ?>">
-                <span class="spisak-glava"><strong><?= e($sp['kupac']) ?></strong><span class="znacka status-utovareno">Utovareno</span></span>
+                <span class="spisak-glava"><strong><?= e(spisak_naslov($sp)) ?></strong><span class="znacka status-utovareno">Utovareno</span></span>
                 <span class="spisak-pod">#<?= (int)$sp['id'] ?> · <?= e(vreme_srp((string)$sp['utovareno_u'])) ?> · <?= e($sp['utovario'] ?? '') ?></span>
             </a>
         <?php endforeach; ?>

@@ -121,6 +121,7 @@ function schema_sql(): array
 
         DDL_UVOZ_MAPIRANJE,
         DDL_SPISKOVI,
+        DDL_SPISAK_MESTA,
         DDL_SPISAK_PALETE,
         DDL_SPISAK_STAVKE,
 

@@ -1,7 +1,7 @@
 <?php
 /**
- * Spisak za utovar – prikaz za štampu (A4 i telefon), čuvanje kao PDF (Štampaj → Sačuvaj kao PDF)
- * i deljenje teksta spiska (Viber, WhatsApp, SMS…).
+ * Spisak za utovar – prikaz za štampu (A4 i telefon), po mestima istovara, čuvanje kao PDF
+ * (Štampaj → Sačuvaj kao PDF) i deljenje teksta spiska (Viber, WhatsApp, SMS…).
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -14,6 +14,9 @@ if ($sp === null || ($korisnik['uloga'] !== 'admin' && !in_array($sp['status'], 
     stranica_greske(404, 'Spisak ne postoji', 'Traženi spisak za utovar ne postoji.', 'index.php', 'Nazad');
 }
 $stavke = spisak_stavke($id);
+$mesta = spisak_mesta($id);
+$po_mestima = spisak_po_mestima($stavke, $mesta);
+$vise_mesta = count($mesta) > 1;
 $utovaren = $sp['status'] === 'utovareno';
 $z = spisak_zbir($stavke, $utovaren);
 $tekst = spisak_tekst_za_deljenje($sp, $stavke);
@@ -41,7 +44,11 @@ ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' =>
         <div class="stampa-status"><?= e(SPISAK_STATUSI[$sp['status']]) ?></div>
     </header>
     <dl class="stampa-podaci">
-        <div><dt>Kupac</dt><dd><?= e($sp['kupac']) ?></dd></div>
+        <?php if ($vise_mesta): ?>
+            <div><dt>Mesta istovara</dt><dd><?= e((string)$sp['mesta']) ?></dd></div>
+        <?php elseif ($mesta): ?>
+            <div><dt>Mesto istovara</dt><dd><?= e(mesto_naslov((int)$mesta[0]['broj'], $mesta[0]['kupac'])) ?></dd></div>
+        <?php endif; ?>
         <div><dt>Datum utovara</dt><dd><?= e(dan_u_nedelji((string)$sp['datum'])) ?>, <?= e(datum_srp((string)$sp['datum'])) ?></dd></div>
         <div><dt>Vozilo</dt><dd><?= e($sp['vozilo'] ?: '—') ?></dd></div>
         <div><dt>Vozač</dt><dd><?= e($sp['vozac'] ?: '—') ?></dd></div>
@@ -52,26 +59,38 @@ ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' =>
     <table class="stampa-tabela">
         <thead><tr><th>#</th><th>Artikal</th><th>Količina</th><th class="br">Kom</th><th class="br">≈ kg</th><th class="cek" aria-label="Utovareno">✓</th></tr></thead>
         <tbody>
-        <?php $n = 0; foreach (spisak_grupe($stavke) as $pid => $g):
-            if (!$g['stavke']) {
+        <?php $n = 0; foreach ($po_mestima as $grupa):
+            if (!$grupa['stavke']) {
                 continue;
             }
-            if ($pid > 0): ?>
-                <tr class="stampa-grupa"><td colspan="6"><strong>Zbirna paleta: <?= e($g['naziv']) ?></strong><?= $g['broj'] > 1 ? ' · ' . e(palete_tekst($g['broj'])) . ' (količina u koloni „Količina“ je za jednu paletu)' : '' ?></td></tr>
-            <?php endif;
-            foreach ($g['stavke'] as $st):
-                $n++;
-                $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
-                $kg = stavka_kg($st, $kol); ?>
-                <tr<?= $pid > 0 ? ' class="stampa-u-paleti"' : '' ?>>
-                    <td><?= $n ?></td>
-                    <td><?= e(stavka_naziv($st)) ?><?= $st['sku_id'] === null ? ' <small>(ostalo)</small>' : '' ?><?= $st['dodao_id'] !== null ? ' <small>(dodato pri utovaru)</small>' : '' ?></td>
-                    <td><?= e(stavka_unos_tekst($st)) ?><?php if ($utovaren && $st['utovareno'] !== null && (int)$st['utovareno'] !== (int)$st['kolicina']): ?><br><small>utovareno: <?= e(broj((int)$st['utovareno'])) ?></small><?php endif; ?></td>
-                    <td class="br"><?= $st['sku_id'] === null ? '' : e(broj($kol)) ?></td>
-                    <td class="br"><?= $kg === null ? '—' : e(broj($kg, $kg == floor($kg) ? 0 : 1)) ?></td>
-                    <td class="cek"><?= $utovaren ? '✓' : '☐' ?></td>
-                </tr>
-            <?php endforeach;
+            $m = $grupa['mesto'];
+            $mz = spisak_zbir($grupa['stavke'], $utovaren); ?>
+            <tr class="stampa-mesto"><td colspan="6">
+                <span class="stampa-mesto-ime"><span class="stampa-krug"><?= $m !== null ? (int)$m['broj'] : '–' ?></span>
+                <strong><?= $m !== null ? 'Mesto ' . (int)$m['broj'] : 'Bez mesta' ?></strong><?= $m !== null && $m['kupac'] !== null ? ' – ' . e($m['kupac']) : '' ?><?= $m !== null && $m['adresa'] !== null ? ' <small>(' . e($m['adresa']) . ')</small>' : '' ?></span>
+                <span class="stampa-mesto-zbir"><?= round($mz['palete'], 1) > 0 ? e(palete_zbir_tekst($mz['palete'])) . ' · ' : '' ?>≈ <?= e(kg_tekst($mz['kg'])) ?></span>
+            </td></tr>
+            <?php foreach ($grupa['grupe'] as $pid => $g):
+                if (!$g['stavke']) {
+                    continue;
+                }
+                if ($pid > 0): ?>
+                    <tr class="stampa-grupa"><td colspan="6"><strong>Zbirna paleta: <?= e($g['naziv']) ?></strong><?= $g['broj'] > 1 ? ' · ' . e(palete_tekst($g['broj'])) . ' (količina u koloni „Količina“ je za jednu paletu)' : '' ?></td></tr>
+                <?php endif;
+                foreach ($g['stavke'] as $st):
+                    $n++;
+                    $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
+                    $kg = stavka_kg($st, $kol); ?>
+                    <tr<?= $pid > 0 ? ' class="stampa-u-paleti"' : '' ?>>
+                        <td><?= $n ?></td>
+                        <td><?= e(stavka_naziv($st)) ?><?= $st['sku_id'] === null ? ' <small>(ostalo)</small>' : '' ?><?= $st['dodao_id'] !== null ? ' <small>(dodato pri utovaru)</small>' : '' ?></td>
+                        <td><?= e(stavka_unos_tekst($st)) ?><?php if ($utovaren && $st['utovareno'] !== null && (int)$st['utovareno'] !== (int)$st['kolicina']): ?><br><small>utovareno: <?= e(broj((int)$st['utovareno'])) ?></small><?php endif; ?></td>
+                        <td class="br"><?= $st['sku_id'] === null ? '' : e(broj($kol)) ?></td>
+                        <td class="br"><?= $kg === null ? '—' : e(broj($kg, $kg == floor($kg) ? 0 : 1)) ?></td>
+                        <td class="cek"><?= $utovaren ? '✓' : '☐' ?></td>
+                    </tr>
+                <?php endforeach;
+            endforeach;
         endforeach; ?>
         </tbody>
         <tfoot>
@@ -85,7 +104,7 @@ ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' =>
     <?php endif; ?>
 
     <div class="stampa-potpisi">
-        <div>Utovario</div><div>Vozač</div><div>Primio</div>
+        <div>Utovario</div><div>Vozač</div><?php if (!$vise_mesta): ?><div>Primio</div><?php endif; ?>
     </div>
 </article>
 <?php

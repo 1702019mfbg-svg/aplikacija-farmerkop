@@ -1,7 +1,8 @@
 <?php
 /**
- * Administrator – jedan spisak za utovar: podaci, stavke (artikli, zbirne palete i "ostalo"), zbir paleta
- * i težine, upozorenja kad nema dovoljno slobodne robe i promena statusa.
+ * Administrator – jedan spisak za utovar (jedan kamion): podaci o utovaru i mesta istovara
+ * (Mesto 8, 9, 5 … – broj upisuje vlasnik, kupac nije obavezan). Svako mesto ima svoju robu: artikle,
+ * zbirne palete i "ostalo". Zbir paleta i težine, upozorenja kad nema dovoljno slobodne robe i promena statusa.
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -16,31 +17,44 @@ if ($sp === null) {
 }
 $stranica = 'admin/spisak.php?id=' . $id;
 
-/**
- * Izmena dok je spisak nacrt: zaključava spisak, proverava status i izvršava $fn.
- * $fn vraća poruku o uspehu ili ['greska' => tekst].
- */
-function u_nacrtu(int $id, callable $fn): void
+/** Greška pri izmeni nacrta – poništava i ono što je u toj izmeni već upisano. */
+final class GreskaNacrta extends RuntimeException
 {
-    $rez = db_trans(static function () use ($id, $fn) {
-        $sp = spisak_zakljucaj($id);
-        if ($sp === null || $sp['status'] !== 'nacrt') {
-            return ['greska' => 'Spisak se može menjati samo dok je nacrt. Ako je poslat na utovar, prvo ga vratite u nacrt.'];
-        }
-        $r = $fn($sp);
-        if (!is_array($r)) {
-            db_run('UPDATE spiskovi SET izmenjen = ? WHERE id = ?', [sada(), $id]);
-        }
-        return $r;
-    });
-    if (is_array($rez)) {
-        flash_dodaj('greska', $rez['greska']);
-    } elseif ($rez === '') {
-        flash_dodaj('info', 'Nema izmena.');
-    } else {
-        spisak_dnevnik($id, $rez);
-        flash_dodaj('uspeh', ucfirst($rez) . '.');
+}
+
+/**
+ * Izmena dok je spisak nacrt: zaključava spisak, proverava status i izvršava $fn u jednoj transakciji.
+ * $fn vraća poruku o uspehu ('' = nema izmena) ili ['greska' => tekst] – tada se sve poništava.
+ * Vraća true kad je izmena upisana.
+ */
+function u_nacrtu(int $id, callable $fn): bool
+{
+    try {
+        $rez = db_trans(static function () use ($id, $fn): string {
+            $sp = spisak_zakljucaj($id);
+            if ($sp === null || $sp['status'] !== 'nacrt') {
+                throw new GreskaNacrta('Spisak se može menjati samo dok je nacrt. Ako je poslat na utovar, prvo ga vratite u nacrt.');
+            }
+            $r = $fn($sp);
+            if (is_array($r)) {
+                throw new GreskaNacrta((string)$r['greska']);
+            }
+            if ($r !== '') {
+                db_run('UPDATE spiskovi SET izmenjen = ? WHERE id = ?', [sada(), $id]);
+            }
+            return $r;
+        });
+    } catch (GreskaNacrta $g) {
+        flash_dodaj('greska', $g->getMessage());
+        return false;
     }
+    if ($rez === '') {
+        flash_dodaj('info', 'Nema izmena.');
+        return false;
+    }
+    spisak_dnevnik($id, $rez);
+    flash_dodaj('uspeh', ucfirst($rez) . '.');
+    return true;
 }
 
 /** Težina iz forme ("12,5") ili null. Vraća [vrednost, greška]. */
@@ -56,76 +70,204 @@ function kg_iz_posta(string $polje): array
     return [round((float)$t, 2), null];
 }
 
+/** Broj mesta iz forme. Vraća [broj, greška]. */
+function mesto_broj_iz(string $t): array
+{
+    $t = trim($t);
+    if (!ctype_digit($t) || (int)$t < 1 || (int)$t > 999) {
+        return [0, 'Broj mesta mora biti od 1 do 999.'];
+    }
+    return [(int)$t, null];
+}
+
+/**
+ * Mesto ovog spiska (unutar izmene nacrta), sa nazivom kupca. Bez izabranog mesta (stara stranica
+ * otvorena u pregledaču) radi samo kad spisak ima jedno mesto. Vraća red mesta ili ['greska' => tekst].
+ */
+function mesto_na_spisku(int $id, int $mesto_id): array
+{
+    if ($mesto_id === 0) {
+        $mesta = db_all('SELECT id FROM spisak_mesta WHERE spisak_id = ?', [$id]);
+        if (count($mesta) !== 1) {
+            return ['greska' => $mesta ? 'Izaberite mesto za koje je roba.' : 'Prvo dodajte mesto istovara (Dodaj mesto).'];
+        }
+        $mesto_id = (int)$mesta[0]['id'];
+    }
+    $m = db_one('SELECT m.*, k.naziv AS kupac FROM spisak_mesta m LEFT JOIN kupci k ON k.id = m.kupac_id WHERE m.id = ? AND m.spisak_id = ?', [$mesto_id, $id]);
+    return $m ?? ['greska' => 'To mesto više nije na spisku.'];
+}
+
+/** "Mesto 8 · Agrocentar" za mesto po id-u ('' ako ga nema). */
+function mesto_opis(int $mesto_id): string
+{
+    $m = db_one('SELECT m.broj, k.naziv AS kupac FROM spisak_mesta m LEFT JOIN kupci k ON k.id = m.kupac_id WHERE m.id = ?', [$mesto_id]);
+    return $m === null ? '' : mesto_naslov((int)$m['broj'], $m['kupac']);
+}
+
+/** Opcije za izbor artikla (jednom, pa se ponavljaju u formi svakog mesta). */
+function sku_opcije_html(array $stanja): string
+{
+    $h = '<option value="">— izaberite —</option>';
+    foreach (spisak_izbor_sku() as $artikal => $redovi) {
+        $h .= '<optgroup label="' . e($artikal) . '">';
+        foreach ($redovi as [$sid, $naziv, $po, $pp]) {
+            $h .= '<option value="' . $sid . '" data-po="' . $po . '" data-pp="' . $pp . '" data-sada="' . (int)($stanja[$sid] ?? 0) . '">'
+                . e($artikal . ' · ' . $naziv) . '</option>';
+        }
+        $h .= '</optgroup>';
+    }
+    return $h;
+}
+
 if (je_post()) {
     csrf_proveri();
     $akcija = post_str('akcija', 20);
     $ukloni = post_int('ukloni');
     $ukloni_paletu = post_int('ukloni_paletu');
+    $ukloni_mesto = post_int('ukloni_mesto');
+    $pomeri = post_str('pomeri_mesto', 24);
     $posle = $stranica;
 
-    if ($ukloni_paletu > 0) {
-        u_nacrtu($id, static function () use ($id, $ukloni_paletu) {
+    if ($ukloni_mesto > 0) {
+        u_nacrtu($id, static function () use ($id, $ukloni_mesto) {
+            $m = mesto_na_spisku($id, $ukloni_mesto);
+            if (isset($m['greska'])) {
+                return $m;
+            }
+            $n = (int)db_val('SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ?', [$id, $ukloni_mesto]);
+            db_run('DELETE FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ?', [$id, $ukloni_mesto]);
+            db_run('DELETE FROM spisak_palete WHERE spisak_id = ? AND mesto_id = ?', [$id, $ukloni_mesto]);
+            db_run('DELETE FROM spisak_mesta WHERE id = ?', [$ukloni_mesto]);
+            return 'uklonjeno ' . mesto_naslov((int)$m['broj'], $m['kupac']) . ($n > 0 ? ' sa svom robom (' . stavki_tekst($n) . ')' : '');
+        });
+    } elseif (preg_match('/^(\d{1,10}):(gore|dole)$/', $pomeri, $pm)) {
+        $mid = (int)$pm[1];
+        $smer = $pm[2];
+        $posle = $stranica . '#mesto-' . $mid;
+        u_nacrtu($id, static function () use ($id, $mid, $smer) {
+            $mesta = spisak_mesta($id);
+            $ids = array_map(static fn(array $m): int => (int)$m['id'], $mesta);
+            $i = array_search($mid, $ids, true);
+            if ($i === false) {
+                return ['greska' => 'To mesto više nije na spisku.'];
+            }
+            $j = $smer === 'gore' ? $i - 1 : $i + 1;
+            if ($j < 0 || $j >= count($ids)) {
+                return '';
+            }
+            [$ids[$i], $ids[$j]] = [$ids[$j], $ids[$i]];
+            foreach ($ids as $k => $m_id) {
+                db_run('UPDATE spisak_mesta SET redosled = ? WHERE id = ?', [($k + 1) * 10, $m_id]);
+            }
+            return 'pomereno ' . mesto_naslov((int)$mesta[$i]['broj'], $mesta[$i]['kupac']) . ' ' . $smer;
+        });
+    } elseif ($ukloni_paletu > 0) {
+        u_nacrtu($id, static function () use ($id, $ukloni_paletu, $stranica, &$posle) {
             $pl = db_one('SELECT * FROM spisak_palete WHERE id = ? AND spisak_id = ?', [$ukloni_paletu, $id]);
             if ($pl === null) {
                 return ['greska' => 'Zbirna paleta ne postoji.'];
             }
+            $posle = $stranica . '#mesto-' . (int)$pl['mesto_id'];
+            $gde = mesto_opis((int)$pl['mesto_id']);
             db_run('DELETE FROM spisak_stavke WHERE spisak_id = ? AND paleta_id = ?', [$id, $ukloni_paletu]);
             db_run('DELETE FROM spisak_palete WHERE id = ?', [$ukloni_paletu]);
-            return 'uklonjena zbirna paleta „' . $pl['naziv'] . '“ sa svim artiklima';
+            return 'uklonjena zbirna paleta „' . $pl['naziv'] . '“' . ($gde !== '' ? ' (' . $gde . ')' : '') . ' sa svim artiklima';
         });
-    } elseif ($akcija === 'nova_paleta') {
-        $naziv = post_str('p_naziv', 60);
-        $broj_t = post_str('p_broj', 4);
-        $broj_t = $broj_t === '' ? '1' : $broj_t;
-        if (!ctype_digit($broj_t) || (int)$broj_t < 1 || (int)$broj_t > 999) {
-            flash_dodaj('greska', 'Broj ovakvih paleta mora biti od 1 do 999.');
-        } else {
-            $nova = 0;
-            u_nacrtu($id, static function () use ($id, $naziv, $broj_t, &$nova) {
-                $n = (int)db_val('SELECT COUNT(*) FROM spisak_palete WHERE spisak_id = ?', [$id]) + 1;
-                $naziv = $naziv !== '' ? $naziv : 'Zbirna paleta ' . $n;
-                $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_palete WHERE spisak_id = ?', [$id]) + 10;
-                db_run('INSERT INTO spisak_palete (spisak_id, naziv, broj, redosled) VALUES (?, ?, ?, ?)', [$id, $naziv, (int)$broj_t, $red]);
-                $nova = db_id();
-                return 'napravljena zbirna paleta „' . $naziv . '“' . ((int)$broj_t > 1 ? ' (' . palete_tekst((int)$broj_t) . ')' : '')
-                    . ' – dodajte u nju artikle (Gde ide: ' . $naziv . ')';
-            });
-            if ($nova > 0) {
-                $posle = $stranica . '&u=' . $nova . '#dodaj';
-            }
-        }
     } elseif ($ukloni > 0) {
-        u_nacrtu($id, static function () use ($id, $ukloni) {
+        u_nacrtu($id, static function () use ($id, $ukloni, $stranica, &$posle) {
             $st = db_one('SELECT * FROM spisak_stavke WHERE id = ? AND spisak_id = ?', [$ukloni, $id]);
             if ($st === null) {
                 return ['greska' => 'Stavka ne postoji.'];
             }
+            $posle = $stranica . '#mesto-' . (int)$st['mesto_id'];
             $naziv = $st['sku_id'] !== null ? sku_naziv((array)sku_podaci((int)$st['sku_id'])) : (string)$st['naziv'];
-            if ((int)$st['paleta_id'] > 0) {
-                $naziv .= ' (' . (string)db_val('SELECT naziv FROM spisak_palete WHERE id = ?', [(int)$st['paleta_id']]) . ')';
-            }
+            $gde = array_filter([
+                mesto_opis((int)$st['mesto_id']),
+                (int)$st['paleta_id'] > 0 ? (string)db_val('SELECT naziv FROM spisak_palete WHERE id = ?', [(int)$st['paleta_id']]) : '',
+            ]);
             db_run('DELETE FROM spisak_stavke WHERE id = ?', [$ukloni]);
-            return 'uklonjena stavka ' . $naziv;
+            return 'uklonjena stavka ' . $naziv . ($gde ? ' (' . implode(', ', $gde) . ')' : '');
         });
+    } elseif ($akcija === 'dodaj_mesto') {
+        [$broj, $greska] = mesto_broj_iz(post_str('novo_broj', 4));
+        $kupac = post_str('novo_kupac', 120);
+        $adresa = post_str('novo_adresa', 255);
+        $posle = $stranica . '#novo-mesto';
+        if ($greska !== null) {
+            flash_dodaj('greska', $greska);
+        } else {
+            $novo = 0;
+            u_nacrtu($id, static function () use ($id, $broj, $kupac, $adresa, &$novo) {
+                if (db_val('SELECT id FROM spisak_mesta WHERE spisak_id = ? AND broj = ?', [$id, $broj]) !== null) {
+                    return ['greska' => 'Mesto ' . $broj . ' već postoji na ovom spisku – upišite drugi broj.'];
+                }
+                $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_mesta WHERE spisak_id = ?', [$id]) + 10;
+                db_run(
+                    'INSERT INTO spisak_mesta (spisak_id, broj, kupac_id, adresa, redosled) VALUES (?, ?, ?, ?, ?)',
+                    [$id, $broj, $kupac !== '' ? kupac_id_za($kupac) : null, $adresa !== '' ? $adresa : null, $red]
+                );
+                $novo = db_id();
+                return 'dodato ' . mesto_naslov($broj, $kupac) . ' – sada dodajte robu za to mesto';
+            });
+            if ($novo > 0) {
+                $posle = $stranica . '&m=' . $novo . '#dodaj-' . $novo;
+            }
+        }
+    } elseif ($akcija === 'nova_paleta') {
+        $mesto_id = max(0, post_int('mesto_id'));
+        $naziv = post_str('p_naziv', 60);
+        $broj_t = post_str('p_broj', 4);
+        $broj_t = $broj_t === '' ? '1' : $broj_t;
+        $posle = $stranica . ($mesto_id > 0 ? '&m=' . $mesto_id . '#dodaj-' . $mesto_id : '');
+        if (!ctype_digit($broj_t) || (int)$broj_t < 1 || (int)$broj_t > 999) {
+            flash_dodaj('greska', 'Broj ovakvih paleta mora biti od 1 do 999.');
+        } else {
+            $nova = 0;
+            $mid = 0;
+            u_nacrtu($id, static function () use ($id, $mesto_id, $naziv, $broj_t, &$nova, &$mid) {
+                $m = mesto_na_spisku($id, $mesto_id);
+                if (isset($m['greska'])) {
+                    return $m;
+                }
+                $mid = (int)$m['id'];
+                if ($naziv === '') {
+                    // "Zbirna paleta N" – broj ide redom na celom kamionu, da radnici ne pomešaju palete
+                    $nazivi = array_column(db_all('SELECT naziv FROM spisak_palete WHERE spisak_id = ?', [$id]), 'naziv');
+                    $n = count($nazivi) + 1;
+                    while (in_array('Zbirna paleta ' . $n, $nazivi, true)) {
+                        $n++;
+                    }
+                    $naziv = 'Zbirna paleta ' . $n;
+                }
+                $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_palete WHERE spisak_id = ?', [$id]) + 10;
+                db_run('INSERT INTO spisak_palete (spisak_id, mesto_id, naziv, broj, redosled) VALUES (?, ?, ?, ?, ?)', [$id, $mid, $naziv, (int)$broj_t, $red]);
+                $nova = db_id();
+                return 'napravljena zbirna paleta „' . $naziv . '“' . ((int)$broj_t > 1 ? ' (' . palete_tekst((int)$broj_t) . ')' : '')
+                    . ' za ' . mesto_naslov((int)$m['broj'], $m['kupac']) . ' – dodajte u nju artikle (Gde ide: ' . $naziv . ')';
+            });
+            if ($nova > 0) {
+                $posle = $stranica . '&m=' . $mid . '&u=' . $nova . '#dodaj-' . $mid;
+            }
+        }
     } elseif ($akcija === 'zaglavlje') {
         [$p, $greska] = spisak_zaglavlje_iz_posta();
         if ($greska !== null) {
             flash_dodaj('greska', $greska);
         } else {
-            u_nacrtu($id, static function () use ($id, $p) {
-                db_run(
-                    'UPDATE spiskovi SET kupac_id = ?, datum = ?, vozilo = ?, vozac = ?, napomena = ? WHERE id = ?',
-                    [kupac_id_za($p['kupac']), $p['datum'], $p['vozilo'] ?: null, $p['vozac'] ?: null, $p['napomena'] ?: null, $id]
-                );
-                return 'izmenjeni podaci (kupac ' . $p['kupac'] . ', utovar ' . datum_srp($p['datum']) . ')';
+            u_nacrtu($id, static function (array $staro) use ($id, $p) {
+                $novo = [$p['datum'], $p['vozilo'] ?: null, $p['vozac'] ?: null, $p['napomena'] ?: null];
+                if ($novo === [(string)$staro['datum'], $staro['vozilo'], $staro['vozac'], $staro['napomena']]) {
+                    return '';
+                }
+                db_run('UPDATE spiskovi SET datum = ?, vozilo = ?, vozac = ?, napomena = ? WHERE id = ?', [...$novo, $id]);
+                return 'izmenjeni podaci (utovar ' . datum_srp($p['datum']) . ')';
             });
         }
     } elseif ($akcija === 'dodaj') {
         $sku = sku_aktivan(post_int('sku_id'));
+        $mesto_id = max(0, post_int('mesto_id'));
         $pid = max(0, post_int('paleta_id'));
-        if ($pid > 0) {
-            $posle = $stranica . '&u=' . $pid . '#dodaj';
-        }
+        $posle = $stranica . ($mesto_id > 0 ? '&m=' . $mesto_id . ($pid > 0 ? '&u=' . $pid : '') . '#dodaj-' . $mesto_id : '');
         if ($sku === null) {
             flash_dodaj('greska', 'Izaberite artikal i pakovanje.');
         } elseif ($pid > 0 && (int)post_str('pal', 8) > 0) {
@@ -140,40 +282,60 @@ if (je_post()) {
                 $pal = $pid > 0 ? 0 : (int)post_str('pal', 8);
                 $pak = (int)post_str('pak', 8);
                 $kom = (int)post_str('kom', 8);
-                u_nacrtu($id, static function () use ($id, $sku, $r, $pal, $pak, $kom, $pid) {
+                $mid = 0;
+                u_nacrtu($id, static function () use ($id, $sku, $r, $pal, $pak, $kom, $pid, $mesto_id, &$mid) {
                     $broj = 1;
-                    $gde = '';
+                    $paleta = '';
                     if ($pid > 0) {
                         $pl = db_one('SELECT * FROM spisak_palete WHERE id = ? AND spisak_id = ?', [$pid, $id]);
                         if ($pl === null) {
                             return ['greska' => 'Zbirna paleta ne postoji.'];
                         }
+                        if ($mesto_id === 0) {
+                            $mesto_id = (int)$pl['mesto_id'];      // stara forma: mesto je mesto palete
+                        } elseif ((int)$pl['mesto_id'] !== $mesto_id) {
+                            return ['greska' => 'Zbirna paleta „' . $pl['naziv'] . '“ nije na tom mestu.'];
+                        }
                         $broj = (int)$pl['broj'];
-                        $gde = ' (' . $pl['naziv'] . ')';
+                        $paleta = ' (' . $pl['naziv'] . ')';
                     }
+                    $m = mesto_na_spisku($id, $mesto_id);
+                    if (isset($m['greska'])) {
+                        return $m;
+                    }
+                    $mid = (int)$m['id'];
+                    $gde = mesto_naslov((int)$m['broj'], $m['kupac']);
                     $komadi = (int)$r['komadi'] * $broj;
                     if ($komadi > 99999999) {
                         return ['greska' => 'Količina je prevelika.'];
                     }
-                    $postoji = db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND paleta_id = ? AND sku_id = ?', [$id, $pid, (int)$sku['sku_id']]);
+                    $postoji = db_val(
+                        'SELECT id FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = ? AND sku_id = ?',
+                        [$id, $mid, $pid, (int)$sku['sku_id']]
+                    );
                     if ($postoji !== null) {
                         db_run('UPDATE spisak_stavke SET kolicina = ?, palete = ?, paketi = ?, komadi = ? WHERE id = ?', [$komadi, $pal, $pak, $kom, (int)$postoji]);
-                        return 'stavka ' . sku_naziv($sku) . $gde . ' je već bila na spisku – zamenjena novom količinom (' . broj($komadi) . ' kom)';
+                        return 'stavka ' . sku_naziv($sku) . $paleta . ' je već bila na spisku za ' . $gde . ' – zamenjena novom količinom (' . broj($komadi) . ' kom)';
                     }
                     $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;
                     db_run(
-                        'INSERT INTO spisak_stavke (spisak_id, paleta_id, sku_id, kolicina, palete, paketi, komadi, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [$id, $pid, (int)$sku['sku_id'], $komadi, $pal, $pak, $kom, $red]
+                        'INSERT INTO spisak_stavke (spisak_id, mesto_id, paleta_id, sku_id, kolicina, palete, paketi, komadi, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [$id, $mid, $pid, (int)$sku['sku_id'], $komadi, $pal, $pak, $kom, $red]
                     );
-                    return 'dodato ' . sku_naziv($sku) . ': ' . broj($komadi) . ' kom' . $gde;
+                    return 'dodato za ' . $gde . ': ' . sku_naziv($sku) . ' – ' . broj($komadi) . ' kom' . $paleta;
                 });
+                if ($mid > 0 && $mesto_id === 0) {
+                    $posle = $stranica . '&m=' . $mid . ($pid > 0 ? '&u=' . $pid : '') . '#dodaj-' . $mid;
+                }
             }
         }
     } elseif ($akcija === 'ostalo') {
+        $mesto_id = max(0, post_int('mesto_id'));
         $naziv = post_str('o_naziv', 120);
         $kol = post_str('o_kolicina', 8);
         $jedinica = post_str('o_jedinica', 20) ?: 'kom';
         [$kg, $greska] = kg_iz_posta('o_kg');
+        $posle = $stranica . ($mesto_id > 0 ? '&m=' . $mesto_id . '#dodaj-' . $mesto_id : '');
         if (mb_strlen($naziv) < 2) {
             flash_dodaj('greska', 'Upišite naziv robe.');
         } elseif (!ctype_digit($kol) || (int)$kol <= 0) {
@@ -181,13 +343,17 @@ if (je_post()) {
         } elseif ($greska !== null) {
             flash_dodaj('greska', $greska);
         } else {
-            u_nacrtu($id, static function () use ($id, $naziv, $kol, $jedinica, $kg) {
+            u_nacrtu($id, static function () use ($id, $mesto_id, $naziv, $kol, $jedinica, $kg) {
+                $m = mesto_na_spisku($id, $mesto_id);
+                if (isset($m['greska'])) {
+                    return $m;
+                }
                 $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;
                 db_run(
-                    'INSERT INTO spisak_stavke (spisak_id, sku_id, naziv, jedinica, tezina_kg, kolicina, redosled) VALUES (?, NULL, ?, ?, ?, ?, ?)',
-                    [$id, $naziv, $jedinica, $kg, (int)$kol, $red]
+                    'INSERT INTO spisak_stavke (spisak_id, mesto_id, sku_id, naziv, jedinica, tezina_kg, kolicina, redosled) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)',
+                    [$id, (int)$m['id'], $naziv, $jedinica, $kg, (int)$kol, $red]
                 );
-                return 'dodato (ostalo) ' . $naziv . ': ' . broj((int)$kol) . ' ' . $jedinica;
+                return 'dodato za ' . mesto_naslov((int)$m['broj'], $m['kupac']) . ' (ostalo): ' . $naziv . ' – ' . broj((int)$kol) . ' ' . $jedinica;
             });
         }
     } elseif ($akcija === 'stavke') {
@@ -195,13 +361,35 @@ if (je_post()) {
             $niz = static fn(string $k): array => is_array($_POST[$k] ?? null) ? $_POST[$k] : [];
             [$p_pal, $p_pak, $p_kom, $p_okol] = [$niz('pal'), $niz('pak'), $niz('kom'), $niz('o_kol')];
             [$p_pnaziv, $p_pbroj] = [$niz('pl_naziv'), $niz('pl_broj')];
+            [$p_mbroj, $p_mkupac, $p_madresa] = [$niz('m_broj'), $niz('m_kupac'), $niz('m_adresa')];
             $izmene = 0;
+
+            // mesta: broj, kupac i adresa (dva mesta ne mogu imati isti broj)
+            $brojevi = [];
+            foreach (spisak_mesta($id) as $m) {
+                $mid = (int)$m['id'];
+                [$broj, $greska] = is_string($p_mbroj[$mid] ?? null) ? mesto_broj_iz($p_mbroj[$mid]) : [(int)$m['broj'], null];
+                if ($greska !== null) {
+                    return ['greska' => mesto_naslov((int)$m['broj'], $m['kupac']) . ': ' . lcfirst($greska)];
+                }
+                if (isset($brojevi[$broj])) {
+                    return ['greska' => 'Dva mesta ne mogu imati isti broj (' . $broj . ').'];
+                }
+                $brojevi[$broj] = true;
+                $kupac = is_string($p_mkupac[$mid] ?? null) ? ulaz_str($p_mkupac, (string)$mid, 120) : (string)$m['kupac'];
+                $adresa = is_string($p_madresa[$mid] ?? null) ? ulaz_str($p_madresa, (string)$mid, 255) : (string)$m['adresa'];
+                $kupac_id = $kupac === '' ? null : kupac_id_za($kupac);
+                if ($broj !== (int)$m['broj'] || $kupac_id !== ($m['kupac_id'] === null ? null : (int)$m['kupac_id']) || $adresa !== (string)$m['adresa']) {
+                    db_run('UPDATE spisak_mesta SET broj = ?, kupac_id = ?, adresa = ? WHERE id = ?', [$broj, $kupac_id, $adresa !== '' ? $adresa : null, $mid]);
+                    $izmene++;
+                }
+            }
 
             // zbirne palete: naziv i broj ovakvih paleta
             $palete = [];
             foreach (spisak_palete($id) as $pl) {
                 $pid = (int)$pl['id'];
-                $naziv = is_string($p_pnaziv[$pid] ?? null) ? mb_substr(trim((string)preg_replace('/\s+/u', ' ', $p_pnaziv[$pid])), 0, 60) : (string)$pl['naziv'];
+                $naziv = is_string($p_pnaziv[$pid] ?? null) ? ulaz_str($p_pnaziv, (string)$pid, 60) : (string)$pl['naziv'];
                 $broj_t = is_string($p_pbroj[$pid] ?? null) ? trim($p_pbroj[$pid]) : (string)$pl['broj'];
                 if ($naziv === '') {
                     return ['greska' => 'Zbirna paleta mora imati naziv.'];
@@ -305,14 +493,24 @@ if (je_post()) {
 }
 
 $stavke = spisak_stavke($id);
-$palete = spisak_palete($id);
-$grupe = spisak_grupe($stavke);
+$mesta = spisak_mesta($id);
+$po_mestima = spisak_po_mestima($stavke, $mesta);
+$palete_mesta = [];
+foreach (spisak_palete($id) as $pl) {
+    $palete_mesta[(int)$pl['mesto_id']][] = $pl;
+}
+$aktivno_mesto = get_int('m');
 $izabrana_paleta = get_int('u');
 $utovaren = $sp['status'] === 'utovareno';
 $z = spisak_zbir($stavke, $utovaren);
 $nacrt = $sp['status'] === 'nacrt';
 $manjak = in_array($sp['status'], ['nacrt', 'za_utovar'], true) ? spisak_manjak($id, $stavke) : [];
 $stanja = stanja_svih();
+$broj_mesta = count($mesta);
+$sku_opcije = $nacrt && $mesta ? sku_opcije_html($stanja) : '';
+$kupci = $nacrt ? db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), poslednja_prodaja DESC, naziv LIMIT 300') : [];
+$nedavni = array_slice(array_column($kupci, 'naziv'), 0, 6);
+$kupci_tekst = spisak_kupci($sp);
 
 ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/spisak.js', 'assets/js/prodaja.js']]);
 ?>
@@ -320,9 +518,10 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
 
 <section class="kartica spisak-<?= e($sp['status']) ?>">
     <div class="kartica-naslov">
-        <h2><?= e($sp['kupac']) ?></h2>
+        <h2><?= e(spisak_naslov($sp)) ?></h2>
         <span class="znacka status-<?= e($sp['status']) ?>"><?= e(SPISAK_STATUSI[$sp['status']]) ?></span>
     </div>
+    <?php if ($kupci_tekst !== ''): ?><p class="spisak-kupci"><?= e($kupci_tekst) ?></p><?php endif; ?>
     <dl class="spisak-podaci">
         <div><dt>Utovar</dt><dd><?= e(dan_u_nedelji((string)$sp['datum'])) ?>, <?= e(datum_srp((string)$sp['datum'])) ?></dd></div>
         <?php if ($sp['vozilo']): ?><div><dt>Vozilo</dt><dd><?= e($sp['vozilo']) ?></dd></div><?php endif; ?>
@@ -334,7 +533,7 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
     </dl>
 
     <div class="stat-mreza tri">
-        <div class="stat"><span class="broj"><?= (int)$z['stavki'] ?></span><span class="opis">stavki</span></div>
+        <div class="stat"><span class="broj"><?= $broj_mesta ?></span><span class="opis"><?= $broj_mesta % 10 === 1 && $broj_mesta % 100 !== 11 ? 'mesto' : 'mesta' ?> istovara</span></div>
         <div class="stat"><span class="broj"><?= e(broj(round($z['palete'], 1), round($z['palete'], 1) == floor(round($z['palete'], 1)) ? 0 : 1)) ?></span><span class="opis">paleta<?= $z['zbirnih'] ? ' (zbirnih: ' . (int)$z['zbirnih'] . ')' : '' ?><?= $z['bez_palete'] ? ' (+' . (int)$z['bez_palete'] . ' bez palete)' : '' ?></span></div>
         <div class="stat"><span class="broj"><?= e(kg_tekst($z['kg'])) ?></span><span class="opis">težina<?= $z['bez_tezine'] ? ' (' . (int)$z['bez_tezine'] . ' bez težine)' : '' ?></span></div>
     </div>
@@ -345,16 +544,11 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
 
     <?php if ($nacrt): ?>
         <details class="razmak-gore">
-            <summary class="btn btn-mali"><?= ikona('olovka') ?> Izmeni kupca, datum, vozilo</summary>
+            <summary class="btn btn-mali"><?= ikona('olovka') ?> Izmeni datum, vozilo, vozača</summary>
             <form method="post" autocomplete="off" class="razmak-gore" action="<?= e(url('admin/spisak.php')) ?>">
                 <?= csrf_polje() ?>
                 <input type="hidden" name="akcija" value="zaglavlje">
                 <input type="hidden" name="id" value="<?= $id ?>">
-                <div class="red-polja">
-                    <label for="kupac">Kupac</label>
-                    <input class="polje" id="kupac" name="kupac" type="text" maxlength="120" required list="lista-kupaca" value="<?= e($sp['kupac']) ?>">
-                    <datalist id="lista-kupaca"><?php foreach (db_all('SELECT naziv FROM kupci ORDER BY naziv LIMIT 300') as $k): ?><option value="<?= e($k['naziv']) ?>"><?php endforeach; ?></datalist>
-                </div>
                 <div class="red-polja">
                     <label for="datum">Datum utovara</label>
                     <input class="polje" id="datum" name="datum" type="date" required value="<?= e((string)$sp['datum']) ?>">
@@ -377,6 +571,16 @@ ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['a
     <div class="poruka poruka-upozorenje" role="status">
         <strong>Upozorenje:</strong> za <?= count($manjak) ?> <?= count($manjak) === 1 ? 'stavku' : 'stavke' ?> na spisku ima više nego što je slobodno (stanje minus ono što je već rezervisano na drugim spiskovima). Spisak može da se pošalje, ovo je samo upozorenje.
     </div>
+<?php endif; ?>
+
+<?php if ($nacrt): ?>
+    <?php /* Jedna forma za sve izmene na mestima (polja su u karticama mesta, vezana atributom form="izmene"). */ ?>
+    <form method="post" id="izmene" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+        <?= csrf_polje() ?>
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <?php /* prvo dugme forme: Enter u polju čuva izmene (a ne briše ili pomera) */ ?>
+        <button class="skriven-vizuelno" type="submit" name="akcija" value="stavke" tabindex="-1" aria-hidden="true">Sačuvaj izmene</button>
+    </form>
 <?php endif; ?>
 
 <?php
@@ -408,13 +612,13 @@ $prikazi_stavku = static function (array $st) use ($nacrt, $utovaren, $manjak, $
         <?php if ($nacrt): ?>
             <div class="stavka-izmena" data-popis data-po="<?= $u_paleti ? 0 : (int)$st['po_paleti'] ?>" data-pp="<?= (int)$st['po_paketu'] ?>" data-broj="<?= $u_paleti ? (int)$st['paleta_broj'] : 1 ?>" data-sada="<?= (int)$st['kolicina'] ?>">
                 <?php if ($ostalo): ?>
-                    <label class="mala-oznaka"><?= e($st['ostalo_jedinica'] ?: 'kom') ?><input class="polje" name="o_kol[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= (int)$st['kolicina'] ?>"></label>
+                    <label class="mala-oznaka"><?= e($st['ostalo_jedinica'] ?: 'kom') ?><input class="polje" name="o_kol[<?= $sid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= (int)$st['kolicina'] ?>"></label>
                 <?php else: ?>
-                    <?php if (!$u_paleti && (int)$st['po_paleti'] > 0): ?><label class="mala-oznaka">paleta<input class="polje" name="pal[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= (int)$st['u_palete'] ?: '' ?>" placeholder="0" data-p="pal"></label><?php endif; ?>
-                    <?php if ((int)$st['po_paketu'] > 0): ?><label class="mala-oznaka">paketa<?= $u_paleti ? ' na pal.' : '' ?><input class="polje" name="pak[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= (int)$st['u_paketi'] ?: '' ?>" placeholder="0" data-p="pak"></label><?php endif; ?>
-                    <label class="mala-oznaka">komada<?= $u_paleti ? ' na pal.' : '' ?><input class="polje" name="kom[<?= $sid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= (int)$st['u_komadi'] ?: '' ?>" placeholder="0" data-p="kom"></label>
+                    <?php if (!$u_paleti && (int)$st['po_paleti'] > 0): ?><label class="mala-oznaka">paleta<input class="polje" name="pal[<?= $sid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= (int)$st['u_palete'] ?: '' ?>" placeholder="0" data-p="pal"></label><?php endif; ?>
+                    <?php if ((int)$st['po_paketu'] > 0): ?><label class="mala-oznaka">paketa<?= $u_paleti ? ' na pal.' : '' ?><input class="polje" name="pak[<?= $sid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="<?= (int)$st['u_paketi'] ?: '' ?>" placeholder="0" data-p="pak"></label><?php endif; ?>
+                    <label class="mala-oznaka">komada<?= $u_paleti ? ' na pal.' : '' ?><input class="polje" name="kom[<?= $sid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" value="<?= (int)$st['u_komadi'] ?: '' ?>" placeholder="0" data-p="kom"></label>
                 <?php endif; ?>
-                <button class="btn btn-mali btn-opasno" type="submit" name="ukloni" value="<?= $sid ?>" data-potvrda="Ukloniti „<?= e(stavka_puni_naziv($st)) ?>“ sa spiska?" aria-label="Ukloni <?= e(stavka_naziv($st)) ?>"><?= ikona('kanta') ?></button>
+                <button class="btn btn-mali btn-opasno" type="submit" form="izmene" name="ukloni" value="<?= $sid ?>" data-potvrda="Ukloniti „<?= e(stavka_puni_naziv($st)) ?>“ sa spiska?" aria-label="Ukloni <?= e(stavka_naziv($st)) ?>"><?= ikona('kanta') ?></button>
             </div>
             <?php if (!$ostalo): ?><div class="popis-zbir" data-zbir aria-live="polite"></div><?php endif; ?>
         <?php endif; ?>
@@ -422,125 +626,215 @@ $prikazi_stavku = static function (array $st) use ($nacrt, $utovaren, $manjak, $
     <?php
 };
 ?>
-<section class="kartica" aria-labelledby="stavke-naslov">
-    <div class="kartica-naslov"><h2 id="stavke-naslov">Stavke</h2></div>
-    <?php if (!$stavke && !$palete): ?>
-        <p class="pomoc bez-margine">Spisak još nema stavki. Dodajte ih ispod.</p>
-    <?php else: ?>
-        <?php if ($nacrt): ?>
-        <form method="post" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
-            <?= csrf_polje() ?>
-            <input type="hidden" name="id" value="<?= $id ?>">
+
+<?php if (!$po_mestima): ?>
+    <div class="kartica"><p class="pomoc bez-margine">Spisak još nema nijedno mesto istovara<?= $nacrt ? ' – dodajte prvo mesto ispod (Dodaj mesto)' : '' ?>.</p></div>
+<?php endif; ?>
+
+<?php
+$redni = 0;
+foreach ($po_mestima as $mid => $grupa):
+    $m = $grupa['mesto'];
+    $mst = $grupa['stavke'];
+    $mpalete = $palete_mesta[$mid] ?? [];
+    $mz = spisak_zbir($mst, $utovaren);
+    $naslov = $m !== null ? mesto_naslov((int)$m['broj'], $m['kupac']) : 'Bez mesta';
+    $menja = $nacrt && $m !== null;
+    $prvo = $redni === 0;
+    $poslednje = $redni === $broj_mesta - 1;
+    if ($m !== null) {
+        $redni++;
+    }
+    ?>
+    <section class="kartica mesto-kartica" id="mesto-<?= (int)$mid ?>" aria-labelledby="mesto-<?= (int)$mid ?>-naslov">
+        <div class="mesto-glava">
+            <?php if ($m !== null): ?><span class="mesto-krug" aria-hidden="true"><?= (int)$m['broj'] ?></span><?php endif; ?>
+            <div class="mesto-ime">
+                <h2 id="mesto-<?= (int)$mid ?>-naslov"><?= $m !== null ? 'Mesto ' . (int)$m['broj'] : 'Bez mesta' ?></h2>
+                <?php if ($m !== null && $m['kupac'] !== null): ?><span class="mesto-kupac"><?= e($m['kupac']) ?></span><?php endif; ?>
+                <?php if ($m !== null && $m['adresa'] !== null): ?><span class="mesto-adresa"><?= e($m['adresa']) ?></span><?php endif; ?>
+            </div>
+            <?php if ($menja): ?>
+                <div class="mesto-akcije">
+                    <?php if (!$prvo): ?><button class="btn btn-mali" type="submit" form="izmene" name="pomeri_mesto" value="<?= (int)$mid ?>:gore" aria-label="Pomeri <?= e($naslov) ?> gore" title="Pomeri gore">↑</button><?php endif; ?>
+                    <?php if (!$poslednje): ?><button class="btn btn-mali" type="submit" form="izmene" name="pomeri_mesto" value="<?= (int)$mid ?>:dole" aria-label="Pomeri <?= e($naslov) ?> dole" title="Pomeri dole">↓</button><?php endif; ?>
+                    <button class="btn btn-mali btn-opasno" type="submit" form="izmene" name="ukloni_mesto" value="<?= (int)$mid ?>"
+                            data-potvrda="Ukloniti <?= e($naslov) ?><?= $mst ? ' sa svom robom (' . e(stavki_tekst(count($mst))) . ')' : '' ?>?" aria-label="Ukloni <?= e($naslov) ?>" title="Ukloni mesto"><?= ikona('kanta') ?></button>
+                </div>
+            <?php endif; ?>
+        </div>
+        <div data-poruke></div>
+        <?php if ($menja): ?>
+            <details class="mesto-izmena">
+                <summary><?= ikona('olovka', 'ikona ikona-mala') ?> Broj, kupac, adresa</summary>
+                <div class="mesto-polja red-polja">
+                    <div class="mesto-broj-polje">
+                        <label for="m_broj_<?= (int)$mid ?>">Broj mesta</label>
+                        <input class="polje" id="m_broj_<?= (int)$mid ?>" name="m_broj[<?= (int)$mid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= (int)$m['broj'] ?>">
+                    </div>
+                    <div class="mesto-kupac-polje">
+                        <label for="m_kupac_<?= (int)$mid ?>">Kupac (nije obavezno)</label>
+                        <input class="polje" id="m_kupac_<?= (int)$mid ?>" name="m_kupac[<?= (int)$mid ?>]" form="izmene" type="text" maxlength="120" list="lista-kupaca" value="<?= e($m['kupac'] ?? '') ?>">
+                    </div>
+                </div>
+                <div class="red-polja">
+                    <label for="m_adresa_<?= (int)$mid ?>">Adresa ili napomena (nije obavezno)</label>
+                    <input class="polje" id="m_adresa_<?= (int)$mid ?>" name="m_adresa[<?= (int)$mid ?>]" form="izmene" type="text" maxlength="255" value="<?= e($m['adresa'] ?? '') ?>">
+                </div>
+                <button class="btn btn-braon btn-blok" type="submit" form="izmene" name="akcija" value="stavke">Sačuvaj</button>
+            </details>
         <?php endif; ?>
-        <?php if ($grupe[0]['stavke']): ?>
-            <ul class="lista stavke-lista"><?php foreach ($grupe[0]['stavke'] as $st) { $prikazi_stavku($st); } ?></ul>
+
+        <?php if ($grupa['grupe'][0]['stavke']): ?>
+            <ul class="lista stavke-lista"><?php foreach ($grupa['grupe'][0]['stavke'] as $st) { $prikazi_stavku($st); } ?></ul>
         <?php endif; ?>
-        <?php foreach ($palete as $pl):
+        <?php foreach ($mpalete as $pl):
             $pid = (int)$pl['id'];
-            $u_paleti = $grupe[$pid]['stavke'] ?? [];
+            $u_paleti = $grupa['grupe'][$pid]['stavke'] ?? [];
             $pz = spisak_zbir($u_paleti, $utovaren); ?>
             <div class="zbirna-paleta" id="paleta-<?= $pid ?>">
                 <div class="zbirna-glava">
-                    <?php if ($nacrt): ?>
-                        <label class="mala-oznaka zbirna-naziv">zbirna paleta<input class="polje" name="pl_naziv[<?= $pid ?>]" type="text" maxlength="60" required value="<?= e($pl['naziv']) ?>"></label>
-                        <label class="mala-oznaka zbirna-broj">ovakvih paleta<input class="polje" name="pl_broj[<?= $pid ?>]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= (int)$pl['broj'] ?>"></label>
-                        <button class="btn btn-mali btn-opasno" type="submit" name="ukloni_paletu" value="<?= $pid ?>" data-potvrda="Ukloniti zbirnu paletu „<?= e($pl['naziv']) ?>“ sa svim artiklima u njoj?" aria-label="Ukloni zbirnu paletu <?= e($pl['naziv']) ?>"><?= ikona('kanta') ?></button>
+                    <?php if ($menja): ?>
+                        <label class="mala-oznaka zbirna-naziv">zbirna paleta<input class="polje" name="pl_naziv[<?= $pid ?>]" form="izmene" type="text" maxlength="60" required value="<?= e($pl['naziv']) ?>"></label>
+                        <label class="mala-oznaka zbirna-broj">ovakvih paleta<input class="polje" name="pl_broj[<?= $pid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= (int)$pl['broj'] ?>"></label>
+                        <button class="btn btn-mali btn-opasno" type="submit" form="izmene" name="ukloni_paletu" value="<?= $pid ?>" data-potvrda="Ukloniti zbirnu paletu „<?= e($pl['naziv']) ?>“ sa svim artiklima u njoj?" aria-label="Ukloni zbirnu paletu <?= e($pl['naziv']) ?>"><?= ikona('kanta') ?></button>
                     <?php else: ?>
                         <strong><?= ikona('stanje') ?> <?= e(paleta_naslov((string)$pl['naziv'], (int)$pl['broj'])) ?></strong>
                     <?php endif; ?>
                 </div>
                 <p class="zbirna-zbir">Zbirna paleta<?= (int)$pl['broj'] > 1 ? ' × ' . (int)$pl['broj'] : '' ?> · <?= e(artikala_tekst(count($u_paleti))) ?><?= $pz['kg'] > 0 ? ' · ≈ ' . e(kg_tekst($pz['kg'])) : '' ?><?= (int)$pl['broj'] > 1 && $pz['kg'] > 0 ? ' ukupno' : '' ?></p>
                 <?php if (!$u_paleti): ?>
-                    <p class="pomoc bez-margine">Prazna – dodajte artikle ispod (Gde ide: <?= e($pl['naziv']) ?>).</p>
+                    <p class="pomoc bez-margine">Prazna – dodajte artikle (Dodaj robu → Gde ide: <?= e($pl['naziv']) ?>).</p>
                 <?php else: ?>
                     <ul class="lista stavke-lista"><?php foreach ($u_paleti as $st) { $prikazi_stavku($st); } ?></ul>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
-        <?php if ($nacrt): ?>
-            <button class="btn btn-braon btn-blok razmak-gore" type="submit" name="akcija" value="stavke">Sačuvaj izmene</button>
-        </form>
+
+        <?php if (!$mst && !$mpalete): ?>
+            <p class="pomoc mesto-prazno">Za ovo mesto još nema robe.</p>
+        <?php elseif ($mst): ?>
+            <p class="mesto-zbir">
+                <?= e(stavki_tekst(count($mst))) ?>
+                <?php if (round($mz['palete'], 1) > 0): ?> · <?= e(palete_zbir_tekst($mz['palete'])) ?><?php endif; ?>
+                <?php if ($mz['kg'] > 0): ?> · ≈ <?= e(kg_tekst($mz['kg'])) ?><?php endif; ?>
+            </p>
         <?php endif; ?>
-    <?php endif; ?>
-</section>
+
+        <?php if ($menja): ?>
+            <details class="mesto-dodaj" id="dodaj-<?= (int)$mid ?>"<?= $aktivno_mesto === (int)$mid || !$mst ? ' open' : '' ?>>
+                <summary class="btn btn-blok"><?= ikona('plus') ?> Dodaj robu za Mesto <?= (int)$m['broj'] ?></summary>
+                <div data-poruke></div>
+                <form method="post" autocomplete="off" class="mesto-forma" action="<?= e(url('admin/spisak.php')) ?>" data-nova-stavka data-dodavanje>
+                    <?= csrf_polje() ?>
+                    <input type="hidden" name="akcija" value="dodaj">
+                    <input type="hidden" name="id" value="<?= $id ?>">
+                    <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
+                    <?php if ($mpalete): ?>
+                        <div class="red-polja">
+                            <label for="paleta_id_<?= (int)$mid ?>">Gde ide</label>
+                            <select class="polje" id="paleta_id_<?= (int)$mid ?>" name="paleta_id" data-odrediste>
+                                <option value="0" data-broj="1">Posebna stavka (palete, paketi, komadi)</option>
+                                <?php foreach ($mpalete as $pl): ?>
+                                    <option value="<?= (int)$pl['id'] ?>" data-broj="<?= (int)$pl['broj'] ?>"<?= $izabrana_paleta === (int)$pl['id'] ? ' selected' : '' ?>>U zbirnu paletu: <?= e(paleta_naslov((string)$pl['naziv'], (int)$pl['broj'])) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="pomoc bez-margine" data-pomoc-zbirna hidden>U zbirnu paletu upišite koliko ide na <strong>jednu</strong> paletu (paketi i/ili komadi).</p>
+                        </div>
+                    <?php else: ?>
+                        <input type="hidden" name="paleta_id" value="0">
+                    <?php endif; ?>
+                    <div class="red-polja">
+                        <label for="sku_id_<?= (int)$mid ?>">Artikal i pakovanje</label>
+                        <select class="polje" id="sku_id_<?= (int)$mid ?>" name="sku_id" required data-izbor-sku><?= $sku_opcije ?></select>
+                    </div>
+                    <div class="popis-polja" data-popis data-po="0" data-pp="0" data-sada="0">
+                        <label class="mala-oznaka" data-polje-pal>paleta<input class="polje" name="pal" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pal"></label>
+                        <label class="mala-oznaka" data-polje-pak>paketa<input class="polje" name="pak" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pak"></label>
+                        <label class="mala-oznaka">komada<input class="polje" name="kom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="0" data-p="kom"></label>
+                    </div>
+                    <p class="popis-zbir" data-zbir aria-live="polite"></p>
+                    <button class="btn btn-primary btn-blok" type="submit">Dodaj za Mesto <?= (int)$m['broj'] ?></button>
+                </form>
+                <div class="mesto-vise">
+                    <details>
+                        <summary>Zbirna paleta (više artikala na jednoj paleti)</summary>
+                        <form method="post" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+                            <?= csrf_polje() ?>
+                            <input type="hidden" name="akcija" value="nova_paleta">
+                            <input type="hidden" name="id" value="<?= $id ?>">
+                            <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
+                            <p class="pomoc">Npr. pola rizle i pola oblutka na jednoj paleti, ili 5 kom po 5 l + 5 po 10 l + 5 po 50 l. Napravite paletu, pa u nju dodajte artikle (<strong>Gde ide</strong>).</p>
+                            <div class="red-polja-2 red-polja">
+                                <div><label for="p_naziv_<?= (int)$mid ?>">Naziv (nije obavezno)</label><input class="polje" id="p_naziv_<?= (int)$mid ?>" name="p_naziv" type="text" maxlength="60" placeholder="Zbirna paleta"></div>
+                                <div><label for="p_broj_<?= (int)$mid ?>">Koliko ovakvih paleta</label><input class="polje" id="p_broj_<?= (int)$mid ?>" name="p_broj" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="1"></div>
+                            </div>
+                            <button class="btn btn-braon btn-blok" type="submit">Napravi zbirnu paletu</button>
+                        </form>
+                    </details>
+                    <details>
+                        <summary>Ostalo (roba koja se ne vodi u aplikaciji)</summary>
+                        <form method="post" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+                            <?= csrf_polje() ?>
+                            <input type="hidden" name="akcija" value="ostalo">
+                            <input type="hidden" name="id" value="<?= $id ?>">
+                            <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
+                            <p class="pomoc">Ova roba se samo upisuje na spisak (i u težinu tovara) – stanje u aplikaciji se ne menja.</p>
+                            <div class="red-polja">
+                                <label for="o_naziv_<?= (int)$mid ?>">Naziv</label>
+                                <input class="polje" id="o_naziv_<?= (int)$mid ?>" name="o_naziv" type="text" maxlength="120" required placeholder="npr. Saksije 30 cm">
+                            </div>
+                            <div class="red-polja-3 red-polja">
+                                <div><label for="o_kolicina_<?= (int)$mid ?>">Količina</label><input class="polje" id="o_kolicina_<?= (int)$mid ?>" name="o_kolicina" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" required></div>
+                                <div><label for="o_jedinica_<?= (int)$mid ?>">Jedinica</label><input class="polje" id="o_jedinica_<?= (int)$mid ?>" name="o_jedinica" type="text" maxlength="20" value="kom" list="lista-jedinica"></div>
+                                <div><label for="o_kg_<?= (int)$mid ?>">Kg po jedinici</label><input class="polje" id="o_kg_<?= (int)$mid ?>" name="o_kg" type="text" inputmode="decimal" maxlength="8" placeholder="nije obavezno"></div>
+                            </div>
+                            <button class="btn btn-braon btn-blok" type="submit">Dodaj ostalo</button>
+                        </form>
+                    </details>
+                </div>
+            </details>
+        <?php endif; ?>
+    </section>
+<?php endforeach; ?>
+
+<?php if ($nacrt && $mesta): ?>
+    <p class="mesta-sacuvaj"><button class="btn btn-braon btn-blok" type="submit" form="izmene" name="akcija" value="stavke">Sačuvaj izmene</button></p>
+<?php endif; ?>
 
 <?php if ($nacrt): ?>
-    <details class="kartica">
-        <summary class="kartica-naslov"><h2><?= ikona('plus') ?> Nova zbirna paleta</h2></summary>
-        <form method="post" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
-            <?= csrf_polje() ?>
-            <input type="hidden" name="akcija" value="nova_paleta">
-            <input type="hidden" name="id" value="<?= $id ?>">
-            <p class="pomoc">Zbirna paleta je više različitih artikala složenih na jednu paletu (npr. 5 kom po 5 l, 5 po 10 l, 5 po 50 l). Radnici je slažu i tovare kao jednu paletu. Posle pravljenja dodajte artikle u nju (u „Dodaj artikal“ izaberite <strong>Gde ide</strong>).</p>
-            <div class="red-polja-2 red-polja">
-                <div><label for="p_naziv">Naziv</label><input class="polje" id="p_naziv" name="p_naziv" type="text" maxlength="60" placeholder="Zbirna paleta <?= count($palete) + 1 ?>"></div>
-                <div><label for="p_broj">Koliko ovakvih paleta</label><input class="polje" id="p_broj" name="p_broj" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="1"></div>
-            </div>
-            <button class="btn btn-primary btn-blok" type="submit">Napravi zbirnu paletu</button>
-        </form>
-    </details>
-
-    <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>" data-nova-stavka data-dodavanje id="dodaj">
+    <form method="post" class="kartica" id="novo-mesto" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
         <?= csrf_polje() ?>
-        <input type="hidden" name="akcija" value="dodaj">
+        <input type="hidden" name="akcija" value="dodaj_mesto">
         <input type="hidden" name="id" value="<?= $id ?>">
-        <div class="kartica-naslov"><h2><?= ikona('plus') ?> Dodaj artikal</h2></div>
-        <?php if ($palete): ?>
-            <div class="red-polja">
-                <label for="paleta_id">Gde ide</label>
-                <select class="polje" id="paleta_id" name="paleta_id" data-odrediste>
-                    <option value="0" data-broj="1">Posebna stavka (palete, paketi, komadi)</option>
-                    <?php foreach ($palete as $pl): ?>
-                        <option value="<?= (int)$pl['id'] ?>" data-broj="<?= (int)$pl['broj'] ?>"<?= $izabrana_paleta === (int)$pl['id'] ? ' selected' : '' ?>>U zbirnu paletu: <?= e(paleta_naslov((string)$pl['naziv'], (int)$pl['broj'])) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <p class="pomoc bez-margine" data-pomoc-zbirna hidden>U zbirnu paletu upišite koliko ide na <strong>jednu</strong> paletu (paketi i/ili komadi).</p>
+        <div class="kartica-naslov"><h2><?= ikona('plus') ?> Dodaj mesto</h2></div>
+        <div data-poruke></div>
+        <p class="pomoc">Svako mesto istovara ima svoj broj (kao zaokružen broj na papiru) i svoju robu. Mesta dodajete koliko god treba; kupac nije obavezan.</p>
+        <div class="mesto-polja red-polja">
+            <div class="mesto-broj-polje">
+                <label for="novo_broj">Broj mesta</label>
+                <input class="polje" id="novo_broj" name="novo_broj" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" required value="<?= mesto_sledeci_broj($id) ?>" data-oznaci>
             </div>
-        <?php else: ?>
-            <input type="hidden" name="paleta_id" value="0">
+            <div class="mesto-kupac-polje">
+                <label for="kupac">Kupac (nije obavezno)</label>
+                <input class="polje" id="kupac" name="novo_kupac" type="text" maxlength="120" list="lista-kupaca" placeholder="Upišite ime ili izaberite">
+            </div>
+        </div>
+        <?php if ($nedavni): ?>
+            <div class="izbor-mreza razmak-dole" aria-label="Raniji kupci">
+                <?php foreach ($nedavni as $n): ?>
+                    <button type="button" class="izbor-dugme" data-kupac="<?= e($n) ?>" aria-pressed="false"><?= e($n) ?></button>
+                <?php endforeach; ?>
+            </div>
         <?php endif; ?>
         <div class="red-polja">
-            <label for="sku_id">Artikal i pakovanje</label>
-            <select class="polje" id="sku_id" name="sku_id" required data-izbor-sku>
-                <option value="">— izaberite —</option>
-                <?php foreach (spisak_izbor_sku() as $artikal => $redovi): ?>
-                    <optgroup label="<?= e($artikal) ?>">
-                        <?php foreach ($redovi as [$sid, $naziv, $po, $pp]): ?>
-                            <option value="<?= $sid ?>" data-po="<?= $po ?>" data-pp="<?= $pp ?>" data-sada="<?= (int)($stanja[$sid] ?? 0) ?>"><?= e($artikal . ' · ' . $naziv) ?></option>
-                        <?php endforeach; ?>
-                    </optgroup>
-                <?php endforeach; ?>
-            </select>
+            <label for="novo_adresa">Adresa ili napomena (nije obavezno)</label>
+            <input class="polje" id="novo_adresa" name="novo_adresa" type="text" maxlength="255" placeholder="npr. Novi Sad, Futoški put 12">
         </div>
-        <div class="popis-polja" data-popis data-po="0" data-pp="0" data-sada="0">
-            <label class="mala-oznaka" data-polje-pal>paleta<input class="polje" name="pal" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pal"></label>
-            <label class="mala-oznaka" data-polje-pak>paketa<input class="polje" name="pak" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pak"></label>
-            <label class="mala-oznaka">komada<input class="polje" name="kom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="0" data-p="kom"></label>
-        </div>
-        <p class="popis-zbir" data-zbir aria-live="polite"></p>
-        <button class="btn btn-primary btn-blok" type="submit">Dodaj na spisak</button>
+        <button class="btn btn-primary btn-blok" type="submit"><?= ikona('plus') ?> Dodaj mesto</button>
     </form>
-
-    <details class="kartica">
-        <summary class="kartica-naslov"><h2><?= ikona('plus') ?> Dodaj ostalo (roba koja se ne vodi u aplikaciji)</h2></summary>
-        <form method="post" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
-            <?= csrf_polje() ?>
-            <input type="hidden" name="akcija" value="ostalo">
-            <input type="hidden" name="id" value="<?= $id ?>">
-            <p class="pomoc">Ova roba se samo upisuje na spisak (i u težinu tovara) – stanje u aplikaciji se ne menja.</p>
-            <div class="red-polja">
-                <label for="o_naziv">Naziv</label>
-                <input class="polje" id="o_naziv" name="o_naziv" type="text" maxlength="120" required placeholder="npr. Saksije 30 cm">
-            </div>
-            <div class="red-polja-3 red-polja">
-                <div><label for="o_kolicina">Količina</label><input class="polje" id="o_kolicina" name="o_kolicina" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" required></div>
-                <div><label for="o_jedinica">Jedinica</label><input class="polje" id="o_jedinica" name="o_jedinica" type="text" maxlength="20" value="kom" list="lista-jedinica">
-                    <datalist id="lista-jedinica"><option value="kom"><option value="vreća"><option value="paleta"><option value="paket"><option value="kg"></datalist></div>
-                <div><label for="o_kg">Kg po jedinici</label><input class="polje" id="o_kg" name="o_kg" type="text" inputmode="decimal" maxlength="8" placeholder="nije obavezno"></div>
-            </div>
-            <button class="btn btn-primary btn-blok" type="submit">Dodaj ostalo</button>
-        </form>
-    </details>
+    <datalist id="lista-kupaca"><?php foreach ($kupci as $k): ?><option value="<?= e($k['naziv']) ?>"><?php endforeach; ?></datalist>
+    <datalist id="lista-jedinica"><option value="kom"><option value="vreća"><option value="paleta"><option value="paket"><option value="kg"></datalist>
 <?php endif; ?>
 
 <section class="kartica" aria-labelledby="akcije-naslov">

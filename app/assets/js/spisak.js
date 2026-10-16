@@ -1,5 +1,6 @@
 /* Spisak za utovar: zbir paleta + paketa + komada uživo i prikaz samo onih polja koja artikal ima.
- * U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje i ukupno × broj paleta. */
+ * U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje i ukupno × broj paleta.
+ * Roba se dodaje po mestima istovara (forma u kartici svakog mesta). */
 (function () {
     'use strict';
     function broj(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
@@ -76,4 +77,41 @@
     });
     var okviri = document.querySelectorAll('[data-dodavanje]');
     for (var i = 0; i < okviri.length; i++) { osvezi(okviri[i]); }
+
+    /* Posle dodavanja stranica se otvara kod forme (#dodaj-12, #mesto-12): poruka ide tamo, da se vidi. */
+    var cilj = window.location.hash ? document.getElementById(window.location.hash.slice(1)) : null;
+    var mestoPoruke = cilj ? cilj.querySelector('[data-poruke]') : null;
+    var glavni = document.querySelector('main');
+    if (mestoPoruke && glavni) {
+        var el = glavni.firstElementChild;
+        var pomereno = false;
+        while (el && el.classList.contains('poruka')) {
+            var sledeci = el.nextElementSibling;
+            mestoPoruke.appendChild(el);
+            pomereno = true;
+            el = sledeci;
+        }
+        if (cilj.tagName === 'DETAILS') { cilj.open = true; }
+        if (pomereno) { cilj.scrollIntoView({ block: 'start' }); }
+    }
+
+    /* Broj mesta: dodir označi ceo broj, pa se samo upiše novi. */
+    document.addEventListener('focusin', function (e) {
+        if (e.target.hasAttribute && e.target.hasAttribute('data-oznaci')) { e.target.select(); }
+    });
+
+    /* Nesačuvane izmene (količine, mesta, palete): upozorenje pre napuštanja stranice. */
+    var izmene = document.getElementById('izmene');
+    if (izmene) {
+        var promenjeno = false;
+        document.addEventListener('input', function (e) {
+            if (e.target.form === izmene) { promenjeno = true; }
+        });
+        window.addEventListener('submit', function (e) {
+            if (e.target === izmene && !e.defaultPrevented) { promenjeno = false; }
+        });
+        window.addEventListener('beforeunload', function (e) {
+            if (promenjeno) { e.preventDefault(); e.returnValue = ''; }
+        });
+    }
 })();

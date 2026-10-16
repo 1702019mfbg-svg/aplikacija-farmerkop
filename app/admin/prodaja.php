@@ -39,7 +39,8 @@ if (je_post()) {
                     flash_dodaj('uspeh', 'Prodaja sačuvana: ' . $kupac . ' – ' . sku_naziv($sku) . ' – ' . kolicina_tekst($kol['komadi'], $kol['palete'], $kol['paketi']));
                     // Zaštita od duplog skidanja: isti kupac danas ima spisak za utovar.
                     $spisak = db_one(
-                        "SELECT id, status FROM spiskovi WHERE kupac_id = ? AND datum = ? AND status IN ('za_utovar','utovareno') ORDER BY id DESC LIMIT 1",
+                        "SELECT sp.id, sp.status FROM spiskovi sp JOIN spisak_mesta m ON m.spisak_id = sp.id
+                         WHERE m.kupac_id = ? AND sp.datum = ? AND sp.status IN ('za_utovar','utovareno') ORDER BY sp.id DESC LIMIT 1",
                         [$kupac_id, date('Y-m-d')]
                     );
                     if ($spisak !== null) {

@@ -1,6 +1,7 @@
 <?php
 /**
- * Spisak za utovar: kupac, datum, vozilo, vozač, stavke i status.
+ * Spisak za utovar (jedan kamion): datum, vozilo, vozač, mesta istovara i status. Mesto istovara ima broj
+ * koji upisuje vlasnik (kao zaokružen broj na papiru: 8, 9, 5 …), kupca (nije obavezan) i svoju robu.
  *
  *   nacrt      – slobodno se menja, stanje se ne dira
  *   za_utovar  – radnici ga vide, količine su rezervisane
@@ -21,8 +22,16 @@ const SPISAK_STATUSI = [
     'otkazano'  => 'Otkazano',
 ];
 
-const SPISAK_POLJA = 'sp.*, ku.naziv AS kupac, n.ime AS napravio, ut.ime AS utovario, ot.ime AS otkazao';
-const SPISAK_IZ = 'FROM spiskovi sp JOIN kupci ku ON ku.id = sp.kupac_id JOIN korisnici n ON n.id = sp.napravio_id '
+/**
+ * "kupac" = kupci sa mesta, redom ("Agrocentar, Cvećara Flora"; null ako nijedno mesto nema kupca),
+ * "mesta" = brojevi mesta redom ("8, 9, 5"), broj_mesta = koliko mesta ima utovar.
+ */
+const SPISAK_POLJA = 'sp.*, '
+    . "(SELECT GROUP_CONCAT(km.naziv ORDER BY m.redosled, m.id SEPARATOR ', ') FROM spisak_mesta m JOIN kupci km ON km.id = m.kupac_id WHERE m.spisak_id = sp.id) AS kupac, "
+    . "(SELECT GROUP_CONCAT(m.broj ORDER BY m.redosled, m.id SEPARATOR ', ') FROM spisak_mesta m WHERE m.spisak_id = sp.id) AS mesta, "
+    . '(SELECT COUNT(*) FROM spisak_mesta m WHERE m.spisak_id = sp.id) AS broj_mesta, '
+    . 'n.ime AS napravio, ut.ime AS utovario, ot.ime AS otkazao';
+const SPISAK_IZ = 'FROM spiskovi sp JOIN korisnici n ON n.id = sp.napravio_id '
     . 'LEFT JOIN korisnici ut ON ut.id = sp.utovario_id LEFT JOIN korisnici ot ON ot.id = sp.otkazao_id';
 
 function spisak_ucitaj(int $id): ?array
@@ -36,17 +45,102 @@ function spisak_zakljucaj(int $id): ?array
     return db_one('SELECT * FROM spiskovi WHERE id = ? FOR UPDATE', [$id]);
 }
 
-/** Stavke spiska sa podacima o artiklu (za "ostalo" su polja artikla null). */
+/** Mesta istovara jednog utovara, redom kako su na spisku, sa nazivom kupca (ako ga ima). */
+function spisak_mesta(int $spisak_id): array
+{
+    return db_all(
+        'SELECT m.*, k.naziv AS kupac FROM spisak_mesta m LEFT JOIN kupci k ON k.id = m.kupac_id WHERE m.spisak_id = ? ORDER BY m.redosled, m.id',
+        [$spisak_id]
+    );
+}
+
+/** "Mesto 8 · Cvećara Flora" ili samo "Mesto 8" */
+function mesto_naslov(int $broj, ?string $kupac): string
+{
+    return 'Mesto ' . $broj . ($kupac !== null && $kupac !== '' ? ' · ' . $kupac : '');
+}
+
+/** "1 mesto", "3 mesta", "21 mesto" */
+function mesta_tekst(int $n): string
+{
+    return $n . ($n % 10 === 1 && $n % 100 !== 11 ? ' mesto' : ' mesta');
+}
+
+/** "1 stavka", "3 stavke", "5 stavki" */
+function stavki_tekst(int $n): string
+{
+    $m10 = $n % 10;
+    $m100 = $n % 100;
+    if ($m10 === 1 && $m100 !== 11) {
+        return $n . ' stavka';
+    }
+    return $n . ($m10 >= 2 && $m10 <= 4 && ($m100 < 12 || $m100 > 14) ? ' stavke' : ' stavki');
+}
+
+/**
+ * Naslov spiska: jedno mesto – kupac (ili "Mesto 8"); više mesta – "3 mesta: 8, 9, 5" (kupci idu ispod, spisak_kupci()).
+ */
+function spisak_naslov(array $sp): string
+{
+    $n = (int)($sp['broj_mesta'] ?? 0);
+    if ($n === 0) {
+        return 'Spisak #' . (int)$sp['id'] . ' (bez mesta)';
+    }
+    if ($n === 1) {
+        return !empty($sp['kupac']) ? (string)$sp['kupac'] : 'Mesto ' . $sp['mesta'];
+    }
+    return mesta_tekst($n) . ': ' . $sp['mesta'];
+}
+
+/** Kupci sa mesta kad utovar ima više mesta ("Agrocentar, Cvećara Flora"), inače ''. */
+function spisak_kupci(array $sp): string
+{
+    return (int)($sp['broj_mesta'] ?? 0) > 1 && !empty($sp['kupac']) ? (string)$sp['kupac'] : '';
+}
+
+/** Sledeći slobodan broj mesta na utovaru (najveći + 1). */
+function mesto_sledeci_broj(int $spisak_id): int
+{
+    return (int)db_val('SELECT COALESCE(MAX(broj), 0) FROM spisak_mesta WHERE spisak_id = ?', [$spisak_id]) + 1;
+}
+
+/**
+ * Stavke po mestima: [mesto_id => ['broj' => broj mesta, 'mesto' => red, 'stavke' => [...], 'grupe' => spisak_grupe()]],
+ * redom kao mesta na spisku (i prazna mesta). Stavke bez mesta (stari podaci) idu u grupu 0 na kraju.
+ */
+function spisak_po_mestima(array $stavke, array $mesta): array
+{
+    $rez = [];
+    foreach ($mesta as $m) {
+        $rez[(int)$m['id']] = ['broj' => (int)$m['broj'], 'mesto' => $m, 'stavke' => []];
+    }
+    foreach ($stavke as $st) {
+        $mid = (int)$st['mesto_id'];
+        if (!isset($rez[$mid])) {
+            $rez[$mid] = ['broj' => 0, 'mesto' => null, 'stavke' => []];
+        }
+        $rez[$mid]['stavke'][] = $st;
+    }
+    foreach ($rez as $mid => $r) {
+        $rez[$mid]['grupe'] = spisak_grupe($r['stavke']);
+    }
+    return $rez;
+}
+
+/** Stavke spiska sa podacima o artiklu (za "ostalo" su polja artikla null), redom po mestima. */
 function spisak_stavke(int $spisak_id): array
 {
     return db_all(
-        'SELECT st.id AS stavka_id, st.spisak_id, st.sku_id, st.naziv AS ostalo_naziv, st.jedinica AS ostalo_jedinica,
+        'SELECT st.id AS stavka_id, st.spisak_id, st.mesto_id, m.broj AS mesto_broj, m.kupac_id AS mesto_kupac_id, mk.naziv AS mesto_kupac,
+                st.sku_id, st.naziv AS ostalo_naziv, st.jedinica AS ostalo_jedinica,
                 st.tezina_kg AS ostalo_kg, st.kolicina, st.palete AS u_palete, st.paketi AS u_paketi, st.komadi AS u_komadi,
                 st.utovareno, st.redosled, st.dodao_id, d.ime AS dodao,
                 st.paleta_id, pl.naziv AS paleta_naziv, pl.broj AS paleta_broj,
                 s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
                 p.kolicina AS pak_kolicina, p.jedinica
          FROM spisak_stavke st
+         LEFT JOIN spisak_mesta m ON m.id = st.mesto_id
+         LEFT JOIN kupci mk ON mk.id = m.kupac_id
          LEFT JOIN spisak_palete pl ON pl.id = st.paleta_id
          LEFT JOIN korisnici d ON d.id = st.dodao_id
          LEFT JOIN sku s ON s.id = st.sku_id
@@ -54,7 +148,7 @@ function spisak_stavke(int $spisak_id): array
          LEFT JOIN pakovanja p ON p.id = s.pakovanje_id
          LEFT JOIN varijante v ON v.id = s.varijanta_id
          WHERE st.spisak_id = ?
-         ORDER BY (st.paleta_id > 0), pl.redosled, st.paleta_id, (st.sku_id IS NULL), st.redosled, st.id',
+         ORDER BY (m.id IS NULL), m.redosled, st.mesto_id, (st.paleta_id > 0), pl.redosled, st.paleta_id, (st.sku_id IS NULL), st.redosled, st.id',
         [$spisak_id]
     );
 }
@@ -106,10 +200,25 @@ function stavka_naziv(array $st): string
     return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_naziv($st);
 }
 
-/** Naziv sa zbirnom paletom: "Humovit · 10 l (Zbirna paleta 1)". */
-function stavka_puni_naziv(array $st): string
+/**
+ * Naziv sa zbirnom paletom (i mestom, kad utovar ima više mesta): "Humovit · 10 l (mesto 8, Zbirna paleta 1)".
+ */
+function stavka_puni_naziv(array $st, bool $sa_mestom = false): string
 {
-    return stavka_naziv($st) . ((int)($st['paleta_id'] ?? 0) > 0 ? ' (' . $st['paleta_naziv'] . ')' : '');
+    $dodaci = [];
+    if ($sa_mestom && $st['mesto_broj'] !== null) {
+        $dodaci[] = 'mesto ' . (int)$st['mesto_broj'];
+    }
+    if ((int)($st['paleta_id'] ?? 0) > 0) {
+        $dodaci[] = (string)$st['paleta_naziv'];
+    }
+    return stavka_naziv($st) . ($dodaci ? ' (' . implode(', ', $dodaci) . ')' : '');
+}
+
+/** Da li stavke idu za više od jednog mesta (kupca). */
+function vise_mesta(array $stavke): bool
+{
+    return count(array_unique(array_map(static fn(array $st): int => (int)$st['mesto_id'], $stavke))) > 1;
 }
 
 /** Kako je količina uneta: "2 pal + 3 pak + 5 kom" (za "ostalo": "40 kom"). */
@@ -206,10 +315,13 @@ function spisak_zbir(array $stavke, bool $utovareno = false): array
     return $z;
 }
 
-/** "≈ 7,5 paleta" */
+/** "≈ 7,5 paleta" (sasvim malo robe: "< 0,1 paleta") */
 function palete_zbir_tekst(float $p): string
 {
     $zaokruzeno = round($p, 1);
+    if ($p > 0 && $zaokruzeno == 0) {
+        return '< 0,1 paleta';
+    }
     if ($zaokruzeno == floor($zaokruzeno)) {
         return palete_tekst((int)$zaokruzeno);
     }
@@ -301,9 +413,6 @@ function spisak_zaglavlje_iz_posta(): array
         'vozac'    => post_str('vozac', 60),
         'napomena' => post_str('napomena', 255),
     ];
-    if ($p['kupac'] === '') {
-        return [$p, 'Upišite ili izaberite kupca.'];
-    }
     if (!je_datum($p['datum'])) {
         return [$p, 'Izaberite datum utovara.'];
     }
@@ -337,8 +446,15 @@ function spisak_promeni_status(int $id, string $ocekivan, string $novi, int $kor
         if ($novi === 'nacrt' && $ocekivan === 'otkazano' && $sp['utovareno_u'] !== null) {
             return ['ok' => false, 'greska' => 'Spisak koji je bio utovaren ne može ponovo da se otvori. Napravite novi spisak.'];
         }
-        if ($novi === 'za_utovar' && (int)db_val('SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id = ?', [$id]) === 0) {
-            return ['ok' => false, 'greska' => 'Spisak nema nijednu stavku.'];
+        if ($novi === 'za_utovar') {
+            if ((int)db_val('SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id = ?', [$id]) === 0) {
+                return ['ok' => false, 'greska' => 'Spisak nema nijednu stavku.'];
+            }
+            foreach (spisak_mesta($id) as $m) {
+                if ((int)db_val('SELECT COUNT(*) FROM spisak_stavke WHERE mesto_id = ?', [(int)$m['id']]) === 0) {
+                    return ['ok' => false, 'greska' => mesto_naslov((int)$m['broj'], $m['kupac']) . ' nema nijednu stavku – dodajte robu ili uklonite mesto.'];
+                }
+            }
         }
         $sad = sada();
         if ($novi === 'otkazano' && $ocekivan === 'utovareno') {
@@ -362,8 +478,8 @@ function spisak_promeni_status(int $id, string $ocekivan, string $novi, int $kor
 function spisak_vrati_robu(array $sp, int $korisnik_id): void
 {
     $redovi = db_all(
-        "SELECT sku_id, SUM(CASE WHEN tip = 'utovar' THEN kolicina ELSE -kolicina END) AS kom
-         FROM unosi WHERE spisak_id = ? AND obrisan = 0 AND tip IN ('utovar', 'povrat') GROUP BY sku_id ORDER BY sku_id",
+        "SELECT sku_id, kupac_id, SUM(CASE WHEN tip = 'utovar' THEN kolicina ELSE -kolicina END) AS kom
+         FROM unosi WHERE spisak_id = ? AND obrisan = 0 AND tip IN ('utovar', 'povrat') GROUP BY sku_id, kupac_id ORDER BY sku_id, kupac_id",
         [(int)$sp['id']]
     );
     $sad = sada();
@@ -375,7 +491,7 @@ function spisak_vrati_robu(array $sp, int $korisnik_id): void
         db_run(
             "INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
              VALUES ('povrat', ?, ?, ?, ?, ?, ?, ?, ?)",
-            [(int)$r['sku_id'], (int)$r['kom'], $korisnik_id, (int)$sp['kupac_id'], (int)$sp['id'], 'Otkazan spisak #' . (int)$sp['id'], $sad, $sad]
+            [(int)$r['sku_id'], (int)$r['kom'], $korisnik_id, $r['kupac_id'] === null ? null : (int)$r['kupac_id'], (int)$sp['id'], 'Otkazan spisak #' . (int)$sp['id'], $sad, $sad]
         );
     }
 }
@@ -391,10 +507,11 @@ function utovar_iz_posta(array $stavke): array
     [$ok, $pal, $pak, $kom, $okol] = [$niz('ok'), $niz('pal'), $niz('pak'), $niz('kom'), $niz('o_kol')];
     $rez = [];
     $neoznaceno = [];
+    $sa_kupcem = vise_mesta($stavke);
     foreach ($stavke as $st) {
         $sid = (int)$st['stavka_id'];
         if (($ok[$sid] ?? '') !== '1') {
-            $neoznaceno[] = stavka_puni_naziv($st);
+            $neoznaceno[] = stavka_puni_naziv($st, $sa_kupcem);
             continue;
         }
         if ($st['sku_id'] === null) {
@@ -462,12 +579,19 @@ function spisak_potvrdi_utovar(int $id, array $kolicine, int $korisnik_id): arra
         }
         $sad = sada();
         $razlike = [];
+        $sa_kupcem = vise_mesta($stavke);
+        $kupci = [];
         foreach ($stavke as $st) {
             $sid = (int)$st['stavka_id'];
             $k = $kolicine[$sid];
             db_run('UPDATE spisak_stavke SET utovareno = ? WHERE id = ?', [$k['kolicina'], $sid]);
             if ($k['kolicina'] !== (int)$st['kolicina']) {
-                $razlike[] = stavka_puni_naziv($st) . ': ' . broj($k['kolicina']) . ' umesto ' . broj((int)$st['kolicina']);
+                $razlike[] = stavka_puni_naziv($st, $sa_kupcem) . ': ' . broj($k['kolicina']) . ' umesto ' . broj((int)$st['kolicina']);
+            }
+            // roba se vodi na kupca svog mesta (stari podaci bez mesta: kupac spiska)
+            $kupac_id = $st['mesto_kupac_id'] !== null ? (int)$st['mesto_kupac_id'] : ($sp['kupac_id'] !== null ? (int)$sp['kupac_id'] : null);
+            if ($kupac_id !== null) {
+                $kupci[$kupac_id] = true;
             }
             if ($st['sku_id'] === null || $k['kolicina'] === 0) {
                 continue;
@@ -475,24 +599,26 @@ function spisak_potvrdi_utovar(int $id, array $kolicine, int $korisnik_id): arra
             db_run(
                 "INSERT INTO unosi (tip, sku_id, kolicina, palete, paketi, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
                  VALUES ('utovar', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [(int)$st['sku_id'], $k['kolicina'], $k['palete'], $k['paketi'], $korisnik_id, (int)$sp['kupac_id'], $id,
-                 'Spisak #' . $id . ((int)$st['paleta_id'] > 0 ? ' – ' . $st['paleta_naziv'] : ''), $sad, $sad]
+                [(int)$st['sku_id'], $k['kolicina'], $k['palete'], $k['paketi'], $korisnik_id, $kupac_id, $id,
+                 'Spisak #' . $id . ($st['mesto_broj'] !== null ? ' – mesto ' . (int)$st['mesto_broj'] : '')
+                 . ((int)$st['paleta_id'] > 0 ? ' – ' . $st['paleta_naziv'] : ''), $sad, $sad]
             );
         }
         db_run("UPDATE spiskovi SET status = 'utovareno', utovario_id = ?, utovareno_u = ?, izmenjen = ? WHERE id = ?", [$korisnik_id, $sad, $sad, $id]);
-        db_run('UPDATE kupci SET poslednja_prodaja = ? WHERE id = ?', [$sad, (int)$sp['kupac_id']]);
+        foreach (array_keys($kupci) as $kupac_id) {
+            db_run('UPDATE kupci SET poslednja_prodaja = ? WHERE id = ?', [$sad, $kupac_id]);
+        }
         return ['ok' => true, 'vec' => false, 'greska' => null, 'razlike' => $razlike];
     });
 }
 
-/** Tekst spiska za deljenje (Viber, WhatsApp, SMS). */
+/** Tekst spiska za deljenje (Viber, WhatsApp, SMS), po mestima istovara. */
 function spisak_tekst_za_deljenje(array $sp, array $stavke): string
 {
     $utovaren = $sp['status'] === 'utovareno';
     $z = spisak_zbir($stavke, $utovaren);
     $l = [];
     $l[] = 'Farmerkop – spisak za utovar #' . (int)$sp['id'] . ($utovaren ? ' (utovareno)' : '');
-    $l[] = 'Kupac: ' . $sp['kupac'];
     $l[] = 'Utovar: ' . dan_u_nedelji((string)$sp['datum']) . ', ' . datum_srp((string)$sp['datum']);
     if ($sp['vozilo']) {
         $l[] = 'Vozilo: ' . $sp['vozilo'];
@@ -500,27 +626,37 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
     if ($sp['vozac']) {
         $l[] = 'Vozač: ' . $sp['vozac'];
     }
-    $n = 0;
-    foreach (spisak_grupe($stavke) as $pid => $g) {
-        if (!$g['stavke']) {
+    foreach (spisak_po_mestima($stavke, spisak_mesta((int)$sp['id'])) as $mesto) {
+        if (!$mesto['stavke']) {
             continue;
         }
         $l[] = '';
-        if ($pid > 0) {
-            $l[] = 'ZBIRNA PALETA – ' . paleta_naslov($g['naziv'], $g['broj']) . ':';
+        $m = $mesto['mesto'];
+        $l[] = $m !== null
+            ? 'MESTO ' . $mesto['broj'] . ($m['kupac'] ? ' – ' . $m['kupac'] : '') . ($m['adresa'] ? ' (' . $m['adresa'] . ')' : '')
+            : 'BEZ MESTA';
+        $n = 0;
+        foreach ($mesto['grupe'] as $pid => $g) {
+            if (!$g['stavke']) {
+                continue;
+            }
+            if ($pid > 0) {
+                $l[] = '  ZBIRNA PALETA – ' . paleta_naslov($g['naziv'], $g['broj']) . ':';
+            }
+            foreach ($g['stavke'] as $st) {
+                $n++;
+                $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
+                $opis = $utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom (utovareno)' : stavka_plan_tekst($st);
+                $l[] = ($pid > 0 ? '     ' : '  ') . $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
+            }
         }
-        foreach ($g['stavke'] as $st) {
-            $n++;
-            $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
-            $opis = $utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom (utovareno)' : stavka_plan_tekst($st);
-            $l[] = ($pid > 0 ? '   ' : '') . $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
-        }
+    }
+    if ($sp['napomena']) {
+        $l[] = '';
+        $l[] = 'Napomena: ' . $sp['napomena'];
     }
     $l[] = '';
     $l[] = 'Ukupno: ' . ($z['palete'] > 0 ? palete_zbir_tekst($z['palete']) . ($z['zbirnih'] > 0 ? ' (zbirnih: ' . $z['zbirnih'] . ')' : '') . ', ' : '') . '≈ ' . kg_tekst($z['kg']);
-    if ($sp['napomena']) {
-        $l[] = 'Napomena: ' . $sp['napomena'];
-    }
     return implode("\n", $l);
 }
 
@@ -528,23 +664,38 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
  * Utovar šlepera na licu mesta: radnik (ili administrator) dodaje artikal kog nema na spisku, dok spisak
  * čeka utovar. Stavka pamti ko ju je dodao. Vraća ['ok' => bool, 'greska' => ?string, 'stavka_id' => ?int].
  */
-function spisak_dodaj_pri_utovaru(int $id, array $sku, int $komadi, int $pal, int $pak, int $kom, int $korisnik_id): array
+function spisak_dodaj_pri_utovaru(int $id, int $mesto_id, array $sku, int $komadi, int $pal, int $pak, int $kom, int $korisnik_id): array
 {
-    return db_trans(static function () use ($id, $sku, $komadi, $pal, $pak, $kom, $korisnik_id): array {
+    return db_trans(static function () use ($id, $mesto_id, $sku, $komadi, $pal, $pak, $kom, $korisnik_id): array {
+        $ne = static fn(string $greska): array => ['ok' => false, 'greska' => $greska, 'stavka_id' => null, 'mesto' => null];
         $sp = spisak_zakljucaj($id);
         if ($sp === null || $sp['status'] !== 'za_utovar') {
-            return ['ok' => false, 'greska' => 'Spisak više ne čeka utovar.', 'stavka_id' => null];
+            return $ne('Spisak više ne čeka utovar.');
         }
-        if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND paleta_id = 0 AND sku_id = ?', [$id, (int)$sku['sku_id']]) !== null) {
-            return ['ok' => false, 'greska' => sku_naziv($sku) . ' je već na spisku – kod te stavke dodirnite „Više ili manje od plana“ i upišite količinu.', 'stavka_id' => null];
+        $mesta = spisak_mesta($id);
+        if ($mesto_id === 0 && count($mesta) === 1) {
+            $mesto_id = (int)$mesta[0]['id'];           // jedno mesto – ne mora da se bira
+        }
+        $mesto = null;
+        foreach ($mesta as $m) {
+            if ((int)$m['id'] === $mesto_id) {
+                $mesto = $m;
+            }
+        }
+        if ($mesto === null && ($mesta || $mesto_id !== 0)) {
+            return $ne('Izaberite za koje mesto je roba (Za mesto).');
+        }
+        if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = 0 AND sku_id = ?', [$id, $mesto_id, (int)$sku['sku_id']]) !== null) {
+            return $ne(sku_naziv($sku) . ' je već na spisku' . ($mesto !== null ? ' za ' . mesto_naslov((int)$mesto['broj'], $mesto['kupac']) : '')
+                . ' – kod te stavke dodirnite „Više ili manje od plana“ i upišite količinu.');
         }
         $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;
         db_run(
-            'INSERT INTO spisak_stavke (spisak_id, sku_id, kolicina, palete, paketi, komadi, dodao_id, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [$id, (int)$sku['sku_id'], $komadi, $pal, $pak, $kom, $korisnik_id, $red]
+            'INSERT INTO spisak_stavke (spisak_id, mesto_id, sku_id, kolicina, palete, paketi, komadi, dodao_id, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$id, $mesto_id, (int)$sku['sku_id'], $komadi, $pal, $pak, $kom, $korisnik_id, $red]
         );
         $stavka_id = db_id();
         db_run('UPDATE spiskovi SET izmenjen = ? WHERE id = ?', [sada(), $id]);
-        return ['ok' => true, 'greska' => null, 'stavka_id' => $stavka_id];
+        return ['ok' => true, 'greska' => null, 'stavka_id' => $stavka_id, 'mesto' => $mesto];
     });
 }

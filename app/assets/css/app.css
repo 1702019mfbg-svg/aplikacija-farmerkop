@@ -570,3 +570,49 @@ body.stampa { background: var(--bg); }
 .stampa-grupa td { background: #f1ebe0; border-top: 2px solid #1a1612; padding-top: 8px; }
 .stampa-u-paleti td:nth-child(2) { padding-left: 14px; }
 @media print { .stampa-grupa td { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+/* ── Mesta istovara (jedan kamion, više mesta: Mesto 8, 9, 5 …) ── */
+.spisak-kupci { margin: -4px 0 10px; color: var(--tekst-bled); font-weight: 600; overflow-wrap: anywhere; }
+.mesto-kartica { border-left: 6px solid var(--kraft-tamno); scroll-margin-top: 88px; }
+.mesto-dodaj, #novo-mesto { scroll-margin-top: 88px; }
+.mesto-glava { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.mesto-krug {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    min-width: 48px; height: 48px; padding: 0 6px; border-radius: 24px; border: 3px solid var(--braon);
+    color: var(--braon); background: var(--povrsina); font-weight: 800; font-size: 1.35rem; line-height: 1;
+}
+:root[data-tema="dark"] .mesto-krug { border-color: var(--kraft); color: var(--kraft); }
+@media (prefers-color-scheme: dark) { :root:not([data-tema="light"]) .mesto-krug { border-color: var(--kraft); color: var(--kraft); } }
+.mesto-ime { flex: 1 1 6rem; min-width: 0; display: grid; gap: 2px; }
+.mesto-ime h2, .mesto-ime h3 { margin: 0; font-size: 1.2rem; }
+.mesto-kupac { font-weight: 700; overflow-wrap: anywhere; }
+.mesto-adresa { color: var(--tekst-bled); font-size: .9rem; overflow-wrap: anywhere; }
+.mesto-akcije { display: flex; gap: 6px; margin-left: auto; }
+.mesto-akcije .btn { min-width: 40px; padding: 0 8px; font-size: 1.15rem; font-weight: 800; }
+.mesto-izmena { margin-top: 6px; }
+.mesto-izmena > summary { display: inline-flex; gap: 6px; align-items: center; padding: 6px 0; color: var(--tekst-bled); font-size: .92rem; cursor: pointer; }
+.mesto-izmena[open] > summary { margin-bottom: 8px; }
+.mesto-polja { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; }
+.mesto-polja > * { min-width: 0; }
+.mesto-broj-polje label { white-space: nowrap; }
+.mesto-broj-polje .polje { width: 6.5rem; text-align: center; font-weight: 800; font-size: 1.25rem; }
+.mesto-zbir { margin: 8px 0 0; font-size: .9rem; color: var(--tekst-bled); font-weight: 600; }
+.mesto-prazno { margin: 10px 0 0; }
+.mesto-dodaj { margin-top: 12px; }
+.mesto-dodaj > summary { list-style: none; }
+.mesto-dodaj > summary::-webkit-details-marker { display: none; }
+.mesto-dodaj[open] > summary { margin-bottom: 10px; }
+.mesto-forma .popis-polja { margin-bottom: 6px; }
+.mesto-vise { display: grid; gap: 8px; margin-top: 12px; }
+.mesto-vise > details { border: 1px solid var(--granica); border-radius: 12px; padding: 0 12px; background: var(--povrsina-2); }
+.mesto-vise > details > summary { padding: 12px 0; font-weight: 700; cursor: pointer; }
+.mesto-vise > details[open] { padding-bottom: 12px; }
+.mesta-sacuvaj { margin: 0 0 16px; }
+[data-poruke] > .poruka { margin: 10px 0 0; }
+.utovar-mesto { margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--granica); scroll-margin-top: 88px; }
+.utovar-mesto .mesto-glava { margin-bottom: 2px; }
+.utovar-mesto .mesto-krug { min-width: 44px; height: 44px; border-radius: 22px; font-size: 1.25rem; }
+.stampa-mesto td { border-top: 2px solid #1a1612; border-bottom: 1px solid #1a1612; padding-top: 10px; }
+.stampa-mesto-ime { font-size: 1rem; }
+.stampa-krug { display: inline-block; min-width: 26px; height: 26px; line-height: 22px; margin-right: 6px; padding: 0 4px; border: 2px solid #1a1612; border-radius: 13px; text-align: center; font-weight: 800; }
+.stampa-mesto-zbir { float: right; margin-left: 8px; font-size: .8rem; font-weight: 700; color: #6b5a4a; }
