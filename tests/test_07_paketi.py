@@ -53,7 +53,7 @@ try:
 
     # ── 1. Stanje baze posle nove instalacije ────────────────────────────────
     R.odeljak("Nova instalacija: kolone, vrednosti, verzija")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "7", "schema_verzija = 7")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "schema_verzija = 8")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND ((table_name='sku' AND column_name='po_paketu') OR (table_name='unosi' AND column_name='paketi'))" % DB_NAME) == 2, "postoje kolone sku.po_paketu i unosi.paketi")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='%s' AND table_name='uvoz_mapiranje'" % DB_NAME) == 1, "postoji tabela uvoz_mapiranje")
     pp = {re.sub(r"(\d+)\.00", r"\1", r.split("\t")[0]): r.split("\t")[1] for r in sql(

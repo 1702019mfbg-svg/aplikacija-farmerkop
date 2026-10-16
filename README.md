@@ -11,7 +11,7 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 | Ko | Šta |
 |---|---|
 | **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
-| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, unos šifrom H50L, zbirne palete; ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
+| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, unos kucanjem (H50L, B oblutak 4/6, „oblutak beli 40-60“), zbirne palete; ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
 
@@ -47,8 +47,9 @@ dist/                 gotovi ZIP paketi
   kupac nije obavezan, redosled), `spisak_stavke` (`mesto_id`; artikal ili „ostalo“; `paleta_id` > 0 = stavka zbirne palete,
   količina = na jednoj paleti × `spisak_palete.broj`), `spisak_palete` (`mesto_id`). Stanje se skida tek potvrdom utovara
   (`spisak_potvrdi_utovar`), na kupca mesta.
-- **Šifre artikala** (`sku.sifra`, jedinstvena; `inc/katalog.php`): `predlozi_sifre()` / `dopuni_sifre()` (H50L, BO46, BRS …),
-  `sku_po_unosu()` prepoznaje otkucano (tačna šifra, početak šifre, naziv, reči naziva); isto radi i `assets/js/spisak.js`.
+- **Kako artikal piše na spisku** (`sku.sifra`, jedinstveno; `inc/katalog.php`): šifru ima samo Humovit (H50L), ostali ime
+  (B oblutak 4/6, B rizla sitnija) – `predlozi_sifre()` / `dopuni_sifre()`; `sku_po_unosu()` prepoznaje otkucano (kako piše,
+  početak toga, naziv, reči u bilo kom redu, milimetri „40-60“); isto radi i `assets/js/spisak.js`.
 - **Uvoz stanja** (`inc/uvoz.php`, `admin/uvoz.php`): čita CSV/tabelu, uparuje redove sa SKU-ovima po normalizovanim rečima
   (latinica/ćirilica, pakovanje, granulacija, boja), pamti ručna uparivanja u `uvoz_mapiranje`, a upisuje preko `popis_postavi()`.
 
@@ -77,7 +78,7 @@ python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli k
                                            # utovar na licu mesta (više od plana, radnik dodaje artikal)
 python3 tests/test_13_zbirna_paleta.py     # zbirna paleta: više artikala na paleti, broj paleta, radnik, štampa, v5 → v7
 python3 tests/test_14_mesta.py             # mesta istovara: više kupaca na kamionu, pomeranje, izmene, radnik, štampa, v6 → v7
-python3 tests/test_15_sifre.py             # šifre artikala: predlog, izmena, unos šifrom, zbirna paleta odjednom (1/2, pak)
+python3 tests/test_15_sifre.py             # kako piše na spisku (H50L, B oblutak 4/6), v7 → v8, unos kucanjem, zbirna paleta odjednom
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

@@ -200,16 +200,16 @@ function stavka_naziv(array $st): string
     return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_naziv($st);
 }
 
-/** Kratko ime stavke na spisku: šifra artikla ("H10L"), a za "ostalo" i artikal bez šifre – naziv. */
+/** Kako stavka piše na spisku: "H10L", "B oblutak 4/6"; za "ostalo" njen naziv. */
 function stavka_kratko(array $st): string
 {
     return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_kratko($st);
 }
 
-/** Pun naziv ispod šifre (null kad nema šifre, pa je naziv već prikazan). */
+/** Pun naziv sitno ispod šifre (samo uz šifru kao H50L – ime kao "B oblutak 4/6" je već jasno). */
 function stavka_ime_ispod(array $st): ?string
 {
-    return $st['sku_id'] !== null && !empty($st['sifra']) ? sku_naziv($st) : null;
+    return $st['sku_id'] !== null && sifra_je_kod($st['sifra'] ?? null) ? sku_naziv($st) : null;
 }
 
 /**

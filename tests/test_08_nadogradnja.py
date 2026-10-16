@@ -78,10 +78,10 @@ try:
         statusi = list(ex.map(zahtev, range(8)))
     R.provera(statusi == [200] * 8, "8 istovremenih prvih zahteva: svi su uspeli (nema greške 500)", statusi)
     log = novi.log()
-    R.provera(log.count("nadogradnja baze na verziju 2") == 1 and log.count("nadogradnja baze na verziju 3") == 1 and log.count("nadogradnja baze na verziju 4") == 1 and log.count("nadogradnja baze na verziju 5") == 1 and log.count("nadogradnja baze na verziju 6") == 1 and log.count("nadogradnja baze na verziju 7") == 1, "nadogradnje 2–7 su se izvršile tačno jednom", (log.count("verziju 2"), log.count("verziju 3"), log.count("verziju 4"), log.count("verziju 5"), log.count("verziju 6"), log.count("verziju 7")))
+    R.provera(log.count("nadogradnja baze na verziju 2") == 1 and log.count("nadogradnja baze na verziju 3") == 1 and log.count("nadogradnja baze na verziju 4") == 1 and log.count("nadogradnja baze na verziju 5") == 1 and log.count("nadogradnja baze na verziju 6") == 1 and log.count("nadogradnja baze na verziju 7") == 1 and log.count("nadogradnja baze na verziju 8") == 1, "nadogradnje 2–8 su se izvršile tačno jednom", (log.count("verziju 2"), log.count("verziju 3"), log.count("verziju 4"), log.count("verziju 5"), log.count("verziju 6"), log.count("verziju 7"), log.count("verziju 8")))
     R.provera(not novi.php_problemi(), "bez PHP upozorenja pri nadogradnji", novi.php_problemi()[:3])
 
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "7", "baza je sada na verziji 7")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "baza je sada na verziji 8")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND ((table_name='sku' AND column_name='po_paketu') OR (table_name='unosi' AND column_name='paketi'))" % DB_NAME) == 2, "dodate su kolone po_paketu i paketi")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='%s' AND table_name='uvoz_mapiranje'" % DB_NAME) == 1, "dodata je tabela uvoz_mapiranje")
 
@@ -136,7 +136,7 @@ try:
     novi = Site()
     Client(novi.base).get("/login.php")
     R.provera(novi.log().count("nadogradnja baze") == 0, "pri ponovnom pokretanju nadogradnja se ne ponavlja")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "7", "verzija ostaje 7")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "verzija ostaje 8")
     R.provera(not novi.php_problemi(), "bez PHP upozorenja", novi.php_problemi()[:3])
 
     # ── 6. Baza bez reda o verziji (stariji nepotpun zapis) ──────────────────
@@ -146,7 +146,7 @@ try:
     novi.stop()
     novi = Site()
     st = Client(novi.base).get("/login.php").status
-    R.provera(st == 200 and sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "7", "bez zapisa o verziji tretira se kao verzija 1 i nadograđuje se", st)
+    R.provera(st == 200 and sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "bez zapisa o verziji tretira se kao verzija 1 i nadograđuje se", st)
     R.provera(sql_int("SELECT COUNT(*) FROM artikli WHERE naziv IN ('Perlit','Keramzit','Bela rizla','Crni oblutak')") == 4, "ponovljena nadogradnja ne duplira nove artikle")
     R.provera(sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND table_name='sku' AND column_name='po_paketu'" % DB_NAME) == 1, "kolona je ponovo napravljena")
 finally:

@@ -71,7 +71,7 @@ try:
         % (s1, hum10, s1, p1, hum10, s1, p1, hum50, s2, hum50))
     R.provera(not sql("SHOW TABLES LIKE 'spisak_mesta'") and verzija() == "6", "priprema: baza je kao verzija 6, sa dva stara spiska")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "7" and site.log().count("nadogradnja baze na verziju 7") == 1, "posle prvog otvaranja: verzija 7 (nadogradnja jednom)")
+    R.provera(verzija() == "8" and site.log().count("nadogradnja baze na verziju 7") == 1 and site.log().count("nadogradnja baze na verziju 8") == 1, "posle prvog otvaranja: verzija 8 (nadogradnje 7 i 8 po jednom)")
     R.provera(sql("SELECT spisak_id, broj, kupac_id FROM spisak_mesta ORDER BY spisak_id") == "%d\t1\t%d\n%d\t1\t%d" % (s1, k1, s2, k2),
               "svaki stari spisak ima Mesto 1 sa svojim kupcem")
     m_s1 = mesto_id(s1, 1)
@@ -89,7 +89,7 @@ try:
     R.provera("rezervisano 282" in tekst(blok[blok.index(">10 l<"):][:1500]), "rezervacija starog spiska radi: Humovit 10 l 270 + 12 = 282")
     sql("UPDATE podesavanja SET vrednost='6' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "7" and sql_int("SELECT COUNT(*) FROM spisak_mesta") == 2, "ponovljena nadogradnja ne pravi duplikate")
+    R.provera(verzija() == "8" and sql_int("SELECT COUNT(*) FROM spisak_mesta") == 2, "ponovljena nadogradnja ne pravi duplikate")
     adm.post(SP, {"akcija": "status", "id": s1, "ocekivan": "za_utovar", "novi": "otkazano"})
     adm.post(SP, {"akcija": "status", "id": s2, "ocekivan": "nacrt", "novi": "otkazano"})
 
@@ -289,7 +289,7 @@ try:
     R.provera(re.search(r"Mesto 9 – Agrocentar <b>NS</b> [^#]{0,30}≈ 1\.008 kg", t) is not None, "zbir za Mesto 9 (270 × 3,6 + 2 × 18 = 1.008 kg) je u naslovu mesta", re.findall(r"Mesto 9[^#]{0,80}", t)[:1])
     m = re.search(r'href="https://wa\.me/\?text=([^"]+)"', o.text)
     deljenje = urllib.parse.unquote(htmllib.unescape(m.group(1))) if m else ""
-    R.provera("\n\nMESTO 8 – Cvećara Flora\n  1. H50L – 1 pal = 40 kom\n  ZBIRNA PALETA – Zbirna paleta 1:\n     2. BRS – 25 kom\n     3. BO46 – 25 kom" in deljenje,
+    R.provera("\n\nMESTO 8 – Cvećara Flora\n  1. H50L – 1 pal = 40 kom\n  ZBIRNA PALETA – Zbirna paleta 1:\n     2. B rizla sitnija – 25 kom\n     3. B oblutak 4/6 – 25 kom" in deljenje,
               "tekst za Viber/WhatsApp: Mesto 8 sa kupcem, pa zbirna paleta", deljenje[:500])
     R.provera("MESTO 9 – Agrocentar <b>NS</b>\n" in deljenje and "\n\nMESTO 4\n" in deljenje and deljenje.index("MESTO 8") < deljenje.index("MESTO 9") < deljenje.index("MESTO 4"),
               "tekst: sva tri mesta, redom", deljenje)

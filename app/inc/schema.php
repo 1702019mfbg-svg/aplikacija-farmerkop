@@ -98,7 +98,7 @@ function schema_sql(): array
             artikal_id INT UNSIGNED NOT NULL,
             varijanta_id INT UNSIGNED NOT NULL DEFAULT 0,
             pakovanje_id INT UNSIGNED NOT NULL,
-            sifra VARCHAR(20) NULL DEFAULT NULL,
+            sifra VARCHAR(40) NULL DEFAULT NULL,
             po_paleti SMALLINT UNSIGNED NULL DEFAULT NULL,
             po_paketu SMALLINT UNSIGNED NULL DEFAULT NULL,
             tezina_kg DECIMAL(7,2) NULL DEFAULT NULL,

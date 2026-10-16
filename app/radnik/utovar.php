@@ -39,7 +39,7 @@ if (je_post()) {
             $greska_artikla = (string)$nadjen['greska'];
         } else {
             $sku = sku_aktivan(post_int('novi_sku'));
-            $greska_artikla = 'Upišite šifru artikla koji dodajete na spisak (npr. H50L).';
+            $greska_artikla = 'Upišite artikal koji dodajete na spisak (npr. H50L ili B oblutak 4/6).';
         }
         if ($sku === null) {
             flash_dodaj('greska', $greska_artikla);
@@ -214,9 +214,9 @@ if ($id > 0) {
                 <input type="hidden" name="novi_mesto" value="<?= $mesta ? (int)$mesta[0]['id'] : 0 ?>">
             <?php endif; ?>
             <div class="red-polja razmak-gore">
-                <label for="novi_artikal">Artikal – šifra ili naziv</label>
+                <label for="novi_artikal">Artikal (H50L, B oblutak 4/6 …)</label>
                 <input class="polje polje-sifra" id="novi_artikal" name="novi_artikal" type="text" list="lista-sku" maxlength="120"
-                       autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="npr. H50L" data-artikal>
+                       autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="npr. H50L ili oblutak beli 4/6" data-artikal>
                 <p class="artikal-ime" data-artikal-ime aria-live="polite"></p>
             </div>
             <div class="popis-polja" data-popis data-po="0" data-pp="0">

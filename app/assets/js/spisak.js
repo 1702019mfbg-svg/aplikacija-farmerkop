@@ -1,6 +1,7 @@
-/* Spisak za utovar: unos artikla šifrom (H50L) ili nazivom, zbir paleta + paketa + komada uživo i prikaz samo onih
- * polja koja artikal ima. U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje i
- * ukupno × broj paleta. Zbirna paleta odjednom: redovi šifra + koliko na paleti (25, 1/2, 3 pak). */
+/* Spisak za utovar: unos artikla kako piše na spisku (H50L, B oblutak 4/6) ili nazivom ("oblutak beli 40-60"),
+ * zbir paleta + paketa + komada uživo i prikaz samo onih polja koja artikal ima. U zbirnoj paleti se upisuje količina
+ * za jednu paletu (bez celih paleta), a zbir pokazuje i ukupno × broj paleta. Zbirna paleta odjednom: redovi
+ * artikal + koliko na paleti (25, 1/2, 3 pak). */
 (function () {
     'use strict';
     function broj(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
@@ -11,7 +12,7 @@
         return v === '' ? 0 : parseInt(v, 10);
     }
 
-    /* ── Artikli za unos šifrom: [šifra, naziv, id, po paleti, po paketu, stanje] ── */
+    /* ── Artikli za unos: [kako piše na spisku, naziv, id, po paleti, po paketu, stanje] ── */
     function velika(t) {
         return t.toUpperCase().replace(/[ČĆ]/g, 'C').replace(/Ž/g, 'Z').replace(/Š/g, 'S').replace(/Đ/g, 'DJ');
     }
@@ -23,7 +24,7 @@
         try {
             artikli = JSON.parse(podaci.textContent).map(function (r) {
                 return { sifra: r[0], naziv: r[1], id: r[2], po: r[3], pp: r[4], stanje: r.length > 5 ? r[5] : null,
-                         k: samoSlova(r[0]), s: samoSlova(r[1]), w: reci(r[1]) };
+                         k: samoSlova(r[0]), s: samoSlova(r[1]), w: reci(r[1] + ' ' + r[0]) };
             });
         } catch (e) { artikli = []; }
     }
@@ -38,11 +39,18 @@
         }
         return pocinje;
     }
-    /* Isti redosled kao na serveru: tačna šifra, šifra koja tako počinje ("h50" → H50L), naziv, reči naziva. */
+    /* Reč odgovara: početak reči ("obl"), isti koren od 4 slova ("sitna" – SITNIJA) ili milimetri ("40" – 4 cm). */
+    function recOdgovara(w, n) {
+        if (n.indexOf(w) === 0) { return true; }
+        if (w.length >= 4 && !/^\d+$/.test(w) && n.slice(0, 4) === w.slice(0, 4)) { return true; }
+        return /^\d+0$/.test(w) && w.length >= 2 && n === w.slice(0, -1);
+    }
+    /* Isti redosled kao na serveru: kako piše na spisku ("b oblutak 4/6"), početak toga ("h50" → H50L),
+     * naziv, pa reči u bilo kom redu ("rizla bela sitna", "oblutak beli 40-60"). */
     function pronadji(tekst) {
         var w = reci(tekst);
         var poRecima = w.length > 1 && w[0] !== '' ? artikli.filter(function (a) {
-            return w.every(function (rec) { return a.w.some(function (n) { return n.indexOf(rec) === 0; }); });
+            return w.every(function (rec) { return a.w.some(function (n) { return recOdgovara(rec, n); }); });
         }) : null;
         var probe = [nadji('k', samoSlova(tekst)), nadji('s', samoSlova(tekst)), poRecima];
         for (var i = 0; i < probe.length; i++) {
@@ -67,7 +75,7 @@
             t = 'Nije jasno – da li ste mislili: ' + nadjeno.vise.slice(0, 5).map(function (a) { return a.sifra || a.naziv; }).join(', ') + '?';
             greska = true;
         } else {
-            t = 'Nema artikla sa tom šifrom.';
+            t = 'Nema takvog artikla.';
             greska = true;
         }
         ime.textContent = t;

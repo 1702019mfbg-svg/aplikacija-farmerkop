@@ -289,7 +289,7 @@ function katalog_za_izbor(bool $sa_stanjem = false, int $uz_sku = 0): array
     return ['kategorije' => $izlaz];
 }
 
-// ─── Šifre: kratko ime artikla za spisak za utovar (H50L = Humovit 50 l) ──
+// ─── Kako piše na spisku za utovar: Humovit ima šifru (H50L), ostali artikli ime (B oblutak 4/6) ──
 
 /** Velika slova bez kvačica: "Malč Žuti" → "MALC ZUTI" (ostali znaci postaju razmak). */
 function sifra_ascii(string $t): string
@@ -298,113 +298,96 @@ function sifra_ascii(string $t): string
     return trim((string)preg_replace('/[^A-Z0-9]+/', ' ', $t));
 }
 
-/** Šifra kako se poredi i čuva: velika slova i cifre (i crtica), bez razmaka – "h 50 l" → "H50L". */
-function sifra_normalizuj(string $t): string
+/** Kratko ime kako se čuva i piše: bez suvišnih razmaka ("  B  oblutak 4/6 " → "B oblutak 4/6"). */
+function sifra_cista(string $t): string
 {
-    $t = strtr(mb_strtoupper(trim($t)), ['Č' => 'C', 'Ć' => 'C', 'Ž' => 'Z', 'Š' => 'S', 'Đ' => 'DJ']);
-    return (string)preg_replace('/[^A-Z0-9-]+/', '', $t);
+    return trim((string)preg_replace('/\s+/u', ' ', $t));
 }
 
-/** Naziv za poređenje pri kucanju: samo slova i cifre ("Beli oblutak · 1-3 cm" → "BELIOBLUTAK13CM"). */
+/** Za poređenje pri kucanju: samo slova i cifre ("b oblutak 4/6" → "BOBLUTAK46", "h 50 l" → "H50L"). */
 function sifra_samo_slova(string $t): string
 {
     return str_replace(' ', '', sifra_ascii($t));
 }
 
-/** Najkraći početak svake niske koji se ne poklapa sa početkom drugih: [CRVENI, CRNI, BRAON] → [CRV, CRN, B]. */
-function jedinstveni_poceci(array $niske): array
-{
-    $rez = [];
-    foreach ($niske as $k => $t) {
-        $n = 1;
-        while ($n < strlen($t)) {
-            $pocetak = substr($t, 0, $n);
-            $sukob = false;
-            foreach ($niske as $k2 => $t2) {
-                if ($k2 !== $k && strncmp($t2, $pocetak, $n) === 0) {
-                    $sukob = true;
-                    break;
-                }
-            }
-            if (!$sukob) {
-                break;
-            }
-            $n++;
-        }
-        $rez[$k] = substr($t, 0, $n);
-    }
-    return $rez;
-}
-
-/** "50 l" → "50L", "20 kg" → "20KG", "2,5 l" → "2-5L" */
+/** "50 l" → "50L" (šifra Humovita), "2,5 l" → "2-5L" */
 function velicina_sifra(float|int|string $kolicina, string $jedinica): string
 {
     $k = rtrim(rtrim(number_format((float)$kolicina, 2, '.', ''), '0'), '.');
     return str_replace('.', '-', $k) . strtoupper($jedinica);
 }
 
+/** Varijanta ukratko: granulacija "4-6 cm" → "4/6" (kao na papiru), "4-7 cm (krupnija)" → "4/7", boja "Crveni" → "crveni". */
+function varijanta_kratko(string $v): string
+{
+    preg_match_all('/\d+(?:[.,]\d+)?/', $v, $m);
+    if (count($m[0]) === 2) {
+        return $m[0][0] . '/' . $m[0][1];
+    }
+    if (count($m[0]) === 1) {
+        return $m[0][0];
+    }
+    return mb_strtolower(sifra_cista($v));
+}
+
 /**
- * Predlog šifre za svaki SKU (i one koji već imaju šifru): prva slova reči artikla (Humovit premium → HP;
- * ako dva artikla imaju ista slova, duži početak prve reči: Crni oblutak → CRNO, Crveni oblutak → CRVO),
- * pa varijanta (granulacija 4-6 cm → 46, boja Crveni → CRV, Braon → B, Sitnija → S),
- * pa pakovanje kad artikal ima više pakovanja (50 l → 50L). Humovit 50 l → H50L, Beli oblutak 4-6 cm → BO46.
+ * Predlog kako artikal piše na spisku: samo Humovit ima šifru (H5L, H10L, H25L, H50L); ostali artikli pišu se
+ * imenom, sa varijantom ukratko i pakovanjem kad ih artikal ima više: "Idea 10 l", "B oblutak 4/6",
+ * "B rizla sitnija", "Malč Farmerkop crveni". Kod artikala iste vrste (Beli, Crni, Crveni oblutak) boja se
+ * skraćuje na prvo slovo kad je ono jedinstveno (Beli → B); Crni i Crveni ostaju celi.
  */
 function predlozi_sifre(): array
 {
-    $reci = [];
-    $po_slovima = [];
-    foreach (db_all('SELECT id, naziv FROM artikli ORDER BY id') as $a) {
-        $r = explode(' ', sifra_ascii((string)$a['naziv']));
-        $r = array_values(array_filter($r, static fn(string $w): bool => $w !== '')) ?: ['X'];
-        $reci[(int)$a['id']] = $r;
-        $po_slovima[implode('', array_map(static fn(string $w): string => $w[0], $r))][] = (int)$a['id'];
+    $artikli = [];
+    foreach (db_all('SELECT id, naziv FROM artikli') as $a) {
+        $artikli[(int)$a['id']] = sifra_cista((string)$a['naziv']);
     }
-    $skracenica = [];
-    foreach ($po_slovima as $slova => $artikli) {
-        if (count($artikli) === 1) {
-            $skracenica[$artikli[0]] = $slova;
+    $ime = $artikli;
+    $vrste = [];
+    foreach ($artikli as $aid => $naziv) {
+        $reci = explode(' ', $naziv);
+        if (count($reci) > 1) {
+            $vrste[mb_strtolower(implode(' ', array_slice($reci, 1)))][$aid] = mb_strtoupper(mb_substr($reci[0], 0, 1));
+        }
+    }
+    foreach ($vrste as $clanovi) {
+        if (count($clanovi) < 2) {
             continue;
         }
-        $prve = [];
-        foreach ($artikli as $aid) {
-            $prve[$aid] = $reci[$aid][0];
-        }
-        foreach (jedinstveni_poceci($prve) as $aid => $pocetak) {
-            $skracenica[$aid] = $pocetak . substr($slova, 1);
-        }
-    }
-
-    $po_artiklu = [];
-    foreach (db_all('SELECT id, artikal_id, naziv FROM varijante ORDER BY id') as $v) {
-        $po_artiklu[(int)$v['artikal_id']][(int)$v['id']] = (string)$v['naziv'];
-    }
-    $varijanta = [];
-    foreach ($po_artiklu as $nazivi) {
-        $cifre = array_map(static fn(string $n): string => (string)preg_replace('/\D+/', '', $n), $nazivi);
-        if (!in_array('', $cifre, true) && count(array_unique($cifre)) === count($cifre)) {
-            $varijanta += $cifre;                                          // granulacije: 1-3 cm → 13
-        } else {
-            $varijanta += jedinstveni_poceci(array_map('sifra_samo_slova', $nazivi));   // boje i vrste
+        $koliko = array_count_values($clanovi);
+        foreach ($clanovi as $aid => $slovo) {
+            if ($koliko[$slovo] === 1) {
+                $ime[$aid] = $slovo . ' ' . implode(' ', array_slice(explode(' ', $artikli[$aid]), 1));
+            }
         }
     }
-
     $pakovanja = [];
     foreach (db_all('SELECT artikal_id, COUNT(DISTINCT pakovanje_id) AS n FROM sku GROUP BY artikal_id') as $r) {
         $pakovanja[(int)$r['artikal_id']] = (int)$r['n'];
     }
     $rez = [];
-    foreach (db_all('SELECT s.id, s.artikal_id, s.varijanta_id, p.kolicina, p.jedinica FROM sku s JOIN pakovanja p ON p.id = s.pakovanje_id ORDER BY s.id') as $s) {
+    foreach (db_all(
+        'SELECT s.id, s.artikal_id, v.naziv AS varijanta, p.kolicina, p.jedinica FROM sku s
+         JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id ORDER BY s.id'
+    ) as $s) {
         $aid = (int)$s['artikal_id'];
-        $sifra = ($skracenica[$aid] ?? 'X') . ($varijanta[(int)$s['varijanta_id']] ?? '');
-        if (($pakovanja[$aid] ?? 1) > 1) {
-            $sifra .= velicina_sifra($s['kolicina'], (string)$s['jedinica']);
+        if (mb_strtolower($artikli[$aid] ?? '') === 'humovit' && $s['varijanta'] === null) {
+            $rez[(int)$s['id']] = 'H' . velicina_sifra($s['kolicina'], (string)$s['jedinica']);
+            continue;
         }
-        $rez[(int)$s['id']] = substr($sifra, 0, 12);
+        $delovi = [$ime[$aid] ?? 'Artikal'];
+        if ($s['varijanta'] !== null && trim((string)$s['varijanta']) !== '') {
+            $delovi[] = varijanta_kratko((string)$s['varijanta']);
+        }
+        if (($pakovanja[$aid] ?? 1) > 1) {
+            $delovi[] = pakovanje_naziv($s['kolicina'], (string)$s['jedinica']);
+        }
+        $rez[(int)$s['id']] = mb_substr(implode(' ', $delovi), 0, 36);
     }
     return $rez;
 }
 
-/** Daje šifru svakom SKU-u koji je nema (nadogradnja, nova instalacija, novo pakovanje ili varijanta). */
+/** Svakom SKU-u koji nema kratko ime daje predlog (nadogradnja, nova instalacija, novo pakovanje ili varijanta). */
 function dopuni_sifre(): int
 {
     $bez = db_all('SELECT id FROM sku WHERE sifra IS NULL ORDER BY id');
@@ -414,42 +397,49 @@ function dopuni_sifre(): int
     $predlozi = predlozi_sifre();
     $zauzete = [];
     foreach (db_all('SELECT sifra FROM sku WHERE sifra IS NOT NULL') as $r) {
-        $zauzete[sifra_normalizuj((string)$r['sifra'])] = true;
+        $zauzete[sifra_samo_slova((string)$r['sifra'])] = true;
     }
     foreach ($bez as $r) {
         $sid = (int)$r['id'];
-        $osnova = $predlozi[$sid] ?? ('S' . $sid);
+        $osnova = $predlozi[$sid] ?? ('Artikal ' . $sid);
         $sifra = $osnova;
-        for ($n = 2; isset($zauzete[$sifra]); $n++) {
-            $sifra = $osnova . '-' . $n;
+        for ($n = 2; isset($zauzete[sifra_samo_slova($sifra)]); $n++) {
+            $sifra = $osnova . ' (' . $n . ')';
         }
         db_run('UPDATE sku SET sifra = ? WHERE id = ?', [$sifra, $sid]);
-        $zauzete[$sifra] = true;
+        $zauzete[sifra_samo_slova($sifra)] = true;
     }
     return count($bez);
 }
 
-/** Ispravna šifra posle normalizacije: počinje slovom ili cifrom, do 16 znakova (slova, cifre, crtica). */
+/** Ispravno kratko ime: počinje slovom ili cifrom, do 40 znakova (slova, cifre, razmak i / . , + ( ) -). */
 function sifra_ispravna(string $sifra): bool
 {
-    return (bool)preg_match('/^[A-Z0-9][A-Z0-9-]{0,15}$/', $sifra);
+    return mb_strlen($sifra) <= 40 && sifra_samo_slova($sifra) !== ''
+        && (bool)preg_match('~^[\p{L}\p{N}][\p{L}\p{N} /.,+()\-]*$~u', $sifra);
 }
 
-/** Kratko ime SKU-a: šifra, a bez šifre pun naziv. */
+/** Kratko ime je šifra (H50L – jedna reč sa ciframa), pa se uz nju piše i pun naziv. */
+function sifra_je_kod(?string $sifra): bool
+{
+    return $sifra !== null && $sifra !== '' && !preg_match('/\s/u', $sifra) && preg_match('/\d/', $sifra) === 1;
+}
+
+/** Kako artikal piše na spisku: kratko ime (H50L, B oblutak 4/6), a bez njega pun naziv. */
 function sku_kratko(array $r): string
 {
     return !empty($r['sifra']) ? (string)$r['sifra'] : sku_naziv($r);
 }
 
-/** Šifra i pun naziv za poruke: "H50L (Humovit · 50 l)". */
+/** Za poruke: šifra sa punim nazivom ("H50L (Humovit · 50 l)"), a ime samo ("B oblutak 4/6"). */
 function sku_oznaka(array $r): string
 {
-    return !empty($r['sifra']) ? $r['sifra'] . ' (' . sku_naziv($r) . ')' : sku_naziv($r);
+    return sifra_je_kod($r['sifra'] ?? null) ? $r['sifra'] . ' (' . sku_naziv($r) . ')' : sku_kratko($r);
 }
 
 /**
- * Aktivni SKU-ovi za unos šifrom ili nazivom (spisak za utovar), redom kao u katalogu:
- * [['sku_id', 'sifra', 'naziv', 'po', 'pp', 'stanje'?], ...]. Stanje samo za administratora.
+ * Aktivni SKU-ovi za unos na spisku, redom kao u katalogu: sku_id, sifra (kako piše na spisku), naziv, po, pp,
+ * stanje (samo kad se traži – za administratora) i ključevi za prepoznavanje otkucanog (k, n, reci).
  */
 function sku_za_unos(bool $sa_stanjem = false): array
 {
@@ -462,12 +452,17 @@ function sku_za_unos(bool $sa_stanjem = false): array
          WHERE ' . SQL_AKTIVAN_SKU . '
          ORDER BY k.redosled, k.id, a.redosled, a.id, v.redosled, v.id, p.jedinica, p.kolicina'
     ) as $r) {
+        $naziv = sku_naziv($r);
+        $sifra = (string)($r['sifra'] ?? '');
         $red = [
             'sku_id' => (int)$r['sku_id'],
-            'sifra'  => (string)($r['sifra'] ?? ''),
-            'naziv'  => sku_naziv($r),
+            'sifra'  => $sifra,
+            'naziv'  => $naziv,
             'po'     => (int)$r['po_paleti'],
             'pp'     => (int)$r['po_paketu'],
+            'k'      => sifra_samo_slova($sifra),
+            'n'      => sifra_samo_slova($naziv),
+            'reci'   => array_values(array_unique(array_filter(explode(' ', sifra_ascii($naziv . ' ' . $sifra)), static fn(string $w): bool => $w !== ''))),
         ];
         if ($sa_stanjem) {
             $red['stanje'] = $stanja[(int)$r['sku_id']] ?? 0;
@@ -478,41 +473,51 @@ function sku_za_unos(bool $sa_stanjem = false): array
 }
 
 /**
- * Artikal iz otkucanog teksta (šifra ili naziv; razmaci i crtice se ne gledaju): tačna šifra ("H50L"), tačan naziv ("Humovit 50 l"),
- * jedini koji tako počinje ("h50" → H50L), ili onaj kome fali samo jedinica ("h5" → H5L, a ne H50L).
+ * Da li otkucana reč odgovara reči iz naziva: početak reči ("obl" → OBLUTAK), isti koren od 4 slova
+ * ("sitna" → SITNIJA) ili milimetri umesto centimetara, kao na papiru ("oblutak beli 40-60" → 4-6 cm).
+ */
+function rec_odgovara(string $w, string $n): bool
+{
+    if (str_starts_with($n, $w)) {
+        return true;
+    }
+    if (strlen($w) >= 4 && !ctype_digit($w) && strncmp($w, $n, 4) === 0) {
+        return true;
+    }
+    return ctype_digit($w) && strlen($w) >= 2 && str_ends_with($w, '0') && $n === substr($w, 0, -1);
+}
+
+/**
+ * Artikal iz otkucanog teksta (mala/velika slova, razmaci i znaci se ne gledaju): kako piše na spisku
+ * ("H50L", "b oblutak 4/6"), početak toga ("h50" → H50L, "h5" → H5L a ne H50L), pun naziv ("Humovit 25"),
+ * ili reči u bilo kom redu ("rizla bela sitna", "oblutak beli 40-60").
  * Vraća ['sku' => red iz sku_aktivan() ili null, 'greska' => ?string].
  */
 function sku_po_unosu(string $tekst): array
 {
-    $sifra = sifra_normalizuj($tekst);
-    $slova = sifra_samo_slova($tekst);
-    if ($sifra === '' && $slova === '') {
-        return ['sku' => null, 'greska' => 'Upišite šifru artikla (npr. H50L) ili naziv.'];
+    $t = sifra_samo_slova($tekst);
+    if ($t === '') {
+        return ['sku' => null, 'greska' => 'Upišite artikal (npr. H50L ili B oblutak 4/6).'];
     }
     $lista = sku_za_unos();
-    $nadji = static function (callable $kljuc, string $t) use ($lista): ?array {
-        if ($t === '') {
-            return null;
-        }
-        $isti = array_values(array_filter($lista, static fn(array $r): bool => $kljuc($r) === $t));
+    $nadji = static function (string $kljuc) use ($lista, $t): array {
+        $isti = array_values(array_filter($lista, static fn(array $r): bool => $r[$kljuc] === $t));
         if (count($isti) === 1) {
             return $isti;
         }
-        $pocinje = array_values(array_filter($lista, static fn(array $r): bool => $kljuc($r) !== '' && str_starts_with($kljuc($r), $t)));
+        $pocinje = array_values(array_filter($lista, static fn(array $r): bool => $r[$kljuc] !== '' && str_starts_with($r[$kljuc], $t)));
         if (count($pocinje) > 1) {
-            $sa_jedinicom = array_values(array_filter($pocinje, static fn(array $r): bool => in_array($kljuc($r), [$t . 'L', $t . 'KG'], true)));
+            $sa_jedinicom = array_values(array_filter($pocinje, static fn(array $r): bool => in_array($r[$kljuc], [$t . 'L', $t . 'KG'], true)));
             return count($sa_jedinicom) === 1 ? $sa_jedinicom : $pocinje;
         }
         return $pocinje;
     };
-    // reči u bilo kom redu, i početkom reči: "rizla bela sit" → Bela rizla · Sitnija · 20 kg
-    $reci = explode(' ', sifra_ascii($tekst));
-    $po_recima = array_values(array_filter($lista, static function (array $r) use ($reci): bool {
-        $u_nazivu = explode(' ', sifra_ascii($r['naziv']));
+    $reci = array_values(array_filter(explode(' ', sifra_ascii($tekst)), static fn(string $w): bool => $w !== ''));
+    $po_recima = count($reci) < 2 ? [] : array_values(array_filter($lista, static function (array $r) use ($reci): bool {
         foreach ($reci as $w) {
             $ima = false;
-            foreach ($u_nazivu as $n) {
-                if (str_starts_with($n, $w)) {
+            foreach ($r['reci'] as $n) {
+                if (rec_odgovara($w, $n)) {
                     $ima = true;
                     break;
                 }
@@ -523,23 +528,19 @@ function sku_po_unosu(string $tekst): array
         }
         return true;
     }));
-    foreach ([
-        $nadji(static fn(array $r): string => sifra_samo_slova($r['sifra']), $slova),      // "bo 4-6" → BO46
-        $nadji(static fn(array $r): string => sifra_samo_slova($r['naziv']), $slova),
-        count($reci) > 1 && $reci[0] !== '' ? $po_recima : null,
-    ] as $nadjeni) {
-        if ($nadjeni !== null && count($nadjeni) === 1) {
+    foreach ([$nadji('k'), $nadji('n'), $po_recima] as $nadjeni) {
+        if (count($nadjeni) === 1) {
             return ['sku' => sku_aktivan($nadjeni[0]['sku_id']), 'greska' => null];
         }
-        if ($nadjeni !== null && count($nadjeni) > 1) {
+        if (count($nadjeni) > 1) {
             $ponuda = array_map(static fn(array $r): string => $r['sifra'] !== '' ? $r['sifra'] : $r['naziv'], array_slice($nadjeni, 0, 5));
-            return ['sku' => null, 'greska' => '„' . trim($tekst) . '“ nije jasno – da li ste mislili: ' . implode(', ', $ponuda) . (count($nadjeni) > 5 ? ' …' : '') . '?'];
+            return ['sku' => null, 'greska' => '„' . sifra_cista($tekst) . '“ nije jasno – da li ste mislili: ' . implode(', ', $ponuda) . (count($nadjeni) > 5 ? ' …' : '') . '?'];
         }
     }
-    $iskljucen = $sifra !== '' ? db_val('SELECT sifra FROM sku WHERE sifra = ?', [$sifra]) : null;
+    $iskljucen = db_val('SELECT sifra FROM sku WHERE sifra = ?', [sifra_cista($tekst)]);
     return ['sku' => null, 'greska' => $iskljucen !== null
-        ? 'Artikal sa šifrom ' . $iskljucen . ' je isključen u Podešavanjima.'
-        : 'Nema artikla sa šifrom ili nazivom „' . trim($tekst) . '“. Šifre se vide u Podešavanjima kod svakog artikla.'];
+        ? 'Artikal „' . $iskljucen . '“ je isključen u Podešavanjima.'
+        : 'Nema artikla „' . sifra_cista($tekst) . '“. Upišite kako piše na spisku (npr. H50L, B oblutak 4/6) ili naziv.'];
 }
 
 // ─── Količina iz forme ─────────────────────────────────────────────────────

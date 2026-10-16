@@ -187,7 +187,7 @@ try:
     pre_obl = stanje(obl13)
     o = jelena.post("/radnik/utovar.php", {"id": sp5, "akcija": "dodaj", "ok[%d]" % s5_hum10: "1", "pal[%d]" % s5_hum10: "2",
                                            "novi_sku": str(obl13), "novi_pal": "2", "novi_pak": "", "novi_kom": "5"})
-    R.provera("Dodato na spisak za Mesto 1 · Šleper Subotica: BO13 (Beli oblutak · 1-3 cm · 20 kg) – 105 kom" in poruke(o), "radnik dodaje oblutak: 2 palete + 5 komada = 105", poruke(o))
+    R.provera("Dodato na spisak za Mesto 1 · Šleper Subotica: B oblutak 1/3 – 105 kom" in poruke(o), "radnik dodaje oblutak: 2 palete + 5 komada = 105", poruke(o))
     R.provera(sql("SELECT kolicina, palete, komadi, dodao_id FROM spisak_stavke WHERE spisak_id=%d AND sku_id=%d" % (sp5, obl13)) == "105\t2\t5\t%d" % ids["Jelena"], "stavka pamti količinu i ko ju je dodao")
     R.provera(stanje(obl13) == pre_obl and sql("SELECT status FROM spiskovi WHERE id=%d" % sp5) == "za_utovar", "dodavanje još ne skida stanje")
     R.provera(o.text.count("checked") == 2 and 'name="pal[%d]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="2"' % s5_hum10 in o.text, "posle dodavanja: obe stavke štiklirane, upisana veća količina za Humovit ostaje")
@@ -209,7 +209,7 @@ try:
     o = adm.get("/admin/spisak_stampa.php?id=%d" % sp5)
     R.provera("(dodato pri utovaru)" in tekst(o.text), "štampa označava dodatu stavku")
     d = sql("SELECT GROUP_CONCAT(detalji SEPARATOR ' | ') FROM dnevnik WHERE akcija='spisak' AND objekat_id=%d" % sp5)
-    R.provera("pri utovaru dodato za Mesto 1 · Šleper Subotica: BO13 (Beli oblutak · 1-3 cm · 20 kg) – 105 kom (Jelena)" in d, "dodavanje je u dnevniku", d)
+    R.provera("pri utovaru dodato za Mesto 1 · Šleper Subotica: B oblutak 1/3 – 105 kom (Jelena)" in d, "dodavanje je u dnevniku", d)
 
     R.odeljak("Štampa, PDF i deljenje")
     o = adm.get("/admin/spisak_stampa.php?id=%d" % sp2)

@@ -2,7 +2,8 @@
 /**
  * Administrator – jedan spisak za utovar (jedan kamion): podaci o utovaru i mesta istovara
  * (Mesto 8, 9, 5 … – broj upisuje vlasnik, kupac nije obavezan). Svako mesto ima svoju robu: artikle (kucaju se
- * kratkom šifrom, npr. H50L), zbirne palete (sve odjednom, npr. 1/2 rizle + 1/2 oblutka) i "ostalo".
+ * kako pišu na spisku – H50L, B oblutak 4/6 – ili nazivom), zbirne palete (sve odjednom, npr. 1/2 rizle +
+ * 1/2 oblutka) i "ostalo".
  * Zbir paleta i težine, upozorenja kad nema dovoljno slobodne robe i promena statusa.
  */
 declare(strict_types=1);
@@ -114,7 +115,7 @@ function artikal_iz_posta(string $polje = 'artikal'): array
         return [$r['sku'], $r['greska']];
     }
     $sku = post_int('sku_id') > 0 ? sku_aktivan(post_int('sku_id')) : null;
-    return [$sku, $sku === null ? 'Izaberite artikal: upišite šifru (npr. H50L) ili naziv.' : null];
+    return [$sku, $sku === null ? 'Izaberite artikal: upišite npr. H50L ili B oblutak 4/6.' : null];
 }
 
 /** Kad dodavanje ne uspe, upisano ostaje u formi (ne mora ponovo da se kuca). */
@@ -140,7 +141,7 @@ function zbirna_iz_posta(): array
             return [[], 'Na jednoj zbirnoj paleti može najviše 20 artikala.'];
         }
         if ($art === '') {
-            return [[], 'Upišite šifru artikla uz količinu „' . $kol . '“.'];
+            return [[], 'Upišite artikal uz količinu „' . $kol . '“.'];
         }
         $r = sku_po_unosu($art);
         if ($r['sku'] === null) {
@@ -159,7 +160,7 @@ function zbirna_iz_posta(): array
             $redovi[$sid] = ['sku' => $r['sku']] + $q;
         }
     }
-    return $redovi ? [$redovi, null] : [[], 'Upišite bar jedan artikal: šifru (npr. BRS) i koliko ide na paletu (npr. 25 ili 1/2).'];
+    return $redovi ? [$redovi, null] : [[], 'Upišite bar jedan artikal i koliko ide na paletu (npr. B rizla sitnija 1/2).'];
 }
 
 if (je_post()) {
@@ -680,9 +681,8 @@ $prikazi_stavku = static function (array $st) use ($nacrt, $utovaren, $manjak, $
     $ispod = stavka_ime_ispod($st);
     ob_start(); ?>
         <span class="stavka-prvi">
-            <strong class="stavka-sifra"><?= e(stavka_kratko($st)) ?></strong>
-            <span class="stavka-kol"><?= e(stavka_plan_tekst($st)) ?></span>
-            <?php if ($kg !== null): ?><span class="stavka-kg">≈ <?= e(kg_tekst($kg)) ?></span><?php endif; ?>
+            <span class="stavka-glavno"><strong class="stavka-sifra"><?= e(stavka_kratko($st)) ?></strong> <span class="stavka-kol"><?= e(stavka_plan_tekst($st)) ?></span></span>
+            <span class="stavka-kg"><?= $kg !== null ? '≈ ' . e(kg_tekst($kg)) : '' ?></span>
             <?php if ($nacrt): ?><span class="stavka-olovka"><?= ikona('olovka', 'ikona ikona-mala') ?></span><?php endif; ?>
         </span>
         <?php if ($ispod !== null || $ostalo || $st['dodao_id'] !== null || (!$ostalo && $st['oznaka'])): ?>
@@ -857,9 +857,9 @@ foreach ($po_mestima as $mid => $grupa):
                         <input type="hidden" name="paleta_id" value="0">
                     <?php endif; ?>
                     <div class="red-polja">
-                        <label for="artikal_<?= (int)$mid ?>">Artikal – šifra ili naziv</label>
+                        <label for="artikal_<?= (int)$mid ?>">Artikal (H50L, B oblutak 4/6 …)</label>
                         <input class="polje polje-sifra" id="artikal_<?= (int)$mid ?>" name="artikal" type="text" list="lista-sku" required maxlength="120"
-                               autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="npr. H50L" value="<?= e($za_dodaj ? (string)($pf['artikal'] ?? '') : '') ?>" data-artikal>
+                               autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="npr. H50L ili oblutak beli 4/6" value="<?= e($za_dodaj ? (string)($pf['artikal'] ?? '') : '') ?>" data-artikal>
                         <p class="artikal-ime" data-artikal-ime aria-live="polite"></p>
                     </div>
                     <div class="popis-polja" data-popis data-po="0" data-pp="0" data-sada="0">
@@ -899,13 +899,13 @@ foreach ($po_mestima as $mid => $grupa):
                     <input type="hidden" name="akcija" value="nova_paleta">
                     <input type="hidden" name="id" value="<?= $id ?>">
                     <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
-                    <p class="pomoc">Šta ide na <strong>jednu</strong> paletu: šifra i koliko – komada (<strong>25</strong>), deo palete (<strong>1/2</strong>) ili paketa (<strong>3 pak</strong>).</p>
+                    <p class="pomoc">Šta ide na <strong>jednu</strong> paletu: artikal i koliko – komada (<strong>25</strong>), deo palete (<strong>1/2</strong>) ili paketa (<strong>3 pak</strong>).</p>
                     <div class="zbirna-redovi" data-zbirna-redovi>
-                        <div class="zbirna-red zbirna-red-naslov" aria-hidden="true"><span>Artikal (šifra)</span><span>Na paleti</span></div>
+                        <div class="zbirna-red zbirna-red-naslov" aria-hidden="true"><span>Artikal</span><span>Na paleti</span></div>
                         <?php foreach ($zr as $i => [$z_art, $z_kol]): ?>
                             <div class="zbirna-red" data-zbirna-red>
-                                <input class="polje polje-sifra" name="z_artikal[]" type="text" list="lista-sku" maxlength="120" autocomplete="off" autocapitalize="characters" spellcheck="false"
-                                       placeholder="<?= $i === 0 ? 'npr. BRS' : '' ?>" aria-label="Artikal <?= $i + 1 ?>" value="<?= e((string)$z_art) ?>" data-artikal>
+                                <input class="polje polje-sifra" name="z_artikal[]" type="text" list="lista-sku" maxlength="120" autocomplete="off" autocapitalize="off" spellcheck="false"
+                                       placeholder="<?= $i === 0 ? 'npr. rizla bela sitna' : '' ?>" aria-label="Artikal <?= $i + 1 ?>" value="<?= e((string)$z_art) ?>" data-artikal>
                                 <input class="polje" name="z_kol[]" type="text" maxlength="12" autocomplete="off" placeholder="<?= $i === 0 ? '1/2' : '' ?>" aria-label="Koliko na paleti, artikal <?= $i + 1 ?>" value="<?= e((string)$z_kol) ?>" data-zbirna-kol>
                                 <p class="artikal-ime" data-artikal-ime aria-live="polite"></p>
                             </div>
