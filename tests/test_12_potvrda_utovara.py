@@ -97,7 +97,7 @@ try:
 
     R.odeljak("Potvrda utovara sa ispravkom količine")
     o = potvrda(jelena, sp1, {s_hum10: {"pal": "1", "pak": "0", "kom": ""}})
-    R.provera("Utovar je potvrđen" in poruke(o) and "Humovit · 10 l: 270 umesto 282" in poruke(o), "potvrđeno; prijavljena razlika od plana", poruke(o))
+    R.provera("Utovar je potvrđen" in poruke(o) and "H10L: 270 umesto 282" in poruke(o), "potvrđeno; prijavljena razlika od plana", poruke(o))
     R.provera((stanje(hum10), stanje(hum5), stanje(obl13)) == (270, 0, 150), "stanje skinuto: Humovit 10 l 540 − 270 = 270, 5 l 100 − 100 = 0")
     R.provera(sql("SELECT status, utovario_id FROM spiskovi WHERE id=%d" % sp1) == "utovareno\t%d" % ids["Jelena"], "spisak je utovaren, pamti se ko je potvrdio")
     R.provera(sql("SELECT GROUP_CONCAT(utovareno ORDER BY id) FROM spisak_stavke WHERE spisak_id=%d" % sp1) == "270,100,40", "utovarene količine po stavkama (i „ostalo“)")
@@ -134,7 +134,7 @@ try:
     o = adm.get("/admin/stanje.php")
     R.provera("u minusu" in o.text, "Stanje upozorava na minus")
     d = sql("SELECT detalji FROM dnevnik WHERE akcija='spisak' AND objekat_id=%d ORDER BY id DESC LIMIT 1" % sp2)
-    R.provera("utovareno (potvrdio Marko)" in d and "Humovit · 10 l: 0 umesto 10" in d, "dnevnik: ko je potvrdio i razlike od plana", d)
+    R.provera("utovareno (potvrdio Marko)" in d and "H10L: 0 umesto 10" in d, "dnevnik: ko je potvrdio i razlike od plana", d)
 
     R.odeljak("Spisak vraćen u nacrt ili izmenjen dok je radnik na njemu")
     sp4 = napravi_spisak(adm, "Kasni kupac", [(obl13, {"pal": "1"})])
@@ -187,7 +187,7 @@ try:
     pre_obl = stanje(obl13)
     o = jelena.post("/radnik/utovar.php", {"id": sp5, "akcija": "dodaj", "ok[%d]" % s5_hum10: "1", "pal[%d]" % s5_hum10: "2",
                                            "novi_sku": str(obl13), "novi_pal": "2", "novi_pak": "", "novi_kom": "5"})
-    R.provera("Dodato na spisak za Mesto 1 · Šleper Subotica: Beli oblutak · 1-3 cm · 20 kg – 105 kom" in poruke(o), "radnik dodaje oblutak: 2 palete + 5 komada = 105", poruke(o))
+    R.provera("Dodato na spisak za Mesto 1 · Šleper Subotica: BO13 (Beli oblutak · 1-3 cm · 20 kg) – 105 kom" in poruke(o), "radnik dodaje oblutak: 2 palete + 5 komada = 105", poruke(o))
     R.provera(sql("SELECT kolicina, palete, komadi, dodao_id FROM spisak_stavke WHERE spisak_id=%d AND sku_id=%d" % (sp5, obl13)) == "105\t2\t5\t%d" % ids["Jelena"], "stavka pamti količinu i ko ju je dodao")
     R.provera(stanje(obl13) == pre_obl and sql("SELECT status FROM spiskovi WHERE id=%d" % sp5) == "za_utovar", "dodavanje još ne skida stanje")
     R.provera(o.text.count("checked") == 2 and 'name="pal[%d]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="2"' % s5_hum10 in o.text, "posle dodavanja: obe stavke štiklirane, upisana veća količina za Humovit ostaje")
@@ -202,14 +202,14 @@ try:
     R.provera("više ne čeka utovar" in poruke(o) and sql_int("SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id=%d AND sku_id=%d" % (nacrt, hum5)) == 0, "na nacrt radnik ne može da dodaje")
     pre10 = stanje(hum10)
     o = potvrda(jelena, sp5, {s5_hum10: {"pal": "2", "pak": "0", "kom": ""}})
-    R.provera("Utovar je potvrđen" in poruke(o) and "Humovit · 10 l: 540 umesto 270" in poruke(o), "potvrđeno: Humovit 10 l 2 palete umesto 1 (više od plana)", poruke(o))
+    R.provera("Utovar je potvrđen" in poruke(o) and "H10L: 540 umesto 270" in poruke(o), "potvrđeno: Humovit 10 l 2 palete umesto 1 (više od plana)", poruke(o))
     R.provera(stanje(hum10) == pre10 - 540 and stanje(obl13) == pre_obl - 105, "skinuto stvarno utovareno: 540 Humovita i 105 dodatog oblutka")
     o = adm.get("/admin/spisak.php?id=%d" % sp5)
     R.provera("dodato pri utovaru · Jelena" in tekst(o.text) and "utovareno 540 umesto 270" in tekst(o.text), "administrator vidi šta je dodato i koliko je utovareno")
     o = adm.get("/admin/spisak_stampa.php?id=%d" % sp5)
     R.provera("(dodato pri utovaru)" in tekst(o.text), "štampa označava dodatu stavku")
     d = sql("SELECT GROUP_CONCAT(detalji SEPARATOR ' | ') FROM dnevnik WHERE akcija='spisak' AND objekat_id=%d" % sp5)
-    R.provera("pri utovaru dodato za Mesto 1 · Šleper Subotica: Beli oblutak · 1-3 cm · 20 kg – 105 kom (Jelena)" in d, "dodavanje je u dnevniku", d)
+    R.provera("pri utovaru dodato za Mesto 1 · Šleper Subotica: BO13 (Beli oblutak · 1-3 cm · 20 kg) – 105 kom (Jelena)" in d, "dodavanje je u dnevniku", d)
 
     R.odeljak("Štampa, PDF i deljenje")
     o = adm.get("/admin/spisak_stampa.php?id=%d" % sp2)
@@ -219,7 +219,7 @@ try:
     R.provera("utovareno: 0" in t, "na štampi se vidi stvarno utovareno")
     m = re.search(r'href="https://wa\.me/\?text=([^"]+)"', o.text)
     deljenje = urllib.parse.unquote(htmllib.unescape(m.group(1))) if m else ""
-    R.provera("MESTO 1 – Cvećara" in deljenje and "1. Humovit · 5 l" in deljenje and "Vozilo: NS 1" in deljenje, "tekst za WhatsApp sadrži mesto sa kupcem, vozilo i stavke", deljenje[:300])
+    R.provera("MESTO 1 – Cvećara" in deljenje and "1. H5L – " in deljenje and "Vozilo: NS 1" in deljenje, "tekst za WhatsApp sadrži mesto sa kupcem, vozilo i stavke", deljenje[:300])
     R.provera('href="viber://forward?text=' in o.text and "data-podeli" in o.text, "deljenje preko Vibera i dugme Podeli")
     R.provera('class="donja-nav"' not in o.text, "štampa je bez navigacije")
     o = jelena.get("/admin/spisak_stampa.php?id=%d" % sp2)

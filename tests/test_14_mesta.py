@@ -129,7 +129,7 @@ try:
 
     R.odeljak("Roba po mestima (kao na papiru)")
     o = adm.post(SP, {"akcija": "dodaj", "id": sp, "mesto_id": m8, "paleta_id": "0", "sku_id": hum50, "pal": "1"})
-    R.provera("Dodato za Mesto 8: Humovit · 50 l – 40 kom" in poruke(o), "Mesto 8: 1 paleta Humovita 50 l", poruke(o))
+    R.provera("Dodato za Mesto 8: H50L (Humovit · 50 l) – 40 kom" in poruke(o), "Mesto 8: 1 paleta Humovita 50 l", poruke(o))
     R.provera(o.url.endswith("&m=%d#dodaj-%d" % (m8, m8)), "posle dodavanja ostaje otvoreno isto mesto", o.url)
     o = adm.post(SP, {"akcija": "nova_paleta", "id": sp, "mesto_id": m8, "p_naziv": "", "p_broj": "1"})
     pid = sql_int("SELECT MAX(id) FROM spisak_palete")
@@ -241,7 +241,7 @@ try:
     o = jelena.post("/radnik/utovar.php", {"id": sp, "akcija": "dodaj", "novi_sku": hum50, "novi_kom": "2"})
     R.provera("Izaberite za koje mesto je roba" in poruke(o), "dodavanje bez izabranog mesta: odbijeno", poruke(o))
     o = jelena.post("/radnik/utovar.php", {"id": sp, "akcija": "dodaj", "novi_mesto": m9, "novi_sku": hum50, "novi_kom": "2"})
-    R.provera("Dodato na spisak za Mesto 9 · Agrocentar <b>NS</b>: Humovit · 50 l – 2 kom" in poruke(o)
+    R.provera("Dodato na spisak za Mesto 9 · Agrocentar <b>NS</b>: H50L (Humovit · 50 l) – 2 kom" in poruke(o)
               and sql("SELECT mesto_id, dodao_id FROM spisak_stavke WHERE spisak_id=%d AND sku_id=%d AND mesto_id=%d" % (sp, hum50, m9)) == "%d\t%d" % (m9, ids["Jelena"]),
               "radnik je dodao Humovit 50 l za Mesto 9", poruke(o))
     o = jelena.post("/radnik/utovar.php", {"id": sp, "akcija": "dodaj", "novi_mesto": m9, "novi_sku": hum50, "novi_kom": "5"})
@@ -289,7 +289,7 @@ try:
     R.provera(re.search(r"Mesto 9 – Agrocentar <b>NS</b> [^#]{0,30}≈ 1\.008 kg", t) is not None, "zbir za Mesto 9 (270 × 3,6 + 2 × 18 = 1.008 kg) je u naslovu mesta", re.findall(r"Mesto 9[^#]{0,80}", t)[:1])
     m = re.search(r'href="https://wa\.me/\?text=([^"]+)"', o.text)
     deljenje = urllib.parse.unquote(htmllib.unescape(m.group(1))) if m else ""
-    R.provera("\n\nMESTO 8 – Cvećara Flora\n  1. Humovit · 50 l – 1 pal = 40 kom\n  ZBIRNA PALETA – Zbirna paleta 1:\n     2. Bela rizla" in deljenje,
+    R.provera("\n\nMESTO 8 – Cvećara Flora\n  1. H50L – 1 pal = 40 kom\n  ZBIRNA PALETA – Zbirna paleta 1:\n     2. BRS – 25 kom\n     3. BO46 – 25 kom" in deljenje,
               "tekst za Viber/WhatsApp: Mesto 8 sa kupcem, pa zbirna paleta", deljenje[:500])
     R.provera("MESTO 9 – Agrocentar <b>NS</b>\n" in deljenje and "\n\nMESTO 4\n" in deljenje and deljenje.index("MESTO 8") < deljenje.index("MESTO 9") < deljenje.index("MESTO 4"),
               "tekst: sva tri mesta, redom", deljenje)

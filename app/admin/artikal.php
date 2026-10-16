@@ -2,7 +2,8 @@
 /**
  * Administrator – Podešavanja → Artikli → jedan artikal:
  *  1) osnovni podaci, 2) varijante (boje / granulacije), 3) pakovanja koja artikal ima,
- *  4) komada po paleti i minimum zalihe za svako pakovanje (i svaku varijantu).
+ *  4) komada po paleti i minimum zalihe za svako pakovanje (i svaku varijantu),
+ *  5) kratke šifre (H50L = Humovit 50 l) koje se pišu na spisku za utovar i kucaju pri unosu.
  *
  * Ništa se ne briše: varijante, pakovanja i artikli se samo isključuju, pa istorija i stanje ostaju tačni.
  */
@@ -82,6 +83,7 @@ if (je_post()) {
                         [$id, $vid, (int)$s['pakovanje_id'], $s['po'] === null ? null : (int)$s['po'], $s['pp'] === null ? null : (int)$s['pp']]
                     );
                 }
+                dopuni_sifre();
                 return $upoz;
             });
             dnevnik_podesavanje('Nova varijanta „' . $naziv . '“ kod artikla ' . $a['naziv'], 'podesavanje', $id);
@@ -148,6 +150,7 @@ if (je_post()) {
                     db_run('UPDATE sku SET aktivan = 0 WHERE id = ?', [$s['id']]);
                 }
             }
+            dopuni_sifre();
         });
         dnevnik_podesavanje('Izmenjena pakovanja artikla ' . $a['naziv'], 'podesavanje', $id);
         flash_dodaj('uspeh', 'Pakovanja su sačuvana. Dole podesite komada u paketu, komada po paleti i minimum.');
@@ -203,6 +206,68 @@ if (je_post()) {
                 flash_dodaj('upozorenje', 'Proverite brojeve: ' . implode('; ', $upozorenja) . '. Sačuvano je kako ste upisali.');
             }
         }
+    } elseif ($akcija === 'sifre') {
+        $unos = is_array($_POST['sifra'] ?? null) ? $_POST['sifra'] : [];
+        $nove = [];
+        $greska = null;
+        foreach (db_all('SELECT id, sifra FROM sku WHERE artikal_id = ?', [$id]) as $s) {
+            $sid = (int)$s['id'];
+            if (!is_string($unos[$sid] ?? null)) {
+                continue;
+            }
+            $sifra = sifra_normalizuj($unos[$sid]);
+            if (!sifra_ispravna($sifra)) {
+                $greska = $sifra === '' ? 'Šifra ne može biti prazna.' : '„' . $sifra . '“: šifra može imati do 16 slova i cifara (bez razmaka).';
+                break;
+            }
+            if (isset($nove[$sifra])) {
+                $greska = 'Šifra ' . $sifra . ' je upisana dva puta.';
+                break;
+            }
+            $nove[$sifra] = $sid;
+        }
+        if ($greska === null && $nove) {
+            // šifra ne sme da bude zauzeta kod artikla koji se ovde ne menja (i isključenog)
+            $menjani = implode(',', array_map('intval', $nove));
+            foreach ($nove as $sifra => $sid) {
+                $tudja = db_one(
+                    'SELECT a.naziv AS artikal, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica FROM sku s JOIN artikli a ON a.id = s.artikal_id
+                     JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id
+                     WHERE s.sifra = ? AND s.id NOT IN (' . $menjani . ')',
+                    [(string)$sifra]
+                );
+                if ($tudja !== null) {
+                    $greska = 'Šifra ' . $sifra . ' je već zauzeta (' . sku_naziv($tudja) . ').';
+                    break;
+                }
+            }
+        }
+        if ($greska !== null) {
+            flash_dodaj('greska', $greska . ' Ništa nije promenjeno.');
+            preusmeri($stranica . '#sifre');
+        }
+        $izmena = db_trans(static function () use ($id, $nove): int {
+            $stare = [];
+            foreach (db_all('SELECT id, sifra FROM sku WHERE artikal_id = ?', [$id]) as $s) {
+                $stare[(int)$s['id']] = (string)$s['sifra'];
+            }
+            $menja = array_filter($nove, static fn(int $sid, int|string $sifra): bool => ($stare[$sid] ?? '') !== (string)$sifra, ARRAY_FILTER_USE_BOTH);
+            // prvo privremene vrednosti, da zamena dve šifre (H5L ↔ H10L) ne udari u jedinstveni ključ
+            foreach ($menja as $sid) {
+                db_run('UPDATE sku SET sifra = NULL WHERE id = ?', [$sid]);
+            }
+            foreach ($menja as $sifra => $sid) {
+                db_run('UPDATE sku SET sifra = ? WHERE id = ?', [(string)$sifra, $sid]);
+            }
+            return count($menja);
+        });
+        if ($izmena > 0) {
+            dnevnik_podesavanje('Izmenjene šifre artikla ' . $a['naziv'] . ' (' . implode(', ', array_map('strval', array_keys($nove))) . ')', 'podesavanje', $id);
+            flash_dodaj('uspeh', $izmena === 1 ? 'Šifra je sačuvana.' : 'Šifre su sačuvane.');
+        } else {
+            flash_dodaj('info', 'Nema izmena.');
+        }
+        preusmeri($stranica . '#sifre');
     } elseif ($akcija === 'bez_varijanti') {
         db_trans(static function () use ($id): void {
             db_run('UPDATE varijante SET aktivan = 0 WHERE artikal_id = ?', [$id]);
@@ -408,5 +473,26 @@ ui_start($a['naziv'], ['nav' => 'admin', 'aktivno' => 'podesavanja', 'js' => ['a
         <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj pakete, palete, težinu i minimum</button>
     <?php endif; ?>
 </form>
+
+<?php if ($sku_redovi): ?>
+<form method="post" class="kartica" id="sifre" autocomplete="off" action="<?= e(url('admin/artikal.php')) ?>">
+    <?= csrf_polje() ?>
+    <input type="hidden" name="akcija" value="sifre">
+    <input type="hidden" name="id" value="<?= $id ?>">
+    <div class="kartica-naslov"><h2>Šifre za spisak</h2></div>
+    <p class="pomoc">Kratka šifra se piše na spisku za utovar umesto punog naziva i kuca se pri unosu (npr. <strong>H50L</strong> = Humovit 50 l). Do 16 slova i cifara, svaka šifra samo jednom.</p>
+    <div class="sifre-mreza">
+        <?php foreach ($grupe as $vid => $redovi): ?>
+            <?php foreach ($redovi as $s): ?>
+                <label class="sifra-red">
+                    <span><?= e(($vid > 0 ? ($varijanta_naziv[$vid] ?? '?') . ' · ' : '') . pakovanje_naziv($s['pak_kolicina'], (string)$s['jedinica'])) ?></span>
+                    <input class="polje" name="sifra[<?= (int)$s['id'] ?>]" type="text" maxlength="20" required autocapitalize="characters" spellcheck="false" value="<?= e((string)$s['sifra']) ?>">
+                </label>
+            <?php endforeach; ?>
+        <?php endforeach; ?>
+    </div>
+    <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj šifre</button>
+</form>
+<?php endif; ?>
 <?php
 ui_end();

@@ -15,7 +15,8 @@
  *            stavka pripada paleti (paleta_id, 0 = posebna stavka).
  * Verzija 7: jedan utovar (kamion) za više kupaca – mesta istovara (spisak_mesta: broj mesta koji upisuje
  *            vlasnik, npr. 8, 9, 5 …, kupac nije obavezan), stavke i zbirne palete pripadaju mestu;
- *            postojeći spiskovi dobijaju Mesto 1 sa svojim kupcem.
+ *            postojeći spiskovi dobijaju Mesto 1 sa svojim kupcem; kratka šifra artikla (sku.sifra, npr. H50L
+ *            = Humovit 50 l) za spisak i brz unos – svaki postojeći artikal dobija predlog šifre.
  */
 declare(strict_types=1);
 
@@ -358,7 +359,12 @@ function migracija_7(): void
         // isti artikal sme da ide za više kupaca na istom utovaru
         db()->exec('ALTER TABLE spisak_stavke ADD UNIQUE KEY uq_stavka_mesto (spisak_id, mesto_id, paleta_id, sku_id), DROP INDEX uq_stavka_paleta');
     }
+    // kratka šifra artikla za spisak (H50L = Humovit 50 l)
+    if (!kolona_postoji('sku', 'sifra')) {
+        db()->exec('ALTER TABLE sku ADD COLUMN sifra VARCHAR(20) NULL DEFAULT NULL AFTER pakovanje_id, ADD UNIQUE KEY uq_sku_sifra (sifra)');
+    }
     db_trans('prenesi_kupce_u_mesta_v7');
+    db_trans('dopuni_sifre');
 }
 
 /** Spisak nadogradnji po verzijama. */

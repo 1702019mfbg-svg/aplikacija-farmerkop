@@ -83,7 +83,7 @@ ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' =>
                     $kg = stavka_kg($st, $kol); ?>
                     <tr<?= $pid > 0 ? ' class="stampa-u-paleti"' : '' ?>>
                         <td><?= $n ?></td>
-                        <td><?= e(stavka_naziv($st)) ?><?= $st['sku_id'] === null ? ' <small>(ostalo)</small>' : '' ?><?= $st['dodao_id'] !== null ? ' <small>(dodato pri utovaru)</small>' : '' ?></td>
+                        <td><strong><?= e(stavka_kratko($st)) ?></strong><?= stavka_ime_ispod($st) !== null ? ' <small class="stampa-ime">' . e((string)stavka_ime_ispod($st)) . '</small>' : '' ?><?= $st['sku_id'] === null ? ' <small>(ostalo)</small>' : '' ?><?= $st['dodao_id'] !== null ? ' <small>(dodato pri utovaru)</small>' : '' ?></td>
                         <td><?= e(stavka_unos_tekst($st)) ?><?php if ($utovaren && $st['utovareno'] !== null && (int)$st['utovareno'] !== (int)$st['kolicina']): ?><br><small>utovareno: <?= e(broj((int)$st['utovareno'])) ?></small><?php endif; ?></td>
                         <td class="br"><?= $st['sku_id'] === null ? '' : e(broj($kol)) ?></td>
                         <td class="br"><?= $kg === null ? '—' : e(broj($kg, $kg == floor($kg) ? 0 : 1)) ?></td>

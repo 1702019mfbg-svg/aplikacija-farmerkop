@@ -135,7 +135,7 @@ const SQL_AKTIVAN_SKU = 's.aktivan = 1 AND a.aktivan = 1 AND k.aktivan = 1 AND p
 function sku_aktivan(int $sku_id): ?array
 {
     return db_one(
-        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.sifra, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id '
         . 'JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id '
@@ -148,7 +148,7 @@ function sku_aktivan(int $sku_id): ?array
 function sku_podaci(int $sku_id): ?array
 {
     return db_one(
-        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
+        'SELECT s.id AS sku_id, s.sifra, s.po_paleti, s.po_paketu, s.tezina_kg, s.min_zaliha, a.id AS artikal_id, a.naziv AS artikal, a.oznaka, a.naziv_varijante, '
         . 'v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica '
         . 'FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN pakovanja p ON p.id = s.pakovanje_id '
         . 'LEFT JOIN varijante v ON v.id = s.varijanta_id WHERE s.id = ?',
@@ -287,6 +287,259 @@ function katalog_za_izbor(bool $sa_stanjem = false, int $uz_sku = 0): array
         $izlaz[] = $k;
     }
     return ['kategorije' => $izlaz];
+}
+
+// ─── Šifre: kratko ime artikla za spisak za utovar (H50L = Humovit 50 l) ──
+
+/** Velika slova bez kvačica: "Malč Žuti" → "MALC ZUTI" (ostali znaci postaju razmak). */
+function sifra_ascii(string $t): string
+{
+    $t = strtr(mb_strtoupper($t), ['Č' => 'C', 'Ć' => 'C', 'Ž' => 'Z', 'Š' => 'S', 'Đ' => 'DJ']);
+    return trim((string)preg_replace('/[^A-Z0-9]+/', ' ', $t));
+}
+
+/** Šifra kako se poredi i čuva: velika slova i cifre (i crtica), bez razmaka – "h 50 l" → "H50L". */
+function sifra_normalizuj(string $t): string
+{
+    $t = strtr(mb_strtoupper(trim($t)), ['Č' => 'C', 'Ć' => 'C', 'Ž' => 'Z', 'Š' => 'S', 'Đ' => 'DJ']);
+    return (string)preg_replace('/[^A-Z0-9-]+/', '', $t);
+}
+
+/** Naziv za poređenje pri kucanju: samo slova i cifre ("Beli oblutak · 1-3 cm" → "BELIOBLUTAK13CM"). */
+function sifra_samo_slova(string $t): string
+{
+    return str_replace(' ', '', sifra_ascii($t));
+}
+
+/** Najkraći početak svake niske koji se ne poklapa sa početkom drugih: [CRVENI, CRNI, BRAON] → [CRV, CRN, B]. */
+function jedinstveni_poceci(array $niske): array
+{
+    $rez = [];
+    foreach ($niske as $k => $t) {
+        $n = 1;
+        while ($n < strlen($t)) {
+            $pocetak = substr($t, 0, $n);
+            $sukob = false;
+            foreach ($niske as $k2 => $t2) {
+                if ($k2 !== $k && strncmp($t2, $pocetak, $n) === 0) {
+                    $sukob = true;
+                    break;
+                }
+            }
+            if (!$sukob) {
+                break;
+            }
+            $n++;
+        }
+        $rez[$k] = substr($t, 0, $n);
+    }
+    return $rez;
+}
+
+/** "50 l" → "50L", "20 kg" → "20KG", "2,5 l" → "2-5L" */
+function velicina_sifra(float|int|string $kolicina, string $jedinica): string
+{
+    $k = rtrim(rtrim(number_format((float)$kolicina, 2, '.', ''), '0'), '.');
+    return str_replace('.', '-', $k) . strtoupper($jedinica);
+}
+
+/**
+ * Predlog šifre za svaki SKU (i one koji već imaju šifru): prva slova reči artikla (Humovit premium → HP;
+ * ako dva artikla imaju ista slova, duži početak prve reči: Crni oblutak → CRNO, Crveni oblutak → CRVO),
+ * pa varijanta (granulacija 4-6 cm → 46, boja Crveni → CRV, Braon → B, Sitnija → S),
+ * pa pakovanje kad artikal ima više pakovanja (50 l → 50L). Humovit 50 l → H50L, Beli oblutak 4-6 cm → BO46.
+ */
+function predlozi_sifre(): array
+{
+    $reci = [];
+    $po_slovima = [];
+    foreach (db_all('SELECT id, naziv FROM artikli ORDER BY id') as $a) {
+        $r = explode(' ', sifra_ascii((string)$a['naziv']));
+        $r = array_values(array_filter($r, static fn(string $w): bool => $w !== '')) ?: ['X'];
+        $reci[(int)$a['id']] = $r;
+        $po_slovima[implode('', array_map(static fn(string $w): string => $w[0], $r))][] = (int)$a['id'];
+    }
+    $skracenica = [];
+    foreach ($po_slovima as $slova => $artikli) {
+        if (count($artikli) === 1) {
+            $skracenica[$artikli[0]] = $slova;
+            continue;
+        }
+        $prve = [];
+        foreach ($artikli as $aid) {
+            $prve[$aid] = $reci[$aid][0];
+        }
+        foreach (jedinstveni_poceci($prve) as $aid => $pocetak) {
+            $skracenica[$aid] = $pocetak . substr($slova, 1);
+        }
+    }
+
+    $po_artiklu = [];
+    foreach (db_all('SELECT id, artikal_id, naziv FROM varijante ORDER BY id') as $v) {
+        $po_artiklu[(int)$v['artikal_id']][(int)$v['id']] = (string)$v['naziv'];
+    }
+    $varijanta = [];
+    foreach ($po_artiklu as $nazivi) {
+        $cifre = array_map(static fn(string $n): string => (string)preg_replace('/\D+/', '', $n), $nazivi);
+        if (!in_array('', $cifre, true) && count(array_unique($cifre)) === count($cifre)) {
+            $varijanta += $cifre;                                          // granulacije: 1-3 cm → 13
+        } else {
+            $varijanta += jedinstveni_poceci(array_map('sifra_samo_slova', $nazivi));   // boje i vrste
+        }
+    }
+
+    $pakovanja = [];
+    foreach (db_all('SELECT artikal_id, COUNT(DISTINCT pakovanje_id) AS n FROM sku GROUP BY artikal_id') as $r) {
+        $pakovanja[(int)$r['artikal_id']] = (int)$r['n'];
+    }
+    $rez = [];
+    foreach (db_all('SELECT s.id, s.artikal_id, s.varijanta_id, p.kolicina, p.jedinica FROM sku s JOIN pakovanja p ON p.id = s.pakovanje_id ORDER BY s.id') as $s) {
+        $aid = (int)$s['artikal_id'];
+        $sifra = ($skracenica[$aid] ?? 'X') . ($varijanta[(int)$s['varijanta_id']] ?? '');
+        if (($pakovanja[$aid] ?? 1) > 1) {
+            $sifra .= velicina_sifra($s['kolicina'], (string)$s['jedinica']);
+        }
+        $rez[(int)$s['id']] = substr($sifra, 0, 12);
+    }
+    return $rez;
+}
+
+/** Daje šifru svakom SKU-u koji je nema (nadogradnja, nova instalacija, novo pakovanje ili varijanta). */
+function dopuni_sifre(): int
+{
+    $bez = db_all('SELECT id FROM sku WHERE sifra IS NULL ORDER BY id');
+    if (!$bez) {
+        return 0;
+    }
+    $predlozi = predlozi_sifre();
+    $zauzete = [];
+    foreach (db_all('SELECT sifra FROM sku WHERE sifra IS NOT NULL') as $r) {
+        $zauzete[sifra_normalizuj((string)$r['sifra'])] = true;
+    }
+    foreach ($bez as $r) {
+        $sid = (int)$r['id'];
+        $osnova = $predlozi[$sid] ?? ('S' . $sid);
+        $sifra = $osnova;
+        for ($n = 2; isset($zauzete[$sifra]); $n++) {
+            $sifra = $osnova . '-' . $n;
+        }
+        db_run('UPDATE sku SET sifra = ? WHERE id = ?', [$sifra, $sid]);
+        $zauzete[$sifra] = true;
+    }
+    return count($bez);
+}
+
+/** Ispravna šifra posle normalizacije: počinje slovom ili cifrom, do 16 znakova (slova, cifre, crtica). */
+function sifra_ispravna(string $sifra): bool
+{
+    return (bool)preg_match('/^[A-Z0-9][A-Z0-9-]{0,15}$/', $sifra);
+}
+
+/** Kratko ime SKU-a: šifra, a bez šifre pun naziv. */
+function sku_kratko(array $r): string
+{
+    return !empty($r['sifra']) ? (string)$r['sifra'] : sku_naziv($r);
+}
+
+/** Šifra i pun naziv za poruke: "H50L (Humovit · 50 l)". */
+function sku_oznaka(array $r): string
+{
+    return !empty($r['sifra']) ? $r['sifra'] . ' (' . sku_naziv($r) . ')' : sku_naziv($r);
+}
+
+/**
+ * Aktivni SKU-ovi za unos šifrom ili nazivom (spisak za utovar), redom kao u katalogu:
+ * [['sku_id', 'sifra', 'naziv', 'po', 'pp', 'stanje'?], ...]. Stanje samo za administratora.
+ */
+function sku_za_unos(bool $sa_stanjem = false): array
+{
+    $stanja = $sa_stanjem ? stanja_svih() : [];
+    $rez = [];
+    foreach (db_all(
+        'SELECT s.id AS sku_id, s.sifra, s.po_paleti, s.po_paketu, a.naziv AS artikal, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica
+         FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id
+         JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id
+         WHERE ' . SQL_AKTIVAN_SKU . '
+         ORDER BY k.redosled, k.id, a.redosled, a.id, v.redosled, v.id, p.jedinica, p.kolicina'
+    ) as $r) {
+        $red = [
+            'sku_id' => (int)$r['sku_id'],
+            'sifra'  => (string)($r['sifra'] ?? ''),
+            'naziv'  => sku_naziv($r),
+            'po'     => (int)$r['po_paleti'],
+            'pp'     => (int)$r['po_paketu'],
+        ];
+        if ($sa_stanjem) {
+            $red['stanje'] = $stanja[(int)$r['sku_id']] ?? 0;
+        }
+        $rez[] = $red;
+    }
+    return $rez;
+}
+
+/**
+ * Artikal iz otkucanog teksta (šifra ili naziv; razmaci i crtice se ne gledaju): tačna šifra ("H50L"), tačan naziv ("Humovit 50 l"),
+ * jedini koji tako počinje ("h50" → H50L), ili onaj kome fali samo jedinica ("h5" → H5L, a ne H50L).
+ * Vraća ['sku' => red iz sku_aktivan() ili null, 'greska' => ?string].
+ */
+function sku_po_unosu(string $tekst): array
+{
+    $sifra = sifra_normalizuj($tekst);
+    $slova = sifra_samo_slova($tekst);
+    if ($sifra === '' && $slova === '') {
+        return ['sku' => null, 'greska' => 'Upišite šifru artikla (npr. H50L) ili naziv.'];
+    }
+    $lista = sku_za_unos();
+    $nadji = static function (callable $kljuc, string $t) use ($lista): ?array {
+        if ($t === '') {
+            return null;
+        }
+        $isti = array_values(array_filter($lista, static fn(array $r): bool => $kljuc($r) === $t));
+        if (count($isti) === 1) {
+            return $isti;
+        }
+        $pocinje = array_values(array_filter($lista, static fn(array $r): bool => $kljuc($r) !== '' && str_starts_with($kljuc($r), $t)));
+        if (count($pocinje) > 1) {
+            $sa_jedinicom = array_values(array_filter($pocinje, static fn(array $r): bool => in_array($kljuc($r), [$t . 'L', $t . 'KG'], true)));
+            return count($sa_jedinicom) === 1 ? $sa_jedinicom : $pocinje;
+        }
+        return $pocinje;
+    };
+    // reči u bilo kom redu, i početkom reči: "rizla bela sit" → Bela rizla · Sitnija · 20 kg
+    $reci = explode(' ', sifra_ascii($tekst));
+    $po_recima = array_values(array_filter($lista, static function (array $r) use ($reci): bool {
+        $u_nazivu = explode(' ', sifra_ascii($r['naziv']));
+        foreach ($reci as $w) {
+            $ima = false;
+            foreach ($u_nazivu as $n) {
+                if (str_starts_with($n, $w)) {
+                    $ima = true;
+                    break;
+                }
+            }
+            if (!$ima) {
+                return false;
+            }
+        }
+        return true;
+    }));
+    foreach ([
+        $nadji(static fn(array $r): string => sifra_samo_slova($r['sifra']), $slova),      // "bo 4-6" → BO46
+        $nadji(static fn(array $r): string => sifra_samo_slova($r['naziv']), $slova),
+        count($reci) > 1 && $reci[0] !== '' ? $po_recima : null,
+    ] as $nadjeni) {
+        if ($nadjeni !== null && count($nadjeni) === 1) {
+            return ['sku' => sku_aktivan($nadjeni[0]['sku_id']), 'greska' => null];
+        }
+        if ($nadjeni !== null && count($nadjeni) > 1) {
+            $ponuda = array_map(static fn(array $r): string => $r['sifra'] !== '' ? $r['sifra'] : $r['naziv'], array_slice($nadjeni, 0, 5));
+            return ['sku' => null, 'greska' => '„' . trim($tekst) . '“ nije jasno – da li ste mislili: ' . implode(', ', $ponuda) . (count($nadjeni) > 5 ? ' …' : '') . '?'];
+        }
+    }
+    $iskljucen = $sifra !== '' ? db_val('SELECT sifra FROM sku WHERE sifra = ?', [$sifra]) : null;
+    return ['sku' => null, 'greska' => $iskljucen !== null
+        ? 'Artikal sa šifrom ' . $iskljucen . ' je isključen u Podešavanjima.'
+        : 'Nema artikla sa šifrom ili nazivom „' . trim($tekst) . '“. Šifre se vide u Podešavanjima kod svakog artikla.'];
 }
 
 // ─── Količina iz forme ─────────────────────────────────────────────────────

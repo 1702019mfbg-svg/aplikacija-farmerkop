@@ -438,8 +438,9 @@ module.exports = {
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
 
-        // Humovit 10 l: palete + paketi + komadi, zbir uživo
-        await page.selectOption('[data-nova-stavka] [name="sku_id"]', { label: 'Humovit · 10 l' });
+        // Humovit 10 l kucanjem šifre („h10“ → H10L): palete + paketi + komadi, zbir uživo
+        await page.locator('[data-nova-stavka] [name="artikal"]').pressSequentially('h10');
+        tvrdi((await page.locator('[data-nova-stavka] [data-artikal-ime]').innerText()).includes('Humovit · 10 l'), 'šifra je prepoznata dok se kuca: ' + await page.locator('[data-nova-stavka] [data-artikal-ime]').innerText());
         tvrdi(await page.locator('[data-polje-pak]').isVisible() && await page.locator('[data-polje-pal]').isVisible(), 'Humovit 10 l ima palete i pakete');
         await page.fill('[data-nova-stavka] [name="pal"]', '1');
         await page.fill('[data-nova-stavka] [name="pak"]', '2');
@@ -450,17 +451,17 @@ module.exports = {
         await page.waitForSelector('.poruka-uspeh');
 
         // Humovit 25 l nema paket: polje za pakete se skriva
-        await page.selectOption('[data-nova-stavka] [name="sku_id"]', { label: 'Humovit · 25 l' });
+        await page.fill('[data-nova-stavka] [name="artikal"]', 'H25L');
         tvrdi(!(await page.locator('[data-polje-pak]').isVisible()), 'Humovit 25 l: nema polja za pakete');
         await page.fill('[data-nova-stavka] [name="pal"]', '2');
         await page.getByRole('button', { name: 'Dodaj za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
 
         // Ostalo
-        await page.locator('.mesto-vise summary', { hasText: 'Ostalo' }).click();
-        await page.fill('.mesto-vise [name="o_naziv"]', 'Saksije 30 cm');
-        await page.fill('.mesto-vise [name="o_kolicina"]', '40');
-        await page.fill('.mesto-vise [name="o_kg"]', '0,8');
+        await page.locator('.mesto-ostalo > summary').click();
+        await page.fill('.mesto-ostalo [name="o_naziv"]', 'Saksije 30 cm');
+        await page.fill('.mesto-ostalo [name="o_kolicina"]', '40');
+        await page.fill('.mesto-ostalo [name="o_kg"]', '0,8');
         await page.getByRole('button', { name: 'Dodaj ostalo' }).click();
         await page.waitForSelector('.poruka-uspeh');
         tvrdi((await page.locator('.stavke-lista .stavka').count()) === 3, '3 stavke na spisku');
@@ -468,8 +469,11 @@ module.exports = {
         tvrdi(t.includes('1 pal + 2 pak + 3 kom = 285 kom'), 'prikaz stavke Humovit 10 l');
         await p.slika('71-spisak-nacrt');
 
-        // izmena količine uživo u listi
+        // stavka je kratak red (H10L · 1 pal + 2 pak + 3 kom); dodir otvara izmenu količine
+        tvrdi((await page.locator('.stavka-sifra').first().innerText()) === 'H10L', 'na spisku piše šifra H10L');
         const red = page.locator('.stavka', { hasText: 'Humovit · 25 l' });
+        tvrdi(!(await red.locator('[data-p="pal"]').isVisible()), 'polja za izmenu su skrivena dok se stavka ne dodirne');
+        await red.locator('summary').click();
         await red.locator('[data-p="pal"]').fill('1');
         tvrdi((await red.locator('[data-zbir]').innerText()).includes('= 120 kom'), 'izmena u listi: zbir uživo');
         await page.locator('.mesta-sacuvaj button').click();
@@ -500,11 +504,11 @@ module.exports = {
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
         const adresaSpiska = page.url();
-        await page.selectOption('[data-nova-stavka] [name="sku_id"]', { label: 'Humovit · 10 l' });
+        await page.fill('[data-nova-stavka] [name="artikal"]', 'H10L');
         await page.fill('[data-nova-stavka] [name="pal"]', '1');
         await page.getByRole('button', { name: 'Dodaj za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
-        await page.selectOption('[data-nova-stavka] [name="sku_id"]', { label: 'Beli oblutak · 1-3 cm · 20 kg' });
+        await page.fill('[data-nova-stavka] [name="artikal"]', 'bo13');
         await page.fill('[data-nova-stavka] [name="kom"]', '20');
         await page.getByRole('button', { name: 'Dodaj za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
@@ -543,14 +547,15 @@ module.exports = {
         tvrdi((await st.locator('[data-zbir]').innerText()).includes('= 200 kom'), 'zbir ispravke: ' + await st.locator('[data-zbir]').innerText());
         // šleper na licu mesta: stane još jedna paleta malča – radnik je dodaje
         await rp.locator('.utovar-dodaj > summary').click();
-        await rp.selectOption('#novi_sku', { label: 'Malč Farmerkop · Crveni · 50 l' });
+        await rp.fill('#novi_artikal', 'mfcrv');
+        tvrdi((await rp.locator('.utovar-dodaj [data-artikal-ime]').innerText()).includes('Malč Farmerkop · Crveni · 50 l'), 'radnik: šifra je prepoznata');
         tvrdi(!(await rp.locator('.utovar-dodaj [data-polje-pak]').isVisible()), 'malč nema pakete');
         await rp.fill('[name="novi_pal"]', '1');
         tvrdi((await rp.locator('.utovar-dodaj [data-zbir]').innerText()).includes('= 40 kom'), 'zbir dodavanja: ' + await rp.locator('.utovar-dodaj [data-zbir]').innerText());
         tvrdi(!(await rp.locator('.utovar-dodaj').innerText()).includes('na stanju'), 'radnik ne vidi stanje');
         await rp.getByRole('button', { name: 'Dodaj na spisak' }).click();
         await rp.waitForSelector('.poruka-uspeh');
-        tvrdi((await rp.locator('.poruka-uspeh').innerText()).includes('Malč Farmerkop · Crveni · 50 l – 40 kom'), 'poruka o dodavanju');
+        tvrdi((await rp.locator('.poruka-uspeh').innerText()).includes('MFCRV (Malč Farmerkop · Crveni · 50 l) – 40 kom'), 'poruka o dodavanju');
         tvrdi((await rp.locator('[data-cek]:checked').count()) === 3, 'posle dodavanja: sve 3 stavke štiklirane');
         tvrdi((await rp.locator('[data-brojac]').innerText()).includes('Štiklirano 3 od 3'), 'brojač 3 od 3');
         const st2 = rp.locator('.utovar-stavka', { hasText: 'Humovit · 10 l' });
@@ -592,36 +597,38 @@ module.exports = {
         await page.waitForURL('**/admin/spisak.php?id=*');
         const adresa = page.url();
 
-        // nova zbirna paleta: 2 ovakve palete
-        await page.locator('.mesto-vise summary', { hasText: 'Zbirna paleta' }).click();
-        await page.fill('.mesto-vise [name="p_broj"]', '2');
-        await page.getByRole('button', { name: 'Napravi zbirnu paletu' }).click();
-        await page.waitForSelector('.poruka-uspeh');
-        tvrdi((await page.locator('[data-odrediste] option:checked').innerText()).includes('Zbirna paleta 1'), 'u „Gde ide“ je izabrana nova paleta');
-        tvrdi(!(await page.locator('[data-nova-stavka] [data-polje-pal]').isVisible()), 'u zbirnu paletu se ne upisuju cele palete');
-        tvrdi(await page.locator('[data-pomoc-zbirna]').isVisible(), 'vidi se uputstvo „koliko ide na jednu paletu“');
-        for (const [naziv, kom] of [['Humovit · 5 l', '5'], ['Humovit · 10 l', '5'], ['Humovit · 50 l', '5']]) {
-            await page.selectOption('[data-nova-stavka] [name="sku_id"]', { label: naziv });
-            await page.fill('[data-nova-stavka] [name="kom"]', kom);
-            if (naziv === 'Humovit · 10 l') {
-                const z = await page.locator('[data-nova-stavka] [data-zbir]').innerText();
-                tvrdi(z.includes('= 5 kom na paleti × 2 = 10 kom'), 'zbir: ' + z);
-            }
-            await page.getByRole('button', { name: 'Dodaj za Mesto 1' }).click();
-            await page.waitForSelector('.poruka-uspeh');
+        // zbirna paleta odjednom: šifra i koliko ide na JEDNU paletu, 2 ovakve palete
+        await page.locator('.mesto-zbirna > summary').click();
+        const redovi = page.locator('[data-zbirna-red]');
+        tvrdi((await redovi.count()) === 4, 'forma ima 4 reda za artikle');
+        await page.locator('[data-zbirna-jos]').click();
+        tvrdi((await redovi.count()) === 5, '„Još jedan artikal“ dodaje red');
+        for (const [i, sifra, kol] of [[0, 'h5l', '5'], [1, 'H10L', '5'], [2, 'h50', '5'], [3, 'BRS', '1/2']]) {
+            await redovi.nth(i).locator('[name="z_artikal[]"]').fill(sifra);
+            await redovi.nth(i).locator('[name="z_kol[]"]').fill(kol);
         }
+        const ime = await redovi.nth(3).locator('[data-artikal-ime]').innerText();
+        tvrdi(ime.includes('Bela rizla · Sitnija · 20 kg') && ime.includes('1/2 palete = 25 kom'), 'pola palete rizle se odmah preračuna: ' + ime);
+        await redovi.nth(3).locator('[name="z_artikal[]"]').fill('');
+        await redovi.nth(3).locator('[name="z_kol[]"]').fill('');
+        await page.fill('.mesto-zbirna [name="p_broj"]', '2');
+        await p.slika('78-zbirna-unos');
+        await page.getByRole('button', { name: 'Dodaj zbirnu paletu' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.zbirna-paleta [data-poruke] .poruka-uspeh').count()) === 1, 'poruka je kod nove zbirne palete');
         tvrdi((await page.locator('.zbirna-paleta .stavka').count()) === 3, '3 artikla u zbirnoj paleti');
         // i jedna posebna stavka
+        await page.locator('.mesto-dodaj > summary').click().catch(() => {});
+        if (!(await page.locator('.mesto-dodaj').evaluate((d) => d.open))) { await page.locator('.mesto-dodaj > summary').click(); }
         await page.selectOption('[data-odrediste]', '0');
-        tvrdi(await page.locator('[data-nova-stavka] [data-polje-pal]').isVisible() || true, 'posebna stavka');
-        await page.selectOption('[data-nova-stavka] [name="sku_id"]', { label: 'Idea (PL) · 10 l' });
+        await page.fill('[data-nova-stavka] [name="artikal"]', 'I10L');
         tvrdi(await page.locator('[data-nova-stavka] [data-polje-pal]').isVisible(), 'posebna stavka ima palete');
         await page.fill('[data-nova-stavka] [name="pal"]', '1');
         await page.getByRole('button', { name: 'Dodaj za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
         const t = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
         tvrdi(t.includes('5 kom na paleti × 2 = 10 kom'), 'plan u paleti');
-        await p.slika('78-zbirna-paleta');
+        await p.slika('79-zbirna-paleta');
         page.once('dialog', (d) => d.accept());
         await page.getByRole('button', { name: 'Pošalji na utovar' }).click();
         await page.waitForSelector('.status-za_utovar');
@@ -643,7 +650,7 @@ module.exports = {
         await rp.locator('.utovar-cek', { hasText: 'Humovit · 5 l' }).click();
         tvrdi(await rp.locator('[data-cek-grupa]').isChecked(), 'ponovo cela');
         await rp.locator('.utovar-cek', { hasText: 'Idea' }).click();
-        await rp.screenshot({ path: process.argv[3] + '/79-radnik-zbirna-' + (p.tema === 'dark' ? 'tamno' : 'svetlo') + '.png', fullPage: true });
+        await rp.screenshot({ path: process.argv[3] + '/80-radnik-zbirna-' + (p.tema === 'dark' ? 'tamno' : 'svetlo') + '.png', fullPage: true });
         rp.once('dialog', (d) => d.accept());
         await rp.locator('[data-potvrdi]').click();
         await rp.waitForSelector('.poruka-uspeh');
@@ -652,7 +659,7 @@ module.exports = {
 
         await page.goto(adresa.replace('/admin/spisak.php', '/admin/spisak_stampa.php'));
         tvrdi((await page.locator('.stampa-grupa').count()) === 1, 'štampa: naslov zbirne palete');
-        await p.slika('80-zbirna-stampa');
+        await p.slika('80-zbirna-stampa-a4');
     },
 
     async mesta(page, p) {
@@ -672,22 +679,23 @@ module.exports = {
 
         // Mesto 8: paleta Humovita 50 l + zbirna paleta pola rizle, pola oblutka
         const m8 = page.locator('.mesto-kartica', { hasText: 'Mesto 8' });
-        await m8.locator('[name="sku_id"]').selectOption({ label: 'Humovit · 50 l' });
+        await m8.locator('[name="artikal"]').fill('H50L');
         await m8.locator('[data-nova-stavka] [name="pal"]').fill('1');
         await m8.getByRole('button', { name: 'Dodaj za Mesto 8' }).click();
         await page.waitForSelector('.poruka-uspeh');
         tvrdi((await page.locator('.mesto-dodaj [data-poruke] .poruka-uspeh').count()) === 1, 'poruka je premeštena kod forme za robu (ne na vrh stranice)');
-        await m8.locator('.mesto-vise summary', { hasText: 'Zbirna paleta' }).click();
-        await m8.getByRole('button', { name: 'Napravi zbirnu paletu' }).click();
+        // kao na papiru: „1/2 rizla bela sitna + 1/2 oblutak beli 40-60“
+        await m8.locator('.mesto-zbirna > summary').click();
+        const zr = m8.locator('[data-zbirna-red]');
+        await zr.nth(0).locator('[name="z_artikal[]"]').fill('brs');
+        await zr.nth(0).locator('[name="z_kol[]"]').fill('1/2');
+        await zr.nth(1).locator('[name="z_artikal[]"]').fill('bo46');
+        await zr.nth(1).locator('[name="z_kol[]"]').fill('pola');
+        tvrdi((await zr.nth(1).locator('[data-artikal-ime]').innerText()).includes('= 25 kom'), 'pola palete oblutka = 25 kom');
+        await m8.getByRole('button', { name: 'Dodaj zbirnu paletu' }).click();
         await page.waitForSelector('.poruka-uspeh');
-        tvrdi((await m8.locator('[data-odrediste] option:checked').innerText()).includes('Zbirna paleta 1'), 'u „Gde ide“ je nova zbirna paleta');
-        for (const naziv of ['Bela rizla · Sitnija · 20 kg', 'Beli oblutak · 4-6 cm · 20 kg']) {
-            await m8.locator('[name="sku_id"]').selectOption({ label: naziv });
-            await m8.locator('[data-nova-stavka] [name="kom"]').fill('25');
-            await m8.getByRole('button', { name: 'Dodaj za Mesto 8' }).click();
-            await page.waitForSelector('.poruka-uspeh');
-        }
         tvrdi((await m8.locator('.zbirna-paleta .stavka').count()) === 2, 'zbirna paleta: rizla i oblutak (pola-pola)');
+        tvrdi((await m8.locator('.zbirna-paleta .stavka-sifra').allInnerTexts()).join(',') === 'BRS,BO46', 'u paleti piše BRS i BO46');
 
         // Mesto 9 sa kupcem (čip ranijeg kupca)
         tvrdi((await page.locator('#novo_broj').inputValue()) === '9', 'predložen je sledeći broj: 9');
@@ -698,7 +706,7 @@ module.exports = {
         const m9 = page.locator('.mesto-kartica', { hasText: 'Mesto 9' });
         tvrdi(await m9.locator('.mesto-dodaj .poruka-uspeh').isVisible(), 'poruka o novom mestu je kod njegove forme');
         tvrdi(await m9.locator('.mesto-dodaj').evaluate((d) => d.open), 'forma za robu novog mesta je otvorena');
-        await m9.locator('[name="sku_id"]').selectOption({ label: 'Humovit · 10 l' });
+        await m9.locator('[name="artikal"]').fill('H10L');
         await m9.locator('[data-nova-stavka] [name="pal"]').fill('1');
         await m9.getByRole('button', { name: 'Dodaj za Mesto 9' }).click();
         await page.waitForSelector('.poruka-uspeh');
@@ -708,7 +716,7 @@ module.exports = {
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForSelector('.poruka-uspeh');
         const m5 = page.locator('.mesto-kartica', { hasText: 'Mesto 5' });
-        await m5.locator('[name="sku_id"]').selectOption({ label: 'Humovit · 5 l' });
+        await m5.locator('[name="artikal"]').fill('H5L');
         await m5.locator('[data-nova-stavka] [name="pak"]').fill('2');
         tvrdi((await m5.locator('[data-nova-stavka] [data-zbir]').innerText()).includes('= 20 kom'), 'zbir: 2 paketa = 20 kom');
         await m5.getByRole('button', { name: 'Dodaj za Mesto 5' }).click();
@@ -720,6 +728,7 @@ module.exports = {
 
         // nesačuvana izmena količine: pregledač pita pre napuštanja stranice
         const red = page.locator('.mesto-kartica', { hasText: 'Mesto 9' }).locator('.stavka', { hasText: 'Humovit · 10 l' });
+        await red.locator('summary').click();
         await red.locator('[data-p="pak"]').click();
         await page.keyboard.type('3');
         tvrdi((await red.locator('[data-zbir]').innerText()).includes('= 288 kom'), 'zbir izmene uživo: 1 pal + 3 pak = 288');
@@ -748,7 +757,7 @@ module.exports = {
         tvrdi((await rp.locator('.utovar-mesto h3').allInnerTexts()).join(',') === 'Mesto 8,Mesto 5,Mesto 9', 'radnik vidi mesta redom 8, 5, 9');
         await rp.locator('.utovar-dodaj > summary').click();
         await rp.selectOption('#novi_mesto', { label: 'Mesto 9 · Agrocentar Novi Sad' });
-        await rp.selectOption('#novi_sku', { label: 'Humovit · 5 l' });
+        await rp.fill('#novi_artikal', 'H5L');
         await rp.fill('[name="novi_pak"]', '1');
         await rp.getByRole('button', { name: 'Dodaj na spisak' }).click();
         await rp.waitForSelector('.poruka-uspeh');

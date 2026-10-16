@@ -128,7 +128,7 @@ try:
     o = adm.post(SP, {"akcija": "stavke", "id": sp1})
     R.provera("Nema izmena" in poruke(o), "čuvanje bez izmena: poruka „Nema izmena“")
     o = adm.post(SP, {"id": sp1, "ukloni": str(hum5_st)})
-    R.provera("Uklonjena stavka Humovit · 5 l" in poruke(o) and sql_int("SELECT COUNT(*) FROM spisak_stavke WHERE id=%d" % hum5_st) == 0, "stavka je uklonjena")
+    R.provera("Uklonjena stavka H5L (Humovit · 5 l)" in poruke(o) and sql_int("SELECT COUNT(*) FROM spisak_stavke WHERE id=%d" % hum5_st) == 0, "stavka je uklonjena")
 
     R.odeljak("Statusi i rezervacija")
     R.provera({s: stanje(s) for s in stanje_pre} == stanje_pre, "dok je nacrt, stanje se ne dira")
@@ -187,7 +187,7 @@ try:
 
     R.odeljak("Dnevnik izmena")
     d = sql("SELECT GROUP_CONCAT(detalji SEPARATOR ' | ') FROM dnevnik WHERE akcija='spisak'")
-    R.provera("Spisak #%d: napravljen" % sp1 in d and "dodato za Mesto 1 · Agrocentar <b>NS</b>: Humovit · 10 l" in d and "poslat na utovar" in d and "otkazan" in d and "uklonjena stavka" in d, "sve promene spiskova su u dnevniku", d[:400])
+    R.provera("Spisak #%d: napravljen" % sp1 in d and "dodato za Mesto 1 · Agrocentar <b>NS</b>: H10L (Humovit · 10 l)" in d and "poslat na utovar" in d and "otkazan" in d and "uklonjena stavka" in d, "sve promene spiskova su u dnevniku", d[:400])
     o = adm.get("/admin/dnevnik.php")
     R.provera("Spisak za utovar" in o.text, "Dnevnik izmena prikazuje vrstu „Spisak za utovar“")
 

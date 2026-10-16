@@ -136,7 +136,7 @@ function spisak_stavke(int $spisak_id): array
                 st.tezina_kg AS ostalo_kg, st.kolicina, st.palete AS u_palete, st.paketi AS u_paketi, st.komadi AS u_komadi,
                 st.utovareno, st.redosled, st.dodao_id, d.ime AS dodao,
                 st.paleta_id, pl.naziv AS paleta_naziv, pl.broj AS paleta_broj,
-                s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
+                s.sifra, s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
                 p.kolicina AS pak_kolicina, p.jedinica
          FROM spisak_stavke st
          LEFT JOIN spisak_mesta m ON m.id = st.mesto_id
@@ -200,8 +200,20 @@ function stavka_naziv(array $st): string
     return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_naziv($st);
 }
 
+/** Kratko ime stavke na spisku: šifra artikla ("H10L"), a za "ostalo" i artikal bez šifre – naziv. */
+function stavka_kratko(array $st): string
+{
+    return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_kratko($st);
+}
+
+/** Pun naziv ispod šifre (null kad nema šifre, pa je naziv već prikazan). */
+function stavka_ime_ispod(array $st): ?string
+{
+    return $st['sku_id'] !== null && !empty($st['sifra']) ? sku_naziv($st) : null;
+}
+
 /**
- * Naziv sa zbirnom paletom (i mestom, kad utovar ima više mesta): "Humovit · 10 l (mesto 8, Zbirna paleta 1)".
+ * Kratko ime sa zbirnom paletom (i mestom, kad utovar ima više mesta): "H10L (mesto 8, Zbirna paleta 1)".
  */
 function stavka_puni_naziv(array $st, bool $sa_mestom = false): string
 {
@@ -212,7 +224,7 @@ function stavka_puni_naziv(array $st, bool $sa_mestom = false): string
     if ((int)($st['paleta_id'] ?? 0) > 0) {
         $dodaci[] = (string)$st['paleta_naziv'];
     }
-    return stavka_naziv($st) . ($dodaci ? ' (' . implode(', ', $dodaci) . ')' : '');
+    return stavka_kratko($st) . ($dodaci ? ' (' . implode(', ', $dodaci) . ')' : '');
 }
 
 /** Da li stavke idu za više od jednog mesta (kupca). */
@@ -364,26 +376,48 @@ function spisak_manjak(int $spisak_id, array $stavke): array
     return $manjak;
 }
 
-/** Aktivni SKU-ovi za izbor stavke: [artikal => [[sku_id, naziv pakovanja/varijante, po_paleti, po_paketu], ...]]. */
-function spisak_izbor_sku(): array
+/**
+ * Koliko ide na JEDNU zbirnu paletu, iz jednog polja: "25" (komada), "1/2" ili "pola" (deo pune palete
+ * tog artikla – rizla 50 po paleti, pola = 25), "3 pak" (paketa).
+ * Vraća ['komadi' => ukupno komada na paleti, 'paketi' => n, 'kom' => n] ili ['greska' => tekst].
+ */
+function kolicina_na_paleti(string $t, array $sku): array
 {
-    $grupe = [];
-    foreach (db_all(
-        'SELECT s.id AS sku_id, s.po_paleti, s.po_paketu, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta, p.kolicina AS pak_kolicina, p.jedinica
-         FROM sku s JOIN artikli a ON a.id = s.artikal_id JOIN kategorije k ON k.id = a.kategorija_id
-         JOIN pakovanja p ON p.id = s.pakovanje_id LEFT JOIN varijante v ON v.id = s.varijanta_id
-         WHERE ' . SQL_AKTIVAN_SKU . '
-         ORDER BY k.redosled, k.id, a.redosled, a.id, v.redosled, v.id, p.jedinica, p.kolicina'
-    ) as $r) {
-        $artikal = $r['artikal'] . ($r['oznaka'] ? ' (' . $r['oznaka'] . ')' : '');
-        $grupe[$artikal][] = [
-            (int)$r['sku_id'],
-            ($r['varijanta'] !== null ? $r['varijanta'] . ' · ' : '') . pakovanje_naziv($r['pak_kolicina'], (string)$r['jedinica']),
-            (int)$r['po_paleti'],
-            (int)$r['po_paketu'],
-        ];
+    $t = mb_strtolower((string)preg_replace('/\s+/u', '', $t));
+    $ime = sku_kratko($sku);
+    if ($t === 'pola' || $t === '½') {
+        $t = '1/2';
     }
-    return $grupe;
+    if ($t === '') {
+        return ['greska' => $ime . ': upišite koliko ide na paletu (npr. 25 ili 1/2).'];
+    }
+    if (ctype_digit($t)) {
+        if ((int)$t < 1 || (int)$t > 99999) {
+            return ['greska' => $ime . ': količina mora biti od 1 do 99.999 komada.'];
+        }
+        return ['komadi' => (int)$t, 'paketi' => 0, 'kom' => (int)$t];
+    }
+    if (preg_match('#^(\d{1,3})/(\d{1,3})$#', $t, $m)) {
+        [$a, $b] = [(int)$m[1], (int)$m[2]];
+        if ($a < 1 || $b < 1 || $a > $b) {
+            return ['greska' => $ime . ': deo palete se piše kao 1/2, 1/3 ili 3/4.'];
+        }
+        if ((int)$sku['po_paleti'] <= 0) {
+            return ['greska' => $ime . ': nije podešeno koliko komada ide na paletu – upišite broj komada.'];
+        }
+        $n = (int)round((int)$sku['po_paleti'] * $a / $b);
+        return $n < 1 ? ['greska' => $ime . ': ' . $a . '/' . $b . ' palete je manje od jednog komada.'] : ['komadi' => $n, 'paketi' => 0, 'kom' => $n];
+    }
+    if (preg_match('/^(\d{1,4})(p|pak|paket|paketa)$/u', $t, $m)) {
+        if ((int)$sku['po_paketu'] <= 0) {
+            return ['greska' => $ime . ': ovaj artikal se ne pakuje u pakete – upišite broj komada.'];
+        }
+        if ((int)$m[1] < 1) {
+            return ['greska' => $ime . ': upišite koliko paketa (1 ili više).'];
+        }
+        return ['komadi' => (int)$m[1] * (int)$sku['po_paketu'], 'paketi' => (int)$m[1], 'kom' => 0];
+    }
+    return ['greska' => $ime . ': količinu upišite kao broj komada (25), deo palete (1/2) ili pakete (3 pak).'];
 }
 
 /** Zapis u dnevnik izmena za spisak. */
@@ -647,7 +681,7 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
                 $n++;
                 $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
                 $opis = $utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom (utovareno)' : stavka_plan_tekst($st);
-                $l[] = ($pid > 0 ? '     ' : '  ') . $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
+                $l[] = ($pid > 0 ? '     ' : '  ') . $n . '. ' . stavka_kratko($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
             }
         }
     }
@@ -686,7 +720,7 @@ function spisak_dodaj_pri_utovaru(int $id, int $mesto_id, array $sku, int $komad
             return $ne('Izaberite za koje mesto je roba (Za mesto).');
         }
         if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = 0 AND sku_id = ?', [$id, $mesto_id, (int)$sku['sku_id']]) !== null) {
-            return $ne(sku_naziv($sku) . ' je već na spisku' . ($mesto !== null ? ' za ' . mesto_naslov((int)$mesto['broj'], $mesto['kupac']) : '')
+            return $ne(sku_oznaka($sku) . ' je već na spisku' . ($mesto !== null ? ' za ' . mesto_naslov((int)$mesto['broj'], $mesto['kupac']) : '')
                 . ' – kod te stavke dodirnite „Više ili manje od plana“ i upišite količinu.');
         }
         $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;

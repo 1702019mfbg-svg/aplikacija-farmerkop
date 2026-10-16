@@ -136,34 +136,54 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 - Na dnu je lista njegovih današnjih unosa i ukupan broj za danas.
 - **Pogrešan unos?** Dugme **Obriši** stoji uz poslednji unos još 10 minuta.
 - **Kućna prodaja:** prodaja na licu mesta, isto kao proizvodnja. Radnik ne vidi koliko robe ima; ako unese više nego što ima, program ga odbija.
-- **Utovar:** spiskovi koje je administrator poslao na utovar. Radnik otvori spisak, **štiklira svaku stavku** kad je utovarena, a ako je utovareno **više ili manje** od plana (npr. šleper na licu mesta primi više) dodirne **Više ili manje od plana** i upiše stvarno (0 ako nije utovareno ništa). Zbirna paleta je kod radnika jedna grupa: jedan dodir na kvadratić palete štiklira sve artikle na njoj (ispravka količine u paleti je u ukupnim komadima). Ako u kamion ide i nešto čega nema na spisku: **Dodaj artikal kog nema na spisku** (artikal, palete/paketi/komadi) – dodata stavka je odmah štiklirana i označena „dodato pri utovaru“. Na kraju **Potvrdi utovar** – tek tada se skida stanje, za stvarno utovarene količine. Dupli dodir ili dva telefona ne mogu da skinu stanje dvaput.
+- **Utovar:** spiskovi koje je administrator poslao na utovar. Roba je složena **po mestima istovara** (zaokružen broj, npr. Mesto 8, 9, 5), a artikli su napisani **šifrom** (npr. H50L) sa punim nazivom sitno ispod. Radnik otvori spisak, **štiklira svaku stavku** kad je utovarena, a ako je utovareno **više ili manje** od plana (npr. šleper na licu mesta primi više) dodirne **Više ili manje od plana** i upiše stvarno (0 ako nije utovareno ništa). Zbirna paleta je kod radnika jedna grupa: jedan dodir na kvadratić palete štiklira sve artikle na njoj (ispravka količine u paleti je u ukupnim komadima). Ako u kamion ide i nešto čega nema na spisku: **Dodaj artikal kog nema na spisku** (za koje mesto, šifra artikla – npr. „h50“, palete/paketi/komadi) – dodata stavka je odmah štiklirana i označena „dodato pri utovaru“. Na kraju **Potvrdi utovar** – tek tada se skida stanje, za stvarno utovarene količine. Dupli dodir ili dva telefona ne mogu da skinu stanje dvaput.
 
 ### Administrator (donja traka)
 | Kartica | Čemu služi |
 |---|---|
 | **Stanje** | Stanje svakog artikla po pakovanju (komadi, palete, litri), danas proizvedeno i prodato, crveno kad padne ispod minimuma |
-| **Utovar** | Spiskovi za utovar (kupac, datum, vozilo, vozač, stavke). Odatle je i **Ručna prodaja** – samo za izuzetke (npr. neko dođe po par vreća bez spiska) |
+| **Utovar** | Spiskovi za utovar – jedan spisak je jedan kamion, roba po mestima istovara (Mesto 8, 9, 5 …). Odatle je i **Ručna prodaja** – samo za izuzetke (npr. neko dođe po par vreća bez spiska) |
 | **Istorija** | Svi unosi sa filterima; ispravka i brisanje (uz zapis ko i kad); **Izvoz u Excel (CSV)** |
 | **Radnici** | Dodavanje, PIN, gašenje i vraćanje pristupa, pregled ko je koliko proizveo po danima |
-| **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, težina komada, **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
+| **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, težina komada, **šifre artikala** (H50L), **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
 
 **Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa. Sve se čuva u komadima; palete i paketi su samo način unosa.
 
 ### Spisak za utovar
-1. **Utovar → Novi spisak za utovar:** kupac (raniji ili nov), datum utovara, vozilo, vozač, napomena → **Napravi spisak**.
-2. **Dodaj artikal:** izaberite artikal i pakovanje, pa upišite **palete + pakete + komade** u bilo kojoj kombinaciji (npr. 1 paleta + 2 paketa + 3 komada). Ispod piše ukupno komada i koliko ima na stanju.
-3. **Zbirna paleta** (više različitih artikala na jednoj paleti, npr. 5 kom po 5 l, 5 po 10 l, 5 po 50 l): **Nova zbirna paleta** → naziv (nije obavezan) i **koliko ovakvih paleta** → *Napravi*. Zatim u „Dodaj artikal“ izaberite **Gde ide: U zbirnu paletu** i dodajte artikle – upisuje se koliko ide na **jednu** paletu (paketi i/ili komadi), a program sam pomnoži sa brojem paleta. Zbirna paleta se broji kao cela paleta. Naziv, broj paleta i količine menjate u listi stavki (*Sačuvaj izmene*); kanta uklanja paletu sa svim artiklima.
-4. **Dodaj ostalo:** roba koja se ne vodi u aplikaciji (naziv, količina, jedinica, kg po jedinici). Ide na spisak i u težinu tovara, ali ne menja stanje.
-5. Gore se vidi **broj paleta** (i koliko je zbirnih) i **težina tovara** (okvirno, po težinama iz Podešavanja → Artikli → Kg/kom).
-6. Ako za neku stavku nema dovoljno slobodne robe (računa se ukupno po artiklu – i posebno i u zbirnim paletama), spisak to pokaže žutim upozorenjem – to je samo upozorenje.
-7. **Pošalji na utovar:** spisak dobija status *Za utovar* i količine su **rezervisane** (Stanje pokazuje *rezervisano* i *slobodno*). Stanje se **ne skida** dok radnik ne potvrdi utovar.
-8. Za izmene: **Vrati u nacrt**, izmenite, pa ponovo pošaljite. **Otkaži spisak** ukida rezervaciju.
-9. **Utovar potvrđuje radnik** (kartica Utovar na njegovom telefonu) – ili vi, dugmetom **Potvrdi utovar** na spisku. Stanje se skida za stvarno utovarenu količinu; ako je utovareno više nego što program misli da ima, stanje ode u minus i Stanje to pokaže crveno („uradite popis“).
-10. **Utovaren spisak se više ne menja.** Ako je utovar bio greška: **Otkaži utovar (vrati robu na stanje)** – sve se vraća kao „povrat“, ništa se ne briše. Ostale razlike ispravljate popisom.
-11. **Štampa / PDF / Podeli:** prikaz spiska za štampu (sa mestima za potpis: utovario, vozač, primio). PDF: *Štampaj / PDF* → kao štampač izaberite **Sačuvaj kao PDF**. **Podeli** šalje tekst spiska u Viber, WhatsApp ili SMS.
+Jedan spisak je **jedan kamion**. Roba se upisuje **po mestima istovara** – kao zaokruženi brojevi na papiru (npr. 8, 9, 5, 4, 2), a svako mesto ima svoju robu.
+
+1. **Utovar → Novi spisak za utovar:** datum utovara, vozilo, vozač, napomena i **prvo mesto istovara** – broj mesta (kako ga pišete na papiru, npr. 8) i kupac (nije obavezan) → **Napravi spisak**.
+2. **Dodaj mesto** (dole na spisku): broj mesta (program predloži sledeći, vi upišite svoj), kupac i adresa/napomena nisu obavezni. Mesta dodajete koliko god treba. Na kartici mesta: **↑ ↓** menjaju redosled, kanta uklanja mesto sa svom robom, **Broj, kupac, adresa** menja podatke mesta.
+3. **Dodaj robu za Mesto N:** u polje **Artikal** otkucajte **šifru** (npr. **H50L** = Humovit 50 l; dovoljno je i „h50“, „h5“ je H5L) ili deo naziva („rizla bela sit“). Ispod polja odmah piše koji je artikal prepoznat. Zatim **palete + paketi + komadi** u bilo kojoj kombinaciji (npr. 1 paleta + 2 paketa + 3 komada) – ispod piše ukupno komada i koliko ima na stanju. Isti artikal može da ide za više mesta.
+4. **Zbirna paleta** (više različitih artikala na jednoj paleti): na kartici mesta **Zbirna paleta** → u redove upišite **šifru i koliko ide na jednu paletu**: komada (**25**), deo palete (**1/2** ili **pola** – pola palete rizle = 25 komada) ili paketa (**3 pak**); **Još jedan artikal** dodaje red. Primer sa papira „1/2 rizla bela sitna + 1/2 oblutak beli 40-60“ je **BRS 1/2** i **BO46 1/2**. Ako treba više ovakvih paleta, upišite **Koliko ovakvih paleta** – program sam pomnoži. → **Dodaj zbirnu paletu**. Zbirna paleta se broji kao cela paleta. U postojeću zbirnu paletu možete i kasnije dodati artikal: *Dodaj robu* → **Gde ide: U zbirnu paletu**.
+5. **Ostalo** (u *Dodaj robu*): roba koja se ne vodi u aplikaciji (naziv, količina, jedinica, kg po jedinici). Ide na spisak i u težinu tovara, ali ne menja stanje.
+6. **Izmene:** stavka je kratak red (šifra · količina · težina). **Dodirnite stavku** – otvore se polja za količinu i kanta za brisanje; dodir na naziv zbirne palete menja naziv i broj paleta. Na kraju **Sačuvaj izmene**. Ako krenete sa stranice a niste sačuvali, telefon pita da li da napusti.
+7. Gore se vidi **broj mesta**, **broj paleta** (i koliko je zbirnih) i **težina tovara** (okvirno, po težinama iz Podešavanja → Artikli → Kg/kom); svako mesto ima i svoj zbir.
+8. Ako za neku stavku nema dovoljno slobodne robe (računa se ukupno po artiklu – za sva mesta i zbirne palete), spisak to pokaže žutim upozorenjem – to je samo upozorenje.
+9. **Pošalji na utovar:** spisak dobija status *Za utovar* i količine su **rezervisane** (Stanje pokazuje *rezervisano* i *slobodno*). Mesto bez robe ne može na utovar (dodajte robu ili uklonite mesto). Stanje se **ne skida** dok radnik ne potvrdi utovar.
+10. Za izmene: **Vrati u nacrt**, izmenite, pa ponovo pošaljite. **Otkaži spisak** ukida rezervaciju.
+11. **Utovar potvrđuje radnik** (kartica Utovar na njegovom telefonu) – ili vi, dugmetom **Potvrdi utovar** na spisku. Stanje se skida za stvarno utovarenu količinu, a roba se vodi na **kupca svog mesta**. Ako je utovareno više nego što program misli da ima, stanje ode u minus i Stanje to pokaže crveno („uradite popis“).
+12. **Utovaren spisak se više ne menja.** Ako je utovar bio greška: **Otkaži utovar (vrati robu na stanje)** – sve se vraća kao „povrat“, ništa se ne briše. Ostale razlike ispravljate popisom.
+13. **Štampa / PDF / Podeli:** spisak za štampu po mestima (zaokružen broj, kupac, zbir mesta), sa šiframa i punim nazivom sitno, i mestima za potpis. PDF: *Štampaj / PDF* → kao štampač izaberite **Sačuvaj kao PDF**. **Podeli** šalje tekst spiska u Viber, WhatsApp ili SMS (po mestima, sa šiframa).
 
 Statusi: **Nacrt** (slobodno menjate, stanje se ne dira) → **Za utovar** (radnici vide, rezervisano) → **Utovareno** (tek tada se skida stanje) · **Otkazano**.
-Sve promene spiskova su u *Dnevniku izmena*. Ako ručno unesete prodaju kupcu koji tog dana ima spisak, aplikacija upozori da se ista roba ne bi skinula dvaput.
+Sve promene spiskova su u *Dnevniku izmena*. Ako ručno unesete prodaju kupcu koji tog dana ima mesto na spisku, aplikacija upozori da se ista roba ne bi skinula dvaput.
+
+### Šifre artikala (H50L)
+Svaki artikal u svakom pakovanju ima kratku **šifru** koja se piše na spisku umesto punog naziva i kuca se pri unosu. Aplikacija ih je predložila sama:
+
+| Artikal | Šifre |
+|---|---|
+| Humovit 5 / 10 / 25 / 50 l | **H5L, H10L, H25L, H50L** |
+| Humovit premium 20 / 50 l | HP20L, HP50L |
+| Floris Savacoop · Idea | FS5L, FS10L … · I5L, I10L … |
+| Beli oblutak (po granulaciji) | BO13, BO24, **BO46**, BO47, BO610 |
+| Crni / crveni oblutak | CRNO46, CRVO46 … |
+| Bela rizla sitnija / krupnija | **BRS**, BRK (crna: CRNRS, CRNRK; crvena: CRVRS, CRVRK) |
+| Malč Farmerkop crveni / braon / zeleni … | MFCRV, MFB, MFZE … |
+| Perlit · Keramzit | P5L, P100L · K5L, K35L |
+
+Šifru menjate u **Podešavanja → Artikli → Uredi → Šifre za spisak** (do 16 slova i cifara, svaka šifra samo jednom). Novo pakovanje ili nova boja dobija šifru sama. Pri kucanju se ne gledaju razmaci, crtice ni mala/velika slova („bo 4-6“ = BO46).
 
 ### Početno stanje (popis) – kako krenuti sa praćenjem
 Pre nego što radnici počnu da unose, upišite koliko trenutno imate. Postoje dva načina, oba u **Podešavanja**:
@@ -221,7 +241,9 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
-**Novo – zbirna paleta (verzija baze 6):** na spisak za utovar može da se doda zbirna paleta – više različitih artikala složenih na jednu paletu (npr. 5 × 5 l, 5 × 10 l, 5 × 50 l), i više ovakvih paleta odjednom. Radnici je vide kao grupu i štikliraju jednim dodirom; na štampi i u tekstu za Viber/WhatsApp je posebno označena.
+**Novo – mesta istovara i šifre (verzija baze 7):** jedan spisak je jedan kamion sa **više mesta istovara** (Mesto 8, 9, 5 … – broj upisujete vi, kupac nije obavezan); svako mesto ima svoju robu i zbirne palete, a roba se pri utovaru vodi na kupca svog mesta. Postojeći spiskovi su dobili **Mesto 1** sa svojim kupcem. Artikli imaju **kratke šifre** (H50L = Humovit 50 l) koje se pišu na spisku, štampi i u tekstu za Viber/WhatsApp, a kucaju se pri unosu umesto biranja sa dugačkog spiska. **Zbirna paleta se unosi odjednom** (npr. BRS 1/2 + BO46 1/2), a stavke su kratki redovi koji se otvaraju dodirom.
+
+**Zbirna paleta (verzija baze 6):** na spisak za utovar može da se doda zbirna paleta – više različitih artikala složenih na jednu paletu (npr. 5 × 5 l, 5 × 10 l, 5 × 50 l), i više ovakvih paleta odjednom. Radnici je vide kao grupu i štikliraju jednim dodirom; na štampi i u tekstu za Viber/WhatsApp je posebno označena.
 
 **Utovar šlepera na licu mesta (verzija baze 5):** radnik pri utovaru može da utovari više ili manje od plana i da doda artikal kog nema na spisku; vi na spisku, štampi i u Dnevniku izmena vidite šta je dodato i ko je dodao.
 

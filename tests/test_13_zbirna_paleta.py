@@ -62,7 +62,7 @@ try:
     adm.post("/admin/utovar.php", {"kupac": "Cvećara Flora", "datum": danas_bg(), "vozilo": "SU 777-AA"})
     sp = sql_int("SELECT MAX(id) FROM spiskovi")
     o = adm.get(SP + "?id=%d" % sp)
-    R.provera("Zbirna paleta (više artikala na jednoj paleti)" in o.text and 'name="paleta_id" value="0"' in o.text and 'data-odrediste' not in o.text, "bez zbirnih paleta nema izbora „Gde ide“")
+    R.provera('class="mesto-zbirna"' in o.text and 'name="paleta_id" value="0"' in o.text and 'data-odrediste' not in o.text, "bez zbirnih paleta nema izbora „Gde ide“")
     o = adm.post(SP, {"akcija": "nova_paleta", "id": sp, "p_naziv": "", "p_broj": "1"})
     pid = sql_int("SELECT MAX(id) FROM spisak_palete")
     R.provera(sql("SELECT naziv, broj FROM spisak_palete WHERE id=%d" % pid) == "Zbirna paleta 1\t1", "napravljena „Zbirna paleta 1“ (1 paleta)")
@@ -142,7 +142,7 @@ try:
     s10p = sql_int("SELECT id FROM spisak_stavke WHERE paleta_id=%d AND sku_id=%d" % (pid, hum10))
     f["kom[%d]" % s10p] = "20"
     o = jelena.post("/radnik/utovar.php", f)
-    R.provera("Utovar je potvrđen" in poruke(o) and "Humovit · 10 l (Mešovita <b>Flora</b>): 20 umesto 24" in poruke(o), "potvrđeno; razlika u paleti je označena nazivom palete", poruke(o))
+    R.provera("Utovar je potvrđen" in poruke(o) and "H10L (Mešovita <b>Flora</b>): 20 umesto 24" in poruke(o), "potvrđeno; razlika u paleti je označena nazivom palete", poruke(o))
     R.provera((stanje(hum10), stanje(hum5), stanje(hum50)) == (540 - 270 - 20, 100 - 12, 40 - 15 - 30), "stanje: Humovit 10 l −290, 5 l −12, 50 l −45 (minus dozvoljen)", (stanje(hum10), stanje(hum5), stanje(hum50)))
     R.provera(sql_int("SELECT COUNT(*) FROM unosi WHERE spisak_id=%d AND napomena LIKE '%%– Mešovita%%'" % sp) == 3, "utovar iz zbirne palete u Istoriji nosi naziv palete")
 

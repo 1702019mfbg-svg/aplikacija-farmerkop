@@ -98,6 +98,7 @@ function schema_sql(): array
             artikal_id INT UNSIGNED NOT NULL,
             varijanta_id INT UNSIGNED NOT NULL DEFAULT 0,
             pakovanje_id INT UNSIGNED NOT NULL,
+            sifra VARCHAR(20) NULL DEFAULT NULL,
             po_paleti SMALLINT UNSIGNED NULL DEFAULT NULL,
             po_paketu SMALLINT UNSIGNED NULL DEFAULT NULL,
             tezina_kg DECIMAL(7,2) NULL DEFAULT NULL,
@@ -105,6 +106,7 @@ function schema_sql(): array
             aktivan TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY (id),
             UNIQUE KEY uq_sku (artikal_id, varijanta_id, pakovanje_id),
+            UNIQUE KEY uq_sku_sifra (sifra),
             KEY idx_sku_pakovanje (pakovanje_id),
             CONSTRAINT fk_sku_artikal FOREIGN KEY (artikal_id) REFERENCES artikli (id),
             CONSTRAINT fk_sku_pakovanje FOREIGN KEY (pakovanje_id) REFERENCES pakovanja (id)
@@ -233,4 +235,5 @@ function ubaci_pocetni_katalog(): void
     // Artikli dodati kasnije (verzija 3) – nova instalacija ih dobija odmah.
     ubaci_dodatke_v3();
     postavi_tezine_v4();
+    dopuni_sifre();
 }
