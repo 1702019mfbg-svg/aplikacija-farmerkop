@@ -555,6 +555,53 @@ function spisak_vrati_robu(array $sp, int $korisnik_id): void
 }
 
 /**
+ * Brisanje otkazanog spiska (sa mestima, stavkama i zbirnim paletama). Ako je spisak bio utovaren pa otkazan,
+ * njegov utovar i povrat (koji se poništavaju) označe se kao obrisani – stanje se ne menja. Upis u dnevnik.
+ * Vraća ['ok' => true, 'opis' => tekst] ili ['ok' => false, 'greska' => tekst].
+ */
+function spisak_obrisi(int $id, int $korisnik_id): array
+{
+    try {
+        return db_trans(static function () use ($id, $korisnik_id): array {
+            $sp = spisak_zakljucaj($id);
+            if ($sp === null) {
+                return ['ok' => false, 'greska' => 'Spisak ne postoji.'];
+            }
+            if ($sp['status'] !== 'otkazano') {
+                return ['ok' => false, 'greska' => 'Brisati se može samo otkazan spisak. Prvo ga otkažite.'];
+            }
+            $razlika = db_val(
+                "SELECT COUNT(*) FROM (SELECT sku_id, SUM(CASE WHEN tip = 'povrat' THEN -kolicina ELSE kolicina END) AS n
+                 FROM unosi WHERE spisak_id = ? AND obrisan = 0 GROUP BY sku_id HAVING n <> 0) x",
+                [$id]
+            );
+            if ((int)$razlika > 0) {
+                return ['ok' => false, 'greska' => 'Spisak ne može da se obriše: utovar i povrat robe sa ovog spiska se ne poništavaju (vidi Istoriju).'];
+            }
+            $unosa = (int)db_val('SELECT COUNT(*) FROM unosi WHERE spisak_id = ?', [$id]);
+            $sad = sada();
+            db_run(
+                "UPDATE unosi SET obrisan = 1, obrisan_u = COALESCE(obrisan_u, ?), obrisao_id = COALESCE(obrisao_id, ?), spisak_id = NULL,
+                 napomena = LEFT(CONCAT(COALESCE(CONCAT(napomena, ' · '), ''), 'obrisan otkazan spisak #', ?), 255) WHERE spisak_id = ?",
+                [$sad, $korisnik_id, $id, $id]
+            );
+            $stavki = (int)db_val('SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id = ?', [$id]);
+            db_run('DELETE FROM spisak_stavke WHERE spisak_id = ?', [$id]);
+            db_run('DELETE FROM spisak_palete WHERE spisak_id = ?', [$id]);
+            db_run('DELETE FROM spisak_mesta WHERE spisak_id = ?', [$id]);
+            db_run('DELETE FROM spiskovi WHERE id = ?', [$id]);
+            $opis = 'obrisan otkazan spisak (' . spisak_naslov($sp) . ', ' . stavki_tekst($stavki) . ')'
+                . ($unosa > 0 ? '; utovar i povrat (' . $unosa . ' unosa) označeni kao obrisani, stanje se ne menja' : '');
+            spisak_dnevnik($id, $opis);
+            return ['ok' => true, 'opis' => $opis];
+        });
+    } catch (PDOException $e) {
+        error_log('[Farmerkop] brisanje spiska #' . $id . ': ' . $e->getMessage());
+        return ['ok' => false, 'greska' => 'Spisak nije obrisan (greška u bazi). Pokušajte ponovo.'];
+    }
+}
+
+/**
  * Stvarno utovarena količina iz forme potvrde, po stavkama.
  * Vraća [[stavka_id => ['kolicina' => n, 'palete' => n|null, 'paketi' => n|null]], greška|null].
  * Svaka stavka mora biti štiklirana; količina može da se ispravi (i na 0 ako nije utovareno ništa).

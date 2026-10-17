@@ -53,6 +53,11 @@ dist/                 gotovi ZIP paketi
   Na spisku i svuda se piše pun naziv (`sku_naziv()`); kratka imena (`sku.sifra`, v7–v8) uklonjena su u v9.
 - **Unos robe** (`inc/spisak_izmene.php`): više artikala odjednom (`roba_iz_posta()` → `spisak_upisi_robu()`), zbirna paleta
   (`zbirna_redovi()` → `spisak_nova_zbirna()`), sve u jednoj transakciji (`u_nacrtu()`).
+- **Slikaj spisak** (`inc/slika_spiska.php`, `assets/js/slika_spiska.js`): slika (u pregledaču smanjena na 2000 px, na serveru
+  GD kao rezerva) → Anthropic Messages API (`ANTHROPIC_API_KEY` u config.php, model `claude-opus-5-5`, curl bez SDK-a jer se
+  aplikacija postavlja ZIP-om bez Composer-a) → tekst → `papir_procitaj()`. Slika se ne čuva.
+- **Kupci po godini** (`admin/kupci.php`): zbir unosa prodaja/kućna prodaja/utovar − povrat po kupcu i SKU za godinu, CSV.
+  Brisanje otkazanog spiska: `spisak_obrisi()` (utovar/povrat → obrisan = 1, spisak_id = NULL; mora da se poništava).
 - **Kalkulacija** (Faza 1; `inc/kalkulacija.php` = formula bez baze, `inc/kalk_baza.php` = čitanje važećih cena,
   `admin/kalk*.php` = ekrani, meni ☰ u zaglavlju samo za admina): tabele `calc_*` iz RUČNE migracije
   `migracije/001_kalkulacija.sql` (nije u `inc/migracije.php`; aplikacija bez nje pokazuje uputstvo). Veze: recepture →
@@ -92,6 +97,8 @@ python3 tests/test_14_mesta.py             # mesta istovara: više kupaca na kam
 python3 tests/test_15_unos_robe.py         # v8 → v9, izbor pakovanja, više artikala odjednom, spisak sa papira
 python3 tests/test_16_kalkulacija.py       # kalkulacija: ručna migracija, samo admin, cene, recepture, pregled, šta ako, Stanje isto
 php tests/kalkulacija_test.php             # formula bez baze (60/40, faktor ≠ 1, nedostaje cena, zbir 100 %)
+python3 tests/test_17_slika_spiska.py      # slikaj spisak: zahtev AI servisu (lažni server), smanjenje slike, greške
+python3 tests/test_18_kupci_brisanje.py    # kupci po godini (prodaja + utovar − povrat, CSV), brisanje otkazanog spiska
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

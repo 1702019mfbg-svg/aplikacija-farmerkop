@@ -396,6 +396,13 @@ if (je_post()) {
             }
             return $izmene > 0 ? 'sačuvane izmene (' . $izmene . ')' : '';
         });
+    } elseif ($akcija === 'obrisi_spisak') {
+        $rez = spisak_obrisi($id, (int)$admin['id']);
+        if ($rez['ok']) {
+            flash_dodaj('uspeh', 'Spisak #' . $id . ' je ' . $rez['opis'] . '.');
+            preusmeri('admin/utovar.php');
+        }
+        flash_dodaj('greska', (string)$rez['greska']);
     } elseif ($akcija === 'status') {
         $novi = post_str('novi', 12);
         $ocekivan = post_str('ocekivan', 12);
@@ -831,7 +838,7 @@ foreach ($po_mestima as $mid => $grupa):
         if ($sp['utovareno_u'] === null) {
             $dugmad[] = ['nacrt', 'Vrati u nacrt', '', 'Ponovo otvoriti otkazan spisak kao nacrt?'];
         }
-        $opis = 'Otkazan spisak ništa ne rezerviše i ne menja stanje.';
+        $opis = 'Otkazan spisak ništa ne rezerviše i ne menja stanje. Ako vam više ne treba, možete ga obrisati.';
     } else {
         $dugmad[] = ['otkazano', 'Otkaži utovar (vrati robu na stanje)', 'btn-opasno', 'Otkazati utovaren spisak? Sva utovarena roba se vraća na stanje (upisuje se kao povrat).'];
         $opis = 'Utovareno: stanje je skinuto i spisak se više ne menja. Ako je utovar greška, otkažite ga – roba se vraća na stanje.';
@@ -852,6 +859,15 @@ foreach ($po_mestima as $mid => $grupa):
     </div>
     <?php if ($sp['status'] === 'za_utovar'): ?>
         <p class="razmak-gore"><a class="btn btn-braon btn-blok" href="<?= e(url('radnik/utovar.php?id=' . $id)) ?>"><?= ikona('kamion') ?> Potvrdi utovar (štikliranje stavki)</a></p>
+    <?php endif; ?>
+    <?php if ($sp['status'] === 'otkazano'): ?>
+        <form method="post" class="razmak-gore" action="<?= e(url('admin/spisak.php')) ?>"
+              data-potvrda="Trajno obrisati ovaj otkazan spisak? <?= $sp['utovareno_u'] !== null ? 'Njegov utovar i povrat biće označeni kao obrisani (stanje se ne menja). ' : '' ?>Ovo ne može da se vrati.">
+            <?= csrf_polje() ?>
+            <input type="hidden" name="akcija" value="obrisi_spisak">
+            <input type="hidden" name="id" value="<?= $id ?>">
+            <button class="btn btn-opasno btn-blok" type="submit"><?= ikona('kanta') ?> Obriši spisak</button>
+        </form>
     <?php endif; ?>
 </section>
 <?php

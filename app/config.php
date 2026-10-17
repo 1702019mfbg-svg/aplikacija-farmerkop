@@ -22,6 +22,12 @@ define('DB_PASS', 'UPISITE_LOZINKU_BAZE');
 // da pokrene instalaciju umesto vas dok ne obrišete install.php.
 define('INSTALL_KLJUC', 'PROMENI_OVO');
 
+// ─── 3. ČITANJE SLIKE SPISKA (nije obavezno) ───────────────────────────────
+// Za dugme „Slikaj spisak“ (Utovar → spisak → Spisak sa papira) slika se šalje AI servisu
+// (Anthropic, Claude) koji pročita rukopis. Ključ napravite na console.anthropic.com → API Keys
+// i upišite ga ovde. Ključ stoji samo na serveru – nikad se ne šalje telefonu.
+// define('ANTHROPIC_API_KEY', 'sk-ant-...');
+
 // ─── 3. OSTALO (nije obavezno – podrazumevane vrednosti su već dobre) ───────
 // Odkomentarišite red (obrišite // na početku) samo ako želite da promenite.
 

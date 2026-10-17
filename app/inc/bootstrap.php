@@ -34,6 +34,9 @@ foreach ([
     'MIN_DUZINA_SIFRE'    => 8,
     'APP_BASE_PUTANJA'    => null,
     'INSTALL_KLJUC'       => 'PROMENI_OVO',
+    'ANTHROPIC_API_KEY'   => '',                                   // čitanje slike spiska (Spisak sa papira)
+    'ANTHROPIC_MODEL'     => 'claude-opus-5-5',
+    'ANTHROPIC_API_URL'   => 'https://api.anthropic.com/v1/messages',
     'DEBUG'               => false,
 ] as $kljuc => $vrednost) {
     if (!defined($kljuc)) {

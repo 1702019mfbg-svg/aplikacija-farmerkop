@@ -3,6 +3,7 @@
  * Administrator – spisak sa papira: ceo spisak (mesta i roba) se prepiše ili izdiktira telefonom u jedno polje,
  * aplikacija ga pročita (inc/spisak_papir.php) i prikaže na proveru – nejasni redovi se ispravljaju dodirom na
  * pakovanje – pa se sve sačuva na spisak odjednom (postojeće mesto sa istim brojem se dopunjuje).
+ * Spisak može i da se slika: AI servis prepiše rukopis u tekst (inc/slika_spiska.php), a dalje je isto.
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -10,8 +11,15 @@ require __DIR__ . '/../inc/podesavanja.php';
 require __DIR__ . '/../inc/spiskovi.php';
 require __DIR__ . '/../inc/spisak_izmene.php';
 require __DIR__ . '/../inc/spisak_papir.php';
+require __DIR__ . '/../inc/slika_spiska.php';
 
 zahtevaj_ulogu('admin');
+if (je_post() && !$_POST && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+    // slika veća od post_max_size: PHP odbaci ceo zahtev (i CSRF polje) – jasna poruka umesto greške
+    flash_dodaj('greska', 'Slika je prevelika za hosting (najviše ' . ini_get('post_max_size') . '). Slikajte ponovo ili smanjite sliku.');
+    preusmeri('admin/spisak_papir.php?id=' . get_int('id') . '&tekst=1');
+}
+
 $id = je_post() ? post_int('id') : get_int('id');
 $sp = spisak_ucitaj($id);
 if ($sp === null) {
@@ -28,9 +36,25 @@ if (je_post()) {
     csrf_proveri();
     $akcija = post_str('akcija', 12);
     $ovde = 'admin/spisak_papir.php?id=' . $id;
+    $sa_slike = false;
+    if ($akcija === 'slika') {
+        // slika → tekst (AI servis), pa dalje isto kao otkucan spisak
+        $s = slika_iz_posta();
+        $r = isset($s['greska']) ? $s : slika_procitaj($s['bajtovi'], $s['mime'], array_column(sku_za_unos(), 'naziv'));
+        if (isset($r['greska'])) {
+            flash_dodaj('greska', $r['greska']);
+            preusmeri($ovde . '&tekst=1#slika');
+        }
+        $_POST['tekst'] = $r['tekst'];
+        $akcija = 'procitaj';
+        $sa_slike = true;
+    }
     if ($akcija === 'procitaj') {
         $tekst = is_string($_POST['tekst'] ?? null) ? mb_substr(str_replace("\r\n", "\n", $_POST['tekst']), 0, PAPIR_MAX_TEKST) : '';
         $bez = post_str('bez_oznake', 3) === 'pal' ? 'pal' : 'kom';
+        if ($sa_slike) {
+            flash_dodaj('info', 'Spisak je pročitan sa slike. Rukopis ne mora biti pročitan tačno – uporedite svaki red sa papirom pre čuvanja (prepisan tekst: „Izmeni tekst“).');
+        }
         $mesta = spisak_mesta($id);
         $r = papir_procitaj($tekst, $bez, count($mesta) === 1 ? (int)$mesta[0]['broj'] : mesto_sledeci_broj($id));
         $_SESSION['spisak_papir'][$id] = ['tekst' => $tekst, 'bez' => $bez, 'mesta' => $r['mesta']];
@@ -114,16 +138,32 @@ $uredi_tekst = $papir === null || get_int('tekst') === 1 || !$papir['mesta'];
 $kupci = db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), poslednja_prodaja DESC, naziv LIMIT 300');
 $primer = "8 Agrocentar\n2 pal humovit 50\nhumovit 10 - 30\n3 pak idea 5\n1/2 rizla bela sitna + 1/2 oblutak beli 40-60\n\n9\n1 pal idea 10\n2 t oblutak beli 4-6";
 
-ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/spisak.js']]);
+ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/spisak.js', 'assets/js/slika_spiska.js']]);
 ?>
 <p><a class="btn btn-mali" href="<?= e(url($nazad)) ?>"><?= ikona('nazad') ?> Spisak #<?= $id ?></a></p>
 
 <?php if ($uredi_tekst): ?>
+    <form method="post" class="kartica" enctype="multipart/form-data" action="<?= e(url('admin/spisak_papir.php?id=' . $id)) ?>" id="slika" data-slika-forma>
+        <?= csrf_polje() ?>
+        <input type="hidden" name="akcija" value="slika">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <div class="kartica-naslov"><h2><?= ikona('kamera') ?> Slikaj spisak</h2></div>
+        <?php if (!slika_ukljucena()): ?>
+            <p class="pomoc bez-margine">Da bi aplikacija čitala sliku spiska, u <strong>config.php</strong> treba upisati ključ servisa za čitanje (ANTHROPIC_API_KEY) – vidi UPUTSTVO, deo „Slikaj spisak“. Do tada spisak otkucajte ili izdiktirajte ispod.</p>
+        <?php else: ?>
+            <p class="pomoc">Slikajte <strong>ceo papir</strong>, oštro i sa dovoljno svetla (ili izaberite sliku iz galerije). Aplikacija pročita rukopis (oko pola minuta) i pokaže vam šta je pročitala – <strong>proverite svaki red</strong> pre čuvanja.</p>
+            <label class="btn btn-primary btn-blok btn-veliko slika-dugme"><?= ikona('kamera') ?> Slikaj spisak
+                <input type="file" name="slika" accept="image/*" class="skriven-vizuelno" required data-slika>
+            </label>
+            <p class="pomoc bez-margine razmak-gore" data-slika-status aria-live="polite"></p>
+            <button class="btn btn-braon btn-blok razmak-gore" type="submit" data-slika-posalji>Pročitaj sliku</button>
+        <?php endif; ?>
+    </form>
     <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/spisak_papir.php')) ?>" data-papir>
         <?= csrf_polje() ?>
         <input type="hidden" name="akcija" value="procitaj">
         <input type="hidden" name="id" value="<?= $id ?>">
-        <div class="kartica-naslov"><h2><?= ikona('olovka') ?> Spisak sa papira</h2></div>
+        <div class="kartica-naslov"><h2><?= ikona('olovka') ?> Ili otkucajte spisak</h2></div>
         <p class="pomoc">Prepišite spisak kako je napisan na papiru – ili ga na telefonu <strong>izdiktirajte</strong> (dodirnite mikrofon na tastaturi). Aplikacija ga pročita i pokaže vam šta je razumela, pa vi proverite i sačuvate.</p>
         <ul class="pomoc">
             <li>Svako mesto počnite <strong>brojem</strong> u svom redu (8, (8) ili Mesto 8), a iza broja može kupac.</li>

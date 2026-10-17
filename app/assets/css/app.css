@@ -772,3 +772,5 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .kalk-zbir.kalk-zbir-ok { color: var(--zelena-tamno); }
 .kalk-sastav { margin: 6px 0 0; padding-left: 18px; font-size: .95rem; }
 .kalk-cela-sirina { grid-column: 1 / -1; }
+.slika-dugme { position: relative; cursor: pointer; }
+.slika-dugme .ikona { width: 1.6rem; height: 1.6rem; }

@@ -116,6 +116,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
 <p class="red-izmedju">
     <a class="btn btn-braon btn-mali" href="<?= e(url('admin/izvoz.php?' . $osnovni)) ?>"><?= ikona('preuzmi') ?> Izvoz u Excel (CSV)</a>
     <a class="btn btn-mali" href="<?= e(url('admin/dnevnik.php')) ?>">Dnevnik izmena</a>
+    <a class="btn btn-mali" href="<?= e(url('admin/kupci.php')) ?>">Kupci po godini</a>
 </p>
 
 <?php if (!$redovi): ?>

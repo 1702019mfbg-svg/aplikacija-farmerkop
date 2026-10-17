@@ -163,8 +163,9 @@ Jedan spisak je **jedan kamion**. Roba se upisuje **po mestima istovara** – ka
 9. **Pošalji na utovar:** spisak dobija status *Za utovar* i količine su **rezervisane** (Stanje pokazuje *rezervisano* i *slobodno*). Mesto bez robe ne može na utovar (dodajte robu ili uklonite mesto). Stanje se **ne skida** dok radnik ne potvrdi utovar.
 10. Za izmene: **Vrati u nacrt**, izmenite, pa ponovo pošaljite. **Otkaži spisak** ukida rezervaciju.
 11. **Utovar potvrđuje radnik** (kartica Utovar na njegovom telefonu) – ili vi, dugmetom **Potvrdi utovar** na spisku. Stanje se skida za stvarno utovarenu količinu, a roba se vodi na **kupca svog mesta**. Ako je utovareno više nego što program misli da ima, stanje ode u minus i Stanje to pokaže crveno („uradite popis“).
-12. **Utovaren spisak se više ne menja.** Ako je utovar bio greška: **Otkaži utovar (vrati robu na stanje)** – sve se vraća kao „povrat“, ništa se ne briše. Ostale razlike ispravljate popisom.
-13. **Štampa / PDF / Podeli:** spisak za štampu po mestima (zaokružen broj, kupac, zbir mesta), artikli punim nazivom, i mesta za potpis. PDF: *Štampaj / PDF* → kao štampač izaberite **Sačuvaj kao PDF**. **Podeli** šalje tekst spiska u Viber, WhatsApp ili SMS (po mestima).
+12. **Utovaren spisak se više ne menja.** Ako je utovar bio greška: **Otkaži utovar (vrati robu na stanje)** – sve se vraća kao „povrat“. Ostale razlike ispravljate popisom.
+13. **Brisanje:** otkazan spisak koji vam više ne treba obrišite dugmetom **Obriši spisak** (dole na spisku, uz potvrdu). Ako je bio utovaren pa otkazan, njegov utovar i povrat se u Istoriji označe kao obrisani – stanje ostaje isto. Brisanje se upisuje u Dnevnik izmena i ne može da se vrati.
+14. **Štampa / PDF / Podeli:** spisak za štampu po mestima (zaokružen broj, kupac, zbir mesta), artikli punim nazivom, i mesta za potpis. PDF: *Štampaj / PDF* → kao štampač izaberite **Sačuvaj kao PDF**. **Podeli** šalje tekst spiska u Viber, WhatsApp ili SMS (po mestima).
 
 Statusi: **Nacrt** (slobodno menjate, stanje se ne dira) → **Za utovar** (radnici vide, rezervisano) → **Utovareno** (tek tada se skida stanje) · **Otkazano**.
 Sve promene spiskova su u *Dnevniku izmena*. Ako ručno unesete prodaju kupcu koji tog dana ima mesto na spisku, aplikacija upozori da se ista roba ne bi skinula dvaput.
@@ -192,6 +193,20 @@ Kad je spisak napisan rukom (npr. otac napiše na papiru), ne morate da ga unosi
 2. **Pročitaj spisak** – aplikacija pokaže šta je razumela, mesto po mesto (iznad svakog reda sitno piše kako je bilo na papiru). Ništa još nije upisano.
 3. **Proverite označeno** (žuti okvir): gde piše samo „humovit“ dodirnite pakovanje, upišite količinu koja nedostaje, a red koji ne treba (ili robu koja se ne vodi u aplikaciji – nju dodajte posle kao *Ostalo*) štiklirajte **Preskoči**.
 4. **Sačuvaj sve na spisak** – sva mesta i sva roba se upisuju odjednom. Mesto sa istim brojem koje već postoji se dopunjuje (isti artikal dobija novu količinu), a novo mesto se dodaje. Ako nešto nije u redu, ništa se ne upisuje, a greška stoji uz svoj red.
+
+### Slikaj spisak (aplikacija čita rukom pisan spisak sa slike)
+Na **Spisak sa papira** je gore dugme **Slikaj spisak**: slikajte ceo papir (ili izaberite sliku iz galerije). Telefon sliku smanji i pošalje; AI servis (Anthropic, Claude) za pola minuta prepiše rukopis, a aplikacija pokaže isti pregled kao kad se spisak otkuca. **Uporedite svaki red sa papirom** – nečitke reči su označene (??) i žute – pa **Sačuvaj sve na spisak**. Prepisan tekst možete i ispraviti (**Izmeni tekst**). Slika se ne čuva na serveru.
+
+**Uključivanje (jednom):**
+1. Na **console.anthropic.com** napravite nalog, dodajte način plaćanja (Billing) i napravite ključ: **API Keys → Create Key**. Ključ počinje sa `sk-ant-`.
+2. U cPanel → File Manager otvorite **config.php** (u folderu aplikacije) i dodajte red (ili obrišite `//` ispred postojećeg):
+   `define('ANTHROPIC_API_KEY', 'sk-ant-…vaš ključ…');`
+3. Sačuvajte. Dugme **Slikaj spisak** se odmah pojavljuje.
+
+Ključ stoji samo na serveru (nikad se ne vidi u telefonu) – ne šaljite ga nikome i ne lepite ga u poruke. Čitanje jedne slike košta otprilike 4–6 dinara (plaća se na console.anthropic.com; tamo možete postaviti i mesečni limit). Bez ključa sve ostalo radi isto, a spisak se kuca ili diktira.
+
+### Kupci po godini (ko je koliko uzeo)
+Meni **☰** → **Kupci po godini** (ili Istorija → **Kupci po godini**): za izabranu godinu, svaki kupac i koliko je robe uzeo – po artiklu, u komadima, litrima i kilogramima; kupci sa najviše robe su prvi. Računa se ručna prodaja + utovar sa spiskova (na kupca mesta) − povrat; otkazani utovari i obrisani unosi se ne računaju, a kućna prodaja i mesta bez kupca su pod „Bez kupca“. Dodir na kupca otvara spisak artikala; **Izvoz u Excel (CSV)** daje celu godinu u tabeli. Podaci se čuvaju zauvek (iz istorije unosa), pa se može izabrati i svaka ranija godina.
 
 ### Kalkulacija (recepture i cena po džaku) – samo administrator
 Otvara se dugmetom **☰** gore desno (u zaglavlju) → **Kalkulacija**. Radnici ne vide ni dugme ni podatke. Početni ekran (Stanje) i donja traka su isti kao pre.
@@ -263,6 +278,8 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 ### Ažuriranje aplikacije (kad dobijete novu verziju)
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
+
+**Novo – Slikaj spisak, Kupci po godini, brisanje otkazanog spiska:** na Spisku sa papira dugme **Slikaj spisak** (radi kad u config.php upišete ključ – vidi *Slikaj spisak*); meni ☰ → **Kupci po godini**; otkazan spisak ima dugme **Obriši spisak**. Baza se ne menja.
 
 **Novo – Kalkulacija (recepture i cena po džaku):** dugme **☰** gore desno (samo administrator) otvara modul Kalkulacija. Pre prve upotrebe pokrenite **ručno** migraciju `migracije/001_kalkulacija.sql` u phpMyAdmin-u (vidi *Kalkulacija* gore) – ona samo dodaje nove tabele. Ostatak aplikacije radi isto i bez nje.
 

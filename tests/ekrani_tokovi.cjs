@@ -944,6 +944,34 @@ module.exports = {
         tvrdi((await page.locator('main').innerHTML()) === stanjePre, 'Stanje je isto kao pre kalkulacije');
     },
 
+    async kupci(page, p) {
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.locator('.glavni-meni > summary').click();
+        await page.getByRole('link', { name: /Kupci po godini/ }).click();
+        await page.waitForURL('**/admin/kupci.php');
+        tvrdi((await page.locator('select[name="godina"]').count()) === 1, 'izbor godine');
+        await p.slika('97-kupci-po-godini');
+        // spisak sa papira: kartica „Slikaj spisak“ (bez ključa – uputstvo)
+        await page.goto(p.base + '/admin/utovar.php');
+        await page.getByRole('button', { name: 'Napravi spisak' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+        await page.getByRole('link', { name: 'Spisak sa papira' }).first().click();
+        await page.waitForURL('**/admin/spisak_papir.php?id=*');
+        tvrdi((await page.locator('#slika').innerText()).includes('ANTHROPIC_API_KEY'), 'bez ključa: uputstvo za slikanje');
+        await p.slika('98-slikaj-spisak');
+        // otkazan spisak: dugme za brisanje
+        await page.goto(page.url().replace('/admin/spisak_papir.php', '/admin/spisak.php'));
+        page.once('dialog', (d) => d.accept());
+        await page.getByRole('button', { name: 'Otkaži spisak' }).click();
+        await page.waitForSelector('.status-otkazano');
+        let pitanje = '';
+        page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.getByRole('button', { name: 'Obriši spisak' }).click();
+        await page.waitForURL('**/admin/utovar.php');
+        tvrdi(pitanje.includes('Trajno obrisati'), 'pitanje pre brisanja: ' + pitanje);
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('obrisan otkazan spisak'), 'spisak obrisan');
+    },
+
     async pwa(page, p) {
         // Posrednik ispred servera: gašenjem posrednika simuliramo da je telefon izgubio vezu.
         const http = require('http');

@@ -27,6 +27,7 @@ function ikona(string $ime, string $klasa = 'ikona'): string
         'nazad'        => '<path d="m15 5-7 7 7 7"/>',
         'plus'         => '<path d="M12 5v14M5 12h14"/>',
         'meni'         => '<path d="M4 6h16M4 12h16M4 18h16"/>',
+        'kamera'       => '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
         'kalkulator'   => '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15v3M8 18h4"/>',
     ];
     $p = $putanje[$ime] ?? '';
@@ -52,7 +53,7 @@ function nav_stavke(string $vrsta): array
     ];
 }
 
-/** Meni ☰ u zaglavlju (samo administrator): modul Kalkulacija. Donja navigacija se ne menja. */
+/** Meni ☰ u zaglavlju (samo administrator): modul Kalkulacija (i Kupci po godini). Donja navigacija se ne menja. */
 function kalk_meni_stavke(): array
 {
     return [
@@ -116,6 +117,8 @@ function ui_start(string $naslov, array $o = []): void
                 <?php foreach (kalk_meni_stavke() as [$tekst, $adresa]): ?>
                     <a href="<?= e(url($adresa)) ?>"><?= e($tekst) ?></a>
                 <?php endforeach; ?>
+                <p class="glavni-meni-naslov"><?= ikona('radnici', 'ikona ikona-mala') ?> Kupci</p>
+                <a href="<?= e(url('admin/kupci.php')) ?>">Kupci po godini (ko je koliko uzeo)</a>
             </nav>
         </details>
         <?php endif; ?>
