@@ -193,6 +193,21 @@ Kad je spisak napisan rukom (npr. otac napiše na papiru), ne morate da ga unosi
 3. **Proverite označeno** (žuti okvir): gde piše samo „humovit“ dodirnite pakovanje, upišite količinu koja nedostaje, a red koji ne treba (ili robu koja se ne vodi u aplikaciji – nju dodajte posle kao *Ostalo*) štiklirajte **Preskoči**.
 4. **Sačuvaj sve na spisak** – sva mesta i sva roba se upisuju odjednom. Mesto sa istim brojem koje već postoji se dopunjuje (isti artikal dobija novu količinu), a novo mesto se dodaje. Ako nešto nije u redu, ništa se ne upisuje, a greška stoji uz svoj red.
 
+### Kalkulacija (recepture i cena po džaku) – samo administrator
+Otvara se dugmetom **☰** gore desno (u zaglavlju) → **Kalkulacija**. Radnici ne vide ni dugme ni podatke. Početni ekran (Stanje) i donja traka su isti kao pre.
+
+**Uključivanje (jednom):** modul ima svoje tabele, koje pravi ručna migracija **`migracije/001_kalkulacija.sql`**: cPanel → **phpMyAdmin** → levo izaberite bazu aplikacije → kartica **Import** → izaberite fajl → **Go**. Migracija samo dodaje nove tabele (`calc_…`) – postojeće tabele, zalihe i unosi se ne menjaju, i može da se pokrene više puta bez štete. Dok se ne pokrene, Kalkulacija pokazuje ovo uputstvo.
+
+Redom:
+1. **Sirovine i cene** – za svaku sirovinu (crni treset, beli treset, perlit, NPK – ostale dodajete sami): **jedinica nabavke** (bala, džak, kg, m³) i **faktor** = koliko litara *gotovog* proizvoda daje jedna jedinica (beli treset je sabijen u bali; džak se puni posle mešanja i sleganja). Zatim **cena** po jedinici i od kog datuma važi. Nova cena = novi red; stare ostaju u istoriji (pogrešno upisana cena može da se obriše samo istog dana).
+2. **Troškovi** – vreća, etiketa, paleta, folija, rad, struja, gorivo …: **po džaku** ili **po litru**, za sve veličine ili samo za jednu (vreća 5 l ≠ vreća 50 l; trošak upisan za veličinu zamenjuje istoimeni „za sve veličine“). Trošak koji više ne postoji: nova cena 0.
+3. **Recepture** – proizvod, sirovine i udeo u **procentima zapremine gotovog proizvoda** (dozvoljene su 3 decimale, npr. NPK 0,125 %). Zbir se računa dok kucate i mora biti tačno **100 %**. **Izmeni** pravi **novu verziju** sa datumom od kog važi; stara ostaje u istoriji (verzija može da se isključi).
+4. **Prodajne cene** – po proizvodu i veličini džaka, **sa ili bez PDV-a** (kako vam je lakše); marža se uvek računa bez PDV-a.
+5. **Pregled kalkulacije** – za svaki proizvod i veličinu: trošak sirovina, ostali troškovi, ukupan trošak, prodajna cena bez PDV-a i **marža** (RSD i % od prodajne cene bez PDV-a). Dodir na red otvara razradu po sirovinama. Marža ispod praga (Podešavanja kalkulacije, dole na Pregledu) je crvena. Ako sirovini nedostaje cena ili faktor, ništa se ne računa kao nula – piše **„nedostaje cena za: …“**.
+6. **Šta ako** – izaberite sirovinu ili trošak i promenu (u % ili RSD, npr. +10 ili −5): vidite novi trošak i maržu za sve proizvode pored današnjih, i (uz **ciljanu maržu**) prodajnu cenu potrebnu za nju – bez i sa PDV-om. Ništa se ne upisuje.
+
+Formula: trošak sirovina = Σ udeo × V × (cena / litara gotovog po jedinici); ukupno = sirovine + troškovi po džaku + troškovi po litru × V. Uvek se uzimaju cene koje važe danas. Kalkulacija je po litru, pa proizvodi u kg (oblutak, rizla) nisu u njoj. U ovoj fazi kalkulacija **ne skida** sirovine sa zalihe i nije vezana za unos proizvodnje.
+
 ### Početno stanje (popis) – kako krenuti sa praćenjem
 Pre nego što radnici počnu da unose, upišite koliko trenutno imate. Postoje dva načina, oba u **Podešavanja**:
 
@@ -248,6 +263,8 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 ### Ažuriranje aplikacije (kad dobijete novu verziju)
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
+
+**Novo – Kalkulacija (recepture i cena po džaku):** dugme **☰** gore desno (samo administrator) otvara modul Kalkulacija. Pre prve upotrebe pokrenite **ručno** migraciju `migracije/001_kalkulacija.sql` u phpMyAdmin-u (vidi *Kalkulacija* gore) – ona samo dodaje nove tabele. Ostatak aplikacije radi isto i bez nje.
 
 **Novo – pun naziv, izbor pakovanja, više robe odjednom i spisak sa papira (verzija baze 9):** na spisku, kod radnika, na štampi i u poruci za Viber/WhatsApp opet piše **pun naziv proizvoda** (Humovit · 50 l); šifre (H50L) i „Kako piše na spisku“ su ukinute, a kolona sa šiframa se sama briše iz baze. Artikal se bira kucanjem: „humovit“ → dodir na **5 l, 10 l, 25 l ili 50 l**. U **Dodaj robu** se upisuje **više artikala odjednom** i čuva jednim dugmetom. Novo: **Spisak sa papira** – ceo rukom pisan spisak se prepiše ili izdiktira, aplikacija ga pretvori u mesta i robu, vi proverite i sačuvate.
 

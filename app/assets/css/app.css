@@ -695,3 +695,80 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .papir-zbirna { border-style: dashed; }
 .papir-zbirna-glava { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-weight: 800; }
 .papir-zbirna-glava .polje { width: 5rem; min-height: 44px; text-align: center; font-weight: 800; }
+
+/* ── Meni ☰ u zaglavlju (administrator): modul Kalkulacija ── */
+.zaglavlje-akcije { position: relative; }
+.glavni-meni { position: static; }
+.glavni-meni > summary { list-style: none; }
+.glavni-meni > summary::-webkit-details-marker { display: none; }
+.glavni-meni[open] > summary { background: rgba(255, 255, 255, .28); }
+.glavni-meni-panel {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 40;
+    width: min(290px, calc(100vw - 24px)); padding: 8px;
+    display: grid; gap: 2px;
+    background: var(--povrsina); color: var(--tekst); border: 1px solid var(--granica); border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .28);
+}
+.glavni-meni-naslov { margin: 4px 10px 6px; font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--tekst-bled); }
+.glavni-meni-panel a { display: flex; align-items: center; min-height: 48px; padding: 0 12px; border-radius: 10px; color: var(--tekst); text-decoration: none; font-weight: 700; }
+.glavni-meni-panel a:hover, .glavni-meni-panel a:focus-visible { background: var(--povrsina-2); }
+
+/* ── Kalkulacija ── */
+.kalk-meni { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 4px; scrollbar-width: thin; }
+.kalk-meni-stavka { flex: none; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--granica); background: var(--povrsina); color: var(--tekst); text-decoration: none; font-weight: 700; font-size: .9rem; white-space: nowrap; }
+.kalk-meni-stavka.aktivna { background: var(--zelena); border-color: var(--zelena); color: var(--zelena-tekst); }
+.kalk-broj { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kalk-tabela { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.kalk-tabela th, .kalk-tabela td { padding: 6px 4px; border-bottom: 1px solid var(--granica); text-align: left; vertical-align: top; }
+.kalk-tabela th { font-size: .75rem; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
+.kalk-tabela td.desno, .kalk-tabela th.desno { text-align: right; }
+.kalk-tabela tfoot td { font-weight: 800; border-bottom: 0; }
+.kalk-omot { overflow-x: auto; }
+.kalk-nedostaje { color: var(--crvena); font-weight: 700; font-size: .9rem; margin: 4px 0 0; }
+.kalk-marza-niska { color: var(--crvena); }
+.kalk-marza-ok { color: var(--zelena-tamno); }
+.kalk-marza-nema { color: var(--tekst-bled); }
+.kalk-red { border-top: 1px solid var(--granica); }
+.kalk-red:first-of-type { border-top: 0; }
+.kalk-red > summary { list-style: none; cursor: pointer; padding: 10px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; }
+.kalk-red > summary::-webkit-details-marker { display: none; }
+.kalk-red-ime { font-weight: 800; font-size: 1.05rem; }
+.kalk-red-ime::before { content: "▸ "; color: var(--tekst-bled); }
+.kalk-red[open] .kalk-red-ime::before { content: "▾ "; }
+.kalk-red-marza { font-weight: 800; text-align: right; grid-column: 2; grid-row: 1; font-size: 1.05rem; }
+.kalk-red-brojke { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; font-size: .88rem; color: var(--tekst-bled); }
+.kalk-red-brojke b { color: var(--tekst); font-weight: 700; }
+.kalk-razrada { padding: 0 0 12px; }
+.kalk-razrada h4 { margin: 8px 0 4px; font-size: .85rem; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
+.kalk-zaglavlje-tabele { display: none; }
+@media (min-width: 720px) {
+    .kalk-red > summary { grid-template-columns: minmax(0, 1.4fr) repeat(6, minmax(0, 1fr)); align-items: center; }
+    .kalk-red-brojke { grid-column: 2 / 7; grid-row: 1; grid-template-columns: repeat(5, minmax(0, 1fr)); text-align: right; font-size: .9rem; }
+    .kalk-red-brojke .kalk-oznaka { display: none; }
+    .kalk-red-marza { grid-column: 7; grid-row: 1; }
+    .kalk-zaglavlje-tabele { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(6, minmax(0, 1fr)); gap: 12px; font-size: .72rem; font-weight: 800; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; text-align: right; padding-bottom: 4px; border-bottom: 1px solid var(--granica); }
+    .kalk-zaglavlje-tabele span:first-child { text-align: left; }
+}
+.kalk-stavka { padding: 12px 0; border-top: 1px solid var(--granica); }
+.kalk-stavka:first-of-type { border-top: 0; padding-top: 0; }
+.kalk-stavka-glava { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.kalk-stavka-glava h3 { margin: 0; font-size: 1.1rem; }
+.kalk-podaci { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 0; font-size: .92rem; color: var(--tekst-bled); }
+.kalk-podaci b { color: var(--tekst); }
+.kalk-forma { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: end; margin-top: 10px; }
+.kalk-forma .mala-oznaka { display: grid; gap: 3px; margin: 0; font-size: .75rem; font-weight: 700; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
+.kalk-forma .polje { min-height: 48px; }
+.kalk-forma .btn { min-height: 48px; }
+.kalk-istorija { margin-top: 8px; }
+.kalk-istorija > summary { font-size: .9rem; font-weight: 700; color: var(--tekst-bled); padding: 6px 0; }
+.kalk-istorija li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; padding: 6px 0; border-bottom: 1px solid var(--granica); font-size: .92rem; }
+.kalk-istorija li:last-child { border-bottom: 0; }
+.kalk-recept-redovi { display: grid; gap: 8px; margin-bottom: 8px; }
+.kalk-recept-red { display: grid; grid-template-columns: minmax(0, 1fr) 7rem; gap: 8px; }
+.kalk-recept-red .polje { min-height: 50px; }
+.kalk-recept-red [data-udeo] { text-align: right; font-weight: 800; }
+.kalk-zbir { font-weight: 800; font-size: 1.05rem; margin: 6px 0 12px; }
+.kalk-zbir.tekst-crveno { color: var(--crvena); }
+.kalk-zbir.kalk-zbir-ok { color: var(--zelena-tamno); }
+.kalk-sastav { margin: 6px 0 0; padding-left: 18px; font-size: .95rem; }
+.kalk-cela-sirina { grid-column: 1 / -1; }

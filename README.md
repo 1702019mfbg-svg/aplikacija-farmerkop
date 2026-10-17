@@ -53,6 +53,11 @@ dist/                 gotovi ZIP paketi
   Na spisku i svuda se piše pun naziv (`sku_naziv()`); kratka imena (`sku.sifra`, v7–v8) uklonjena su u v9.
 - **Unos robe** (`inc/spisak_izmene.php`): više artikala odjednom (`roba_iz_posta()` → `spisak_upisi_robu()`), zbirna paleta
   (`zbirna_redovi()` → `spisak_nova_zbirna()`), sve u jednoj transakciji (`u_nacrtu()`).
+- **Kalkulacija** (Faza 1; `inc/kalkulacija.php` = formula bez baze, `inc/kalk_baza.php` = čitanje važećih cena,
+  `admin/kalk*.php` = ekrani, meni ☰ u zaglavlju samo za admina): tabele `calc_*` iz RUČNE migracije
+  `migracije/001_kalkulacija.sql` (nije u `inc/migracije.php`; aplikacija bez nje pokazuje uputstvo). Veze: recepture →
+  `artikli`, prodajne cene → `sku`, troškovi po veličini → `pakovanja`. Istorija cena = novi red sa `vazi_od`; važi poslednji
+  ≤ danas. Faza 2 (skidanje sirovina pri proizvodnji) se vezuje na `calc_recipes.id`.
 - **Spisak sa papira** (`inc/spisak_papir.php`, `admin/spisak_papir.php`): tekst → mesta (8, (8), Mesto 8, ⑧) i roba
   (2 pal, 3 pak, 30 kom, 2 t, 1/2, „dve palete“, „a + b“ = zbirna paleta) → pregled sa izborom pakovanja → `papir_proveri()` →
   sve se upisuje odjednom.
@@ -85,6 +90,8 @@ python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli k
 python3 tests/test_13_zbirna_paleta.py     # zbirna paleta: više artikala na paleti, broj paleta, radnik, štampa, v5 → v7
 python3 tests/test_14_mesta.py             # mesta istovara: više kupaca na kamionu, pomeranje, izmene, radnik, štampa, v6 → v7
 python3 tests/test_15_unos_robe.py         # v8 → v9, izbor pakovanja, više artikala odjednom, spisak sa papira
+python3 tests/test_16_kalkulacija.py       # kalkulacija: ručna migracija, samo admin, cene, recepture, pregled, šta ako, Stanje isto
+php tests/kalkulacija_test.php             # formula bez baze (60/40, faktor ≠ 1, nedostaje cena, zbir 100 %)
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

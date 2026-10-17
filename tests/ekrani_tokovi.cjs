@@ -844,6 +844,106 @@ module.exports = {
         await p.slika('87-papir-upisano');
     },
 
+    async kalkulacija(page, p) {
+        // migracija se pokreće ručno (kao u phpMyAdmin-u); pre nje modul pokazuje uputstvo
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        const navPre = (await page.locator('.donja-nav .nav-stavka span').allInnerTexts()).join(',');
+        const stanjePre = await page.locator('main').innerHTML();
+        tvrdi(navPre === 'Stanje,Utovar,Istorija,Radnici,Podešavanja', 'donja traka: ' + navPre);
+        tvrdi(!(await page.locator('.glavni-meni-panel').isVisible()), 'meni ☰ je zatvoren');
+        await p.slika('90-stanje-sa-menijem');
+        await page.locator('.glavni-meni > summary').click();
+        tvrdi(await page.locator('.glavni-meni-panel').isVisible(), 'dodir na ☰ otvara meni');
+        await p.slika('91-meni-kalkulacija', false);
+        await page.mouse.click(195, 500);
+        tvrdi(!(await page.locator('.glavni-meni-panel').isVisible()), 'dodir van menija ga zatvara');
+        await page.locator('.glavni-meni > summary').click();
+        await page.getByRole('link', { name: 'Pregled kalkulacije' }).click();
+        await page.waitForURL('**/admin/kalkulacija.php');
+        tvrdi((await page.locator('main').innerText()).includes('Modul Kalkulacija još nije uključen'), 'bez migracije: uputstvo');
+        require('child_process').execSync('mysql farmerkop_test < ' + require('path').join(__dirname, '..', 'migracije', '001_kalkulacija.sql'));
+
+        // sirovine: faktor i cena
+        await page.goto(p.base + '/admin/kalk_sirovine.php');
+        for (const [ime, jed, faktor, cena] of [['Crni treset', 'bala', '300', '1.200,00'], ['Perlit', 'džak', '100', '900']]) {
+            const k = page.locator('section.kartica', { has: page.locator('h3', { hasText: new RegExp('^' + ime + '$') }) });
+            await k.locator('summary', { hasText: 'Izmeni naziv' }).click();
+            await k.locator('[name="jedinica"]').fill(jed);
+            await k.locator('[name="faktor"]').fill(faktor);
+            await k.getByRole('button', { name: 'Sačuvaj' }).click();
+            await page.waitForSelector('.poruka-uspeh');
+            const k2 = page.locator('section.kartica', { has: page.locator('h3', { hasText: new RegExp('^' + ime + '$') }) });
+            await k2.locator('[name="cena"]').fill(cena);
+            await k2.getByRole('button', { name: 'Dodaj cenu' }).click();
+            await page.waitForSelector('.poruka-uspeh');
+        }
+        tvrdi((await page.locator('main').innerText()).includes('4,0000 RSD/l'), 'crni treset: 4 RSD po litru gotovog');
+        await p.slika('92-kalk-sirovine');
+
+        // troškovi
+        await page.goto(p.base + '/admin/kalk_troskovi.php');
+        const nt = page.locator('#novi-trosak');
+        await nt.locator('[name="naziv"]').fill('Vreća');
+        await nt.locator('[name="pakovanje_id"]').selectOption({ label: '50 l' });
+        await nt.locator('[name="iznos"]').fill('25');
+        await nt.getByRole('button', { name: 'Dodaj trošak' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        await page.locator('#novi-trosak [name="naziv"]').fill('Rad');
+        await page.locator('#novi-trosak [name="tip"]').selectOption('litar');
+        await page.locator('#novi-trosak [name="iznos"]').fill('0,5');
+        await page.locator('#novi-trosak').getByRole('button', { name: 'Dodaj trošak' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        await p.slika('93-kalk-troskovi');
+
+        // receptura: živi zbir procenata
+        await page.goto(p.base + '/admin/kalk_recepture.php');
+        await page.locator('[name="artikal_id"]').selectOption({ label: 'Humovit' });
+        const redovi = page.locator('[data-recept-red]');
+        await redovi.nth(0).locator('select').selectOption({ label: 'Crni treset' });
+        await redovi.nth(0).locator('[data-udeo]').fill('60');
+        await redovi.nth(1).locator('select').selectOption({ label: 'Perlit' });
+        await redovi.nth(1).locator('[data-udeo]').fill('39');
+        const zbir = page.locator('[data-recept-zbir]');
+        tvrdi((await zbir.innerText()).includes('nedostaje 1 %') && (await zbir.getAttribute('class')).includes('tekst-crveno'), 'zbir 99 %: ' + await zbir.innerText());
+        let upozorenje = '';
+        page.once('dialog', (d) => { upozorenje = d.message(); d.accept(); });
+        await page.getByRole('button', { name: 'Sačuvaj recepturu' }).click();
+        await page.waitForTimeout(300);
+        tvrdi(upozorenje.includes('tačno 100 %') && page.url().includes('kalk_recepture.php'), 'sa 99 % se ne šalje: ' + upozorenje);
+        await redovi.nth(1).locator('[data-udeo]').fill('40');
+        tvrdi((await zbir.innerText()).includes('100 % ✓'), 'zbir 100 %: ' + await zbir.innerText());
+        await p.slika('94-kalk-receptura');
+        await page.getByRole('button', { name: 'Sačuvaj recepturu' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+
+        // prodajna cena i pregled
+        await page.goto(p.base + '/admin/kalk_cene.php');
+        const h50 = page.locator('.kalk-stavka', { has: page.locator('h3', { hasText: /^50 l$/ }) }).first();
+        await h50.locator('[name="cena"]').fill('600');
+        await h50.getByRole('button', { name: 'Dodaj cenu' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        await page.goto(p.base + '/admin/kalkulacija.php');
+        const red = page.locator('.kalk-red').filter({ has: page.locator('.kalk-red-ime', { hasText: /^50 l$/ }) }).first();
+        tvrdi((await red.locator('[data-marza]').innerText()) === '30,0 %', 'marža Humovit 50 l: ' + await red.locator('[data-marza]').innerText());
+        await red.locator('summary').click();
+        tvrdi((await red.locator('.kalk-razrada').innerText()).includes('120,00 RSD'), 'razrada: crni treset 120 RSD');
+        await p.slika('95-kalk-pregled');
+
+        // šta ako
+        await page.goto(p.base + '/admin/kalk_staako.php');
+        await page.locator('[name="predmet"]').selectOption({ label: 'Crni treset (1.200,00 RSD)' });
+        await page.fill('[name="vrednost"]', '10');
+        await page.fill('[name="cilj"]', '40');
+        await page.getByRole('button', { name: 'Izračunaj' }).click();
+        await page.waitForURL('**/admin/kalk_staako.php?**');
+        tvrdi((await page.locator('main').innerText()).includes('362,00 RSD'), 'šta ako: 362 RSD');
+        await p.slika('96-kalk-sta-ako');
+
+        // početni ekran je isti
+        await page.goto(p.base + '/admin/stanje.php');
+        tvrdi((await page.locator('main').innerHTML()) === stanjePre, 'Stanje je isto kao pre kalkulacije');
+    },
+
     async pwa(page, p) {
         // Posrednik ispred servera: gašenjem posrednika simuliramo da je telefon izgubio vezu.
         const http = require('http');

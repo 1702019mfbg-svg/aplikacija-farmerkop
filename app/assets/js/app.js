@@ -84,4 +84,16 @@
         var d = document.querySelector('[data-instaliraj]');
         if (d) { d.hidden = true; }
     });
+
+    /* ── Meni ☰ u zaglavlju: zatvara se dodirom van njega ili tasterom Esc ── */
+    function zatvoriMeni(osim) {
+        var meniji = document.querySelectorAll('[data-glavni-meni][open]');
+        for (var i = 0; i < meniji.length; i++) { if (meniji[i] !== osim) { meniji[i].open = false; } }
+    }
+    document.addEventListener('click', function (e) {
+        zatvoriMeni(e.target.closest ? e.target.closest('[data-glavni-meni]') : null);
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { zatvoriMeni(null); }
+    });
 })();

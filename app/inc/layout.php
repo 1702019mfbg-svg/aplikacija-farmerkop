@@ -26,6 +26,8 @@ function ikona(string $ime, string $klasa = 'ikona'): string
         'kvacica'      => '<path d="m4 12.5 5 5L20 6.5"/>',
         'nazad'        => '<path d="m15 5-7 7 7 7"/>',
         'plus'         => '<path d="M12 5v14M5 12h14"/>',
+        'meni'         => '<path d="M4 6h16M4 12h16M4 18h16"/>',
+        'kalkulator'   => '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15v3M8 18h4"/>',
     ];
     $p = $putanje[$ime] ?? '';
     return '<svg class="' . e($klasa) . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -47,6 +49,19 @@ function nav_stavke(string $vrsta): array
         'proizvodnja' => ['Proizvodnja', 'radnik/index.php', 'kutija'],
         'kucna'       => ['Kućna prodaja', 'radnik/prodaja.php', 'kuca'],
         'utovar'      => ['Utovar', 'radnik/utovar.php', 'kamion'],
+    ];
+}
+
+/** Meni ☰ u zaglavlju (samo administrator): modul Kalkulacija. Donja navigacija se ne menja. */
+function kalk_meni_stavke(): array
+{
+    return [
+        'pregled'   => ['Pregled kalkulacije', 'admin/kalkulacija.php'],
+        'sirovine'  => ['Sirovine i cene', 'admin/kalk_sirovine.php'],
+        'troskovi'  => ['Troškovi', 'admin/kalk_troskovi.php'],
+        'recepture' => ['Recepture', 'admin/kalk_recepture.php'],
+        'cene'      => ['Prodajne cene', 'admin/kalk_cene.php'],
+        'staako'    => ['Šta ako', 'admin/kalk_staako.php'],
     ];
 }
 
@@ -93,6 +108,17 @@ function ui_start(string $naslov, array $o = []): void
         <h1><?= e($naslov) ?></h1>
     </div>
     <div class="zaglavlje-akcije">
+        <?php if ($korisnik && $korisnik['uloga'] === 'admin'): ?>
+        <details class="glavni-meni" data-glavni-meni>
+            <summary class="ikona-dugme" aria-label="Meni" title="Meni"><?= ikona('meni') ?></summary>
+            <nav class="glavni-meni-panel" aria-label="Meni">
+                <p class="glavni-meni-naslov"><?= ikona('kalkulator', 'ikona ikona-mala') ?> Kalkulacija</p>
+                <?php foreach (kalk_meni_stavke() as [$tekst, $adresa]): ?>
+                    <a href="<?= e(url($adresa)) ?>"><?= e($tekst) ?></a>
+                <?php endforeach; ?>
+            </nav>
+        </details>
+        <?php endif; ?>
         <button type="button" class="ikona-dugme" data-tema aria-label="Promeni temu (automatski, svetla, tamna)" title="Tema"><?= ikona('tema') ?></button>
         <?php if ($korisnik): ?>
         <form method="post" action="<?= e(url('logout.php')) ?>" class="forma-u-liniji">
