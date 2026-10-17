@@ -221,8 +221,9 @@ try:
     R.provera((f["m[0][broj]"], f["m[0][kupac]"], f["m[1][broj]"], f["m[1][adresa]"]) == ("8", "Agrocentar", "9", "Novi Sad, Futoški put 12"),
               "mesta: 8 Agrocentar i (9) sa adresom", (f.get("m[0][broj]"), f.get("m[0][kupac]"), f.get("m[1][broj]"), f.get("m[1][adresa]")))
     R.provera((f["r[0][0][tekst]"], f["r[0][0][id]"], f["r[0][0][pal]"]) == ("Humovit · 50 l", str(hum50), "2"), "„2 pal humovit 50“ → Humovit · 50 l, 2 palete")
-    R.provera((f["r[0][1][id]"], f["r[0][1][kom]"]) == (str(hum10), "30") and (f["r[0][2][id]"], f["r[0][2][pak]"]) == (str(idea5), "3"),
-              "„humovit 10 - 30“ → 30 kom; „3 pak idea 5“ → 3 paketa")
+    R.provera((f["r[0][1][id]"], f["r[0][1][pak]"], f["r[0][1][kom]"]) == (str(hum10), "30", "") and (f["r[0][2][id]"], f["r[0][2][pak]"]) == (str(idea5), "3"),
+              "„humovit 10 - 30“ → 30 paketa (5 i 10 l se pišu u paketima); „3 pak idea 5“ → 3 paketa")
+    R.provera("30 paketa (5 i 10 l se pišu u paketima) = 180 kom" in tekst(o.text), "napomena: broj za 10 l je u paketima")
     R.provera((f["r[0][3][vrsta]"], f["r[0][3][d][0][id]"], f["r[0][3][d][0][kol]"], f["r[0][3][d][1][id]"], f["r[0][3][d][1][kol]"]) == ("zbirna", str(rizla), "1/2", str(bo46), "1/2"),
               "„1/2 rizla bela sitna + 1/2 oblutak beli 40-60“ → zbirna paleta, pola + pola")
     R.provera((f["r[1][0][id]"], f["r[1][0][pal]"]) == (str(idea10), "1") and (f["r[1][1][id]"], f["r[1][1][kom]"]) == (str(bo46), "100"),
@@ -246,7 +247,7 @@ try:
                   "LEFT JOIN kupci k ON k.id=m.kupac_id WHERE m.spisak_id=%d" % sp2) == "8|Agrocentar|;9||Novi Sad, Futoški put 12",
               "postojeće Mesto 8 je dopunjeno kupcem, Mesto 9 je novo (sa adresom)")
     p9 = sql_int("SELECT id FROM spisak_mesta WHERE spisak_id=%d AND broj=9" % sp2)
-    R.provera(stavke(sp2, p8) == "%d:80:2:0:0,%d:30:0:0:30,%d:30:0:3:0" % (hum50, hum10, idea5), "Mesto 8: Humovit 50 l (zamenjen 1 → 2 pal), Humovit 10 l 30, Idea 5 l 3 pak", stavke(sp2, p8))
+    R.provera(stavke(sp2, p8) == "%d:80:2:0:0,%d:180:0:30:0,%d:30:0:3:0" % (hum50, hum10, idea5), "Mesto 8: Humovit 50 l (zamenjen 1 → 2 pal), Humovit 10 l 30 pak = 180, Idea 5 l 3 pak", stavke(sp2, p8))
     R.provera(stavke(sp2, p9) == "%d:225:1:0:0,%d:100:0:0:100,%d:10:0:0:10" % (idea10, bo46, hum25), "Mesto 9: Idea 10 l 1 pal, oblutak 100 kom, Humovit 25 l 10 kom (ispravljeno)", stavke(sp2, p9))
     zp = sql_int("SELECT id FROM spisak_palete WHERE spisak_id=%d" % sp2)
     R.provera(sql("SELECT CONCAT(mesto_id, '|', naziv, '|', broj) FROM spisak_palete WHERE id=%d" % zp) == "%d|Zbirna paleta 1|1" % p8
@@ -258,6 +259,11 @@ try:
     R.provera(t is not None and t.group(1).strip() == "", "posle čuvanja počinje se od praznog teksta")
 
     R.odeljak("Spisak sa papira: broj bez oznake, odustajanje, pristup")
+    o = adm.post(PAPIR, {"akcija": "procitaj", "id": sp2, "tekst": "5\nidea 10 - 2\n30 kom humovit 5\n3 humovit 5 + 1/2 rizla bela sitna", "bez_oznake": "kom"})
+    f = polja_forme(o.text, "pregled")
+    R.provera((f["r[0][0][pak]"], f["r[0][1][kom]"], f["r[0][1][pak]"], f["r[0][2][d][0][kol]"]) == ("2", "30", "", "3 pak"),
+              "5 i 10 l bez oznake = paketi (i u zbirnoj paleti); „30 kom“ ostaje komadi", f)
+    adm.post(PAPIR, {"akcija": "odustani", "id": sp2})
     o = adm.post(PAPIR, {"akcija": "procitaj", "id": sp2, "tekst": "5\nidea 10 - 2", "bez_oznake": "pal"})
     f = polja_forme(o.text, "pregled")
     R.provera((f.get("m[0][broj]"), f.get("r[0][0][id]"), f.get("r[0][0][pal]"), f.get("r[0][0][kom]")) == ("5", str(idea10), "2", ""), "„broj bez oznake = paleta“: idea 10 - 2 → 2 palete", f)

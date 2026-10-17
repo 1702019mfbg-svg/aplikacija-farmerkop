@@ -127,7 +127,7 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
         <p class="pomoc">Prepišite spisak kako je napisan na papiru – ili ga na telefonu <strong>izdiktirajte</strong> (dodirnite mikrofon na tastaturi). Aplikacija ga pročita i pokaže vam šta je razumela, pa vi proverite i sačuvate.</p>
         <ul class="pomoc">
             <li>Svako mesto počnite <strong>brojem</strong> u svom redu (8, (8) ili Mesto 8), a iza broja može kupac.</li>
-            <li>Svaki artikal u svom redu, sa količinom: <strong>2 pal</strong>, <strong>3 pak</strong>, <strong>30 kom</strong>, <strong>2 t</strong> ili <strong>1/2</strong> (pola palete).</li>
+            <li>Svaki artikal u svom redu, sa količinom: <strong>2 pal</strong>, <strong>3 pak</strong>, <strong>30 kom</strong>, <strong>2 t</strong> ili <strong>1/2</strong> (pola palete). Za 5 l i 10 l broj bez oznake znači <strong>pakete</strong>.</li>
             <li>Zbirna paleta u jednom redu, sa <strong>+</strong> između: 1/2 rizla bela sitna + 1/2 oblutak beli 40-60.</li>
         </ul>
         <p class="papir-primer" aria-label="Primer"><?= e($primer) ?></p>
@@ -136,8 +136,8 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
             <textarea class="polje papir-tekst" id="tekst" name="tekst" rows="12" maxlength="<?= PAPIR_MAX_TEKST ?>" autocapitalize="off" spellcheck="false" placeholder="8 Agrocentar&#10;2 pal humovit 50&#10;…" required><?= e($papir['tekst'] ?? '') ?></textarea>
         </div>
         <fieldset class="red-polja papir-izbor">
-            <legend>Broj bez oznake (npr. „humovit 10 - 30“) znači</legend>
-            <label class="radio-red"><input type="radio" name="bez_oznake" value="kom"<?= ($papir['bez'] ?? 'kom') === 'kom' ? ' checked' : '' ?>> komada</label>
+            <legend>Broj bez oznake (npr. „humovit 25 - 6“) znači</legend>
+            <label class="radio-red"><input type="radio" name="bez_oznake" value="kom"<?= ($papir['bez'] ?? 'kom') === 'kom' ? ' checked' : '' ?>> komada (5 l i 10 l: paketa)</label>
             <label class="radio-red"><input type="radio" name="bez_oznake" value="pal"<?= ($papir['bez'] ?? '') === 'pal' ? ' checked' : '' ?>> paleta</label>
         </fieldset>
         <button class="btn btn-primary btn-blok btn-veliko" type="submit">Pročitaj spisak</button>

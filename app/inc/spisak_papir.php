@@ -4,7 +4,8 @@
  *
  *   8 Agrocentar                                     ← mesto 8 (kupac nije obavezan); može i "(8)", "Mesto 8", "M8"
  *   2 pal humovit 50                                 ← 2 palete
- *   humovit 10 - 30                                  ← 30 (broj bez oznake: komada, ili paleta – bira se u formi)
+ *   humovit 10 - 30                                  ← 30 (broj bez oznake: komada – a za 5 l i 10 l paketa –
+ *                                                       ili paleta, bira se u formi)
  *   3 pak idea 5
  *   1/2 rizla bela sitna + 1/2 oblutak beli 40-60    ← zbirna paleta (pola + pola)
  *   2x 1/2 rizla + 1/2 oblutak                       ← dve takve zbirne palete
@@ -82,11 +83,12 @@ function papir_ocena(string $tekst, array $lista): ?float
 
 /**
  * Količina i naziv iz jednog reda robe. Vraća ['naziv' => tekst, 'pal', 'pak', 'kom', 'deo' => [a, b]|null,
- * 't' => tone|null, 'ima' => da li je količina upisana]. Broj bez oznake ide u $bez_oznake ('kom' ili 'pal').
+ * 't' => tone|null, 'bez' => broj bez oznake|null, 'ima' => da li je količina upisana]. Broj bez oznake
+ * odmah ide u palete kad je $bez_oznake 'pal'; inače ga papir_red_robe() upiše kao komade ili pakete (5 i 10 l).
  */
 function papir_kolicina(string $l, string $bez_oznake, array $lista): array
 {
-    $q = ['pal' => 0, 'pak' => 0, 'kom' => 0, 'deo' => null, 't' => null, 'ima' => false];
+    $q = ['pal' => 0, 'pak' => 0, 'kom' => 0, 'deo' => null, 't' => null, 'bez' => null, 'ima' => false];
     $t = ' ' . $l . ' ';
     // deo palete sa oznakom: "1/2 palete"
     if (preg_match('#(?<![\d/])(\d{1,2})\s*/\s*(\d{1,2})\s*(?:palet[aeiu]?|pal|plt)\.?(?![\p{L}])#iu', $t, $m)) {
@@ -139,13 +141,23 @@ function papir_kolicina(string $l, string $bez_oznake, array $lista): array
             }
         }
         if ($bez !== null && $bez > 0) {
-            $q[$bez_oznake === 'pal' ? 'pal' : 'kom'] += $bez;
+            if ($bez_oznake === 'pal') {
+                $q['pal'] += $bez;
+            } else {
+                $q['bez'] = $bez;
+            }
             $ima = true;
         }
     }
     $q['ima'] = $ima;
     $q['naziv'] = papir_naziv($t);
     return $q;
+}
+
+/** Da li se artikal na papiru piše u paketima: 5 l i 10 l (kad je podešeno koliko komada ima u paketu). */
+function papir_u_paketima(?array $sku): bool
+{
+    return $sku !== null && in_array($sku['pakovanje'], ['5 l', '10 l'], true) && $sku['pp'] > 0;
 }
 
 /** Red robe za pregled: artikal (prepoznat ili ne), palete / paketi / komadi i napomena. */
@@ -155,6 +167,19 @@ function papir_red_robe(string $izvor, string $l, string $bez_oznake, array $lis
     $sku = $q['naziv'] !== '' ? papir_artikal($q['naziv'], $lista) : null;
     $napomene = [];
     $kom = $q['kom'];
+    $pak = $q['pak'];
+    if ($q['bez'] !== null) {
+        // na papiru se 5 l i 10 l uvek pišu u paketima ("humovit 10 - 30" = 30 paketa)
+        if (papir_u_paketima($sku)) {
+            $pak += $q['bez'];
+            $napomene[] = broj($q['bez']) . ' paketa (5 i 10 l se pišu u paketima) = ' . broj($q['bez'] * $sku['pp']) . ' kom';
+        } else {
+            $kom += $q['bez'];
+            if ($sku !== null && in_array($sku['pakovanje'], ['5 l', '10 l'], true)) {
+                $napomene[] = 'nije podešeno koliko komada ima u paketu – upisano ' . broj($q['bez']) . ' kom, proverite';
+            }
+        }
+    }
     if ($q['deo'] !== null) {
         [$a, $b] = $q['deo'];
         $deo = $a . '/' . $b . ' palete';
@@ -190,7 +215,7 @@ function papir_red_robe(string $izvor, string $l, string $bez_oznake, array $lis
         'tekst'    => $sku !== null ? $sku['naziv'] : $q['naziv'],
         'id'       => $sku !== null ? (string)$sku['sku_id'] : '',
         'pal'      => $q['pal'] > 0 ? (string)$q['pal'] : '',
-        'pak'      => $q['pak'] > 0 ? (string)$q['pak'] : '',
+        'pak'      => $pak > 0 ? (string)$pak : '',
         'kom'      => $kom > 0 ? (string)$kom : '',
         'napomena' => implode('; ', $napomene),
         'preskoci' => '',
@@ -218,6 +243,9 @@ function papir_deo_zbirne(string $l, array $lista): array
     }
     $naziv = papir_naziv($t);
     $sku = $naziv !== '' ? papir_artikal($naziv, $lista) : null;
+    if (ctype_digit($kol) && papir_u_paketima($sku)) {
+        $kol .= ' pak';                                  // "3 humovit 5" u zbirnoj paleti = 3 paketa
+    }
     return ['tekst' => $sku !== null ? $sku['naziv'] : $naziv, 'id' => $sku !== null ? (string)$sku['sku_id'] : '', 'kol' => $kol];
 }
 

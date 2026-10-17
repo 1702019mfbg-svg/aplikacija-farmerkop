@@ -187,7 +187,7 @@ Kad je spisak napisan rukom (npr. otac napiše na papiru), ne morate da ga unosi
    ```
 
    - Svako mesto počinje **brojem** u svom redu (**8**, **(8)** ili **Mesto 8**); iza broja može kupac, a red ispod broja može biti kupac ili adresa.
-   - Svaki artikal u svom redu, sa količinom: **2 pal**, **3 pak**, **30 kom**, **2 t** (preračuna se u komade po težini), **1/2** ili **pola** (pola palete). Brojevi mogu i rečima („dve palete“). Broj bez oznake („humovit 10 - 30“) znači komade – ili palete, ako tako izaberete ispod polja.
+   - Svaki artikal u svom redu, sa količinom: **2 pal**, **3 pak**, **30 kom**, **2 t** (preračuna se u komade po težini), **1/2** ili **pola** (pola palete). Brojevi mogu i rečima („dve palete“). Broj bez oznake znači komade, a za **5 l i 10 l pakete** (kako ih otac piše: „humovit 10 - 30“ = 30 paketa); ako izaberete ispod polja, broj bez oznake znači palete. Ko želi baš komade, napiše „30 kom“.
    - **Zbirna paleta** u jednom redu, sa **+** između delova; „2x“ na početku znači dve takve palete.
 2. **Pročitaj spisak** – aplikacija pokaže šta je razumela, mesto po mesto (iznad svakog reda sitno piše kako je bilo na papiru). Ništa još nije upisano.
 3. **Proverite označeno** (žuti okvir): gde piše samo „humovit“ dodirnite pakovanje, upišite količinu koja nedostaje, a red koji ne treba (ili robu koja se ne vodi u aplikaciji – nju dodajte posle kao *Ostalo*) štiklirajte **Preskoči**.
