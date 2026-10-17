@@ -57,7 +57,7 @@ try:
     A = sql_int("SELECT id FROM korisnici WHERE uloga='admin'")
 
     R.odeljak("Šema baze (verzija 3)")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "schema_verzija = 8")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "9", "schema_verzija = 9")
     for t in ("spiskovi", "spisak_stavke"):
         R.provera(sql_int("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='%s' AND table_name='%s'" % (DB_NAME, t)) == 1, "postoji tabela " + t)
     R.provera(kolona("sku", "tezina_kg") and kolona("unosi", "spisak_id"), "kolone sku.tezina_kg i unosi.spisak_id")
@@ -202,8 +202,8 @@ try:
 
     novi = Site()
     Client(novi.base).get("/login.php")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "posle prvog otvaranja baza je na v8")
-    R.provera(novi.log().count("nadogradnja baze na verziju 3") == 1 and novi.log().count("verziju 4") == 1 and novi.log().count("verziju 5") == 1 and novi.log().count("verziju 6") == 1 and novi.log().count("verziju 7") == 1 and novi.log().count("verziju 8") == 1 and "verziju 2" not in novi.log(), "izvršene su samo nadogradnje 3–8")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "9", "posle prvog otvaranja baza je na v9")
+    R.provera(novi.log().count("nadogradnja baze na verziju 3") == 1 and novi.log().count("verziju 4") == 1 and novi.log().count("verziju 5") == 1 and novi.log().count("verziju 6") == 1 and novi.log().count("verziju 7") == 1 and novi.log().count("verziju 8") == 1 and novi.log().count("verziju 9") == 1 and "verziju 2" not in novi.log(), "izvršene su samo nadogradnje 3–9")
     R.provera(sql("SELECT GROUP_CONCAT(CONCAT(id,':',tip,':',sku_id,':',kolicina,':',IFNULL(paketi,'')) ORDER BY id) FROM unosi") == pre["unosi"], "svi stari unosi su isti")
     R.provera(sql("SELECT sku_id, SUM(CASE WHEN tip IN ('prodaja','kucna_prodaja') THEN -kolicina ELSE kolicina END) FROM unosi WHERE obrisan=0 GROUP BY sku_id ORDER BY sku_id") == pre["stanja"], "stanja su ista")
     R.provera(sql("SELECT GROUP_CONCAT(CONCAT(kljuc,'=',sku_id) ORDER BY kljuc) FROM uvoz_mapiranje") == pre["mapiranje"], "zapamćena uparivanja uvoza su ista")

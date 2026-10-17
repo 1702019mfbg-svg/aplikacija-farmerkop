@@ -11,7 +11,7 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 | Ko | Šta |
 |---|---|
 | **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
-| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, unos kucanjem (H50L, B oblutak 4/6, „oblutak beli 40-60“), zbirne palete; ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
+| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
 
@@ -21,7 +21,7 @@ app/                  ← ceo sadržaj ovog foldera ide u koren poddomena
   radnik/             proizvodnja, kućna prodaja, utovar (potvrda spiska)
   admin/              stanje, prodaja, istorija, unos (ispravka), izvoz (CSV), dnevnik,
                       radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak,
-                      spisak_stampa (štampa / PDF / deljenje)
+                      spisak_stampa (štampa / PDF / deljenje), spisak_papir (spisak sa papira)
   inc/                bootstrap, db, auth, csrf, session, katalog, unosi, istorija,
                       podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi (zaštićeno .htaccess-om)
   assets/             css, js, ikone;  sw.js, manifest.webmanifest, offline.html
@@ -47,9 +47,15 @@ dist/                 gotovi ZIP paketi
   kupac nije obavezan, redosled), `spisak_stavke` (`mesto_id`; artikal ili „ostalo“; `paleta_id` > 0 = stavka zbirne palete,
   količina = na jednoj paleti × `spisak_palete.broj`), `spisak_palete` (`mesto_id`). Stanje se skida tek potvrdom utovara
   (`spisak_potvrdi_utovar`), na kupca mesta.
-- **Kako artikal piše na spisku** (`sku.sifra`, jedinstveno; `inc/katalog.php`): šifru ima samo Humovit (H50L), ostali ime
-  (B oblutak 4/6, B rizla sitnija) – `predlozi_sifre()` / `dopuni_sifre()`; `sku_po_unosu()` prepoznaje otkucano (kako piše,
-  početak toga, naziv, reči u bilo kom redu, milimetri „40-60“); isto radi i `assets/js/spisak.js`.
+- **Izbor artikla kucanjem** (`inc/katalog.php`): `sku_pronadji()` – svaka otkucana reč mora biti u nazivu (bilo kojim redom,
+  početak reči, koren od 4 slova, milimetri „40-60“ = 4-6 cm), ocena bira najbolje; `sku_iz_unosa()` uzima izabrani id ili
+  jedino najbolje poklapanje. Isto računa `assets/js/spisak.js`, koji ispod polja (`polje_artikla()`) nudi pakovanja dodirom.
+  Na spisku i svuda se piše pun naziv (`sku_naziv()`); kratka imena (`sku.sifra`, v7–v8) uklonjena su u v9.
+- **Unos robe** (`inc/spisak_izmene.php`): više artikala odjednom (`roba_iz_posta()` → `spisak_upisi_robu()`), zbirna paleta
+  (`zbirna_redovi()` → `spisak_nova_zbirna()`), sve u jednoj transakciji (`u_nacrtu()`).
+- **Spisak sa papira** (`inc/spisak_papir.php`, `admin/spisak_papir.php`): tekst → mesta (8, (8), Mesto 8, ⑧) i roba
+  (2 pal, 3 pak, 30 kom, 2 t, 1/2, „dve palete“, „a + b“ = zbirna paleta) → pregled sa izborom pakovanja → `papir_proveri()` →
+  sve se upisuje odjednom.
 - **Uvoz stanja** (`inc/uvoz.php`, `admin/uvoz.php`): čita CSV/tabelu, uparuje redove sa SKU-ovima po normalizovanim rečima
   (latinica/ćirilica, pakovanje, granulacija, boja), pamti ručna uparivanja u `uvoz_mapiranje`, a upisuje preko `popis_postavi()`.
 
@@ -78,7 +84,7 @@ python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli k
                                            # utovar na licu mesta (više od plana, radnik dodaje artikal)
 python3 tests/test_13_zbirna_paleta.py     # zbirna paleta: više artikala na paleti, broj paleta, radnik, štampa, v5 → v7
 python3 tests/test_14_mesta.py             # mesta istovara: više kupaca na kamionu, pomeranje, izmene, radnik, štampa, v6 → v7
-python3 tests/test_15_sifre.py             # kako piše na spisku (H50L, B oblutak 4/6), v7 → v8, unos kucanjem, zbirna paleta odjednom
+python3 tests/test_15_unos_robe.py         # v8 → v9, izbor pakovanja, više artikala odjednom, spisak sa papira
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

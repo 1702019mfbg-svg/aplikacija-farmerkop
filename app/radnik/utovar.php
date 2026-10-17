@@ -33,16 +33,9 @@ if (je_post()) {
             flash_dodaj('info', 'Ništa nije dodato. Kad završite utovar, dodirnite „Potvrdi utovar“.');
             preusmeri($nazad);
         }
-        if ($artikal !== '') {
-            $nadjen = sku_po_unosu($artikal);         // šifra (H50L) ili naziv
-            $sku = $nadjen['sku'];
-            $greska_artikla = (string)$nadjen['greska'];
-        } else {
-            $sku = sku_aktivan(post_int('novi_sku'));
-            $greska_artikla = 'Upišite artikal koji dodajete na spisak (npr. H50L ili B oblutak 4/6).';
-        }
+        [$sku, $greska_artikla] = sku_iz_unosa(post_int('novi_sku'), $artikal);   // izabrano dodirom ili otkucano
         if ($sku === null) {
-            flash_dodaj('greska', $greska_artikla);
+            flash_dodaj('greska', (string)$greska_artikla);
             preusmeri($nazad);
         }
         $r = popis_vrednost('', $novi[0], $novi[1], $novi[2], $sku);
@@ -59,8 +52,8 @@ if (je_post()) {
         $ok[(int)$rez['stavka_id']] = '1';                      // dodato pri utovaru = utovareno
         $_SESSION['utovar_forma'][$id]['ok'] = $ok;
         $za = $rez['mesto'] !== null ? ' za ' . mesto_naslov((int)$rez['mesto']['broj'], $rez['mesto']['kupac']) : '';
-        spisak_dnevnik($id, 'pri utovaru dodato' . $za . ': ' . sku_oznaka($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (' . $korisnik['ime'] . ')');
-        flash_dodaj('uspeh', 'Dodato na spisak' . $za . ': ' . sku_oznaka($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (štiklirano). Kad završite utovar, potvrdite ga.');
+        spisak_dnevnik($id, 'pri utovaru dodato' . $za . ': ' . sku_naziv($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (' . $korisnik['ime'] . ')');
+        flash_dodaj('uspeh', 'Dodato na spisak' . $za . ': ' . sku_naziv($sku) . ' – ' . broj((int)$r['komadi']) . ' kom (štiklirano). Kad završite utovar, potvrdite ga.');
         preusmeri($nazad);
     }
 
@@ -140,7 +133,7 @@ if ($id > 0) {
                 <label class="utovar-cek">
                     <input type="checkbox" name="ok[<?= $sid ?>]" value="1"<?= $stiklirano ? ' checked' : '' ?> data-cek<?= $u_paleti ? ' data-grupa="' . $grupa . '"' : '' ?>>
                     <span>
-                        <strong><?= e(stavka_kratko($st)) ?><?php if (stavka_ime_ispod($st) !== null): ?> <small class="utovar-ime"><?= e(stavka_ime_ispod($st)) ?></small><?php endif; ?></strong>
+                        <strong><?= e(stavka_naziv($st)) ?></strong>
                         <?php if ($st['dodao_id'] !== null): ?><span class="znacka">dodato pri utovaru</span><?php endif; ?>
                         <span class="utovar-plan"><?= e(stavka_plan_tekst($st)) ?></span>
                     </span>
@@ -214,10 +207,7 @@ if ($id > 0) {
                 <input type="hidden" name="novi_mesto" value="<?= $mesta ? (int)$mesta[0]['id'] : 0 ?>">
             <?php endif; ?>
             <div class="red-polja razmak-gore">
-                <label for="novi_artikal">Artikal (H50L, B oblutak 4/6 …)</label>
-                <input class="polje polje-sifra" id="novi_artikal" name="novi_artikal" type="text" list="lista-sku" maxlength="120"
-                       autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="npr. H50L ili oblutak beli 4/6" data-artikal>
-                <p class="artikal-ime" data-artikal-ime aria-live="polite"></p>
+                <?= polje_artikla('novi_artikal', 'novi_sku', '', 0, 'novi_artikal', 'Artikal', '', 'kucajte npr. humovit') ?>
             </div>
             <div class="popis-polja" data-popis data-po="0" data-pp="0">
                 <label class="mala-oznaka" data-polje-pal>paleta<input class="polje" name="novi_pal" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pal"></label>
@@ -226,9 +216,7 @@ if ($id > 0) {
             </div>
             <p class="popis-zbir" data-zbir aria-live="polite"></p>
             <button class="btn btn-braon btn-blok" type="submit" name="akcija" value="dodaj" data-dodaj>Dodaj na spisak</button>
-            <?php $sku_unos = sku_za_unos(); /* bez stanja – radnik ga ne vidi */ ?>
-            <datalist id="lista-sku"><?php foreach ($sku_unos as $r): ?><option value="<?= e($r['sifra'] !== '' ? $r['sifra'] : $r['naziv']) ?>"><?= e($r['naziv']) ?></option><?php endforeach; ?></datalist>
-            <script type="application/json" id="sku-podaci"><?= json_za_html(array_map(static fn(array $r): array => [$r['sifra'], $r['naziv'], $r['sku_id'], $r['po'], $r['pp']], $sku_unos)) ?></script>
+            <script type="application/json" id="sku-podaci"><?= sku_podaci_json(sku_za_unos()) /* bez stanja – radnik ga ne vidi */ ?></script>
         </details>
         <p class="utovar-brojac" data-brojac aria-live="polite"></p>
         <button class="btn btn-primary btn-veliko btn-blok" type="submit" name="akcija" value="potvrdi" data-potvrdi

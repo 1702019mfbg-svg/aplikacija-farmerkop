@@ -500,7 +500,6 @@ input[type="date"].polje, input[type="datetime-local"].polje { min-width: 0; -we
 .stavka-izmena .mala-oznaka { flex: 1; min-width: 0; margin: 0; font-size: .75rem; font-weight: 700; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
 .stavka-izmena .polje { margin-top: 3px; text-align: center; font-weight: 800; min-height: 48px; padding: 6px; }
 .stavka-izmena .btn { flex: none; min-height: 48px; }
-[data-nova-stavka] .popis-polja { margin-bottom: 6px; }
 
 /* ── Potvrda utovara (radnik) ── */
 .utovar-lista .utovar-stavka { display: grid; gap: 6px; padding: 12px 0; }
@@ -621,21 +620,15 @@ body.stampa { background: var(--bg); }
 .stampa-krug { display: inline-block; min-width: 26px; height: 26px; line-height: 22px; margin-right: 6px; padding: 0 4px; border: 2px solid #1a1612; border-radius: 13px; text-align: center; font-weight: 800; }
 .stampa-mesto-zbir { float: right; margin-left: 8px; font-size: .8rem; font-weight: 700; color: #6b5a4a; }
 
-/* ── Šifre artikala (Podešavanja) ── */
-.sifre-mreza { display: grid; gap: 10px; }
-.sifra-red { display: grid; gap: 4px; margin: 0; }
-.sifra-red span { font-size: .85rem; font-weight: 700; color: var(--tekst-bled); overflow-wrap: anywhere; }
-.sifra-red .polje { min-height: 48px; font-weight: 800; }
-
-/* ── Spisak: kratki redovi (šifra · količina · težina), dodir otvara izmenu ── */
+/* ── Spisak: kratki redovi (naziv · količina · težina), dodir otvara izmenu ── */
 .stavka-red { display: grid; gap: 2px; }
 summary.stavka-red { list-style: none; cursor: pointer; border-radius: 10px; }
 summary.stavka-red::-webkit-details-marker { display: none; }
 .stavka-uredi[open] > summary.stavka-red { margin-bottom: 8px; }
 .stavka-prvi { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: 4px 10px; }
 .stavka-glavno { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
-.stavka-glavno .stavka-sifra { overflow-wrap: anywhere; }
-.stavka-sifra { font-size: 1.1rem; font-weight: 800; }
+.stavka-glavno .stavka-naziv { overflow-wrap: anywhere; }
+.stavka-naziv { font-size: 1.05rem; font-weight: 800; }
 .stavka-prvi .stavka-kol { font-weight: 600; }
 .stavka-kg { color: var(--tekst-bled); font-size: .88rem; white-space: nowrap; }
 .stavka-olovka { color: var(--tekst-bled); }
@@ -650,17 +643,55 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .zbirna-polja .btn { flex: none; min-height: 46px; }
 .zbirna-polja .zbirna-broj .polje { text-align: center; font-weight: 800; }
 
-/* ── Unos šifrom i zbirna paleta odjednom ── */
-.polje-sifra { font-weight: 800; }
-.polje-sifra::placeholder { font-weight: 400; }
-.artikal-ime { margin: 4px 2px 0; font-size: .88rem; font-weight: 600; color: var(--zelena-tamno); min-height: 0; }
-.artikal-ime:empty { display: none; }
-.artikal-ime.tekst-crveno { color: var(--crvena); }
+/* ── Izbor artikla kucanjem ("humovit" → 5 l / 10 l / 25 l / 50 l) i više artikala odjednom ── */
+.biraj { min-width: 0; }
+.biraj > label { display: block; }
+.biraj-status { margin: 4px 2px 0; font-size: .88rem; font-weight: 600; color: var(--zelena-tamno); overflow-wrap: anywhere; }
+.biraj-status:empty { display: none; }
+.biraj-status.tekst-crveno { color: var(--crvena); }
+.biraj-ponuda { display: grid; gap: 6px; margin-top: 6px; padding: 8px; border: 1px solid var(--granica); border-radius: 12px; background: var(--povrsina-2); }
+.biraj-ponuda[hidden] { display: none; }
+.biraj-grupa { display: grid; gap: 4px; }
+.biraj-ime { font-size: .8rem; font-weight: 700; color: var(--tekst-bled); overflow-wrap: anywhere; }
+.biraj-dugmad { display: flex; flex-wrap: wrap; gap: 6px; }
+.biraj-dugme {
+    min-height: 44px; min-width: 64px; padding: 6px 12px; border-radius: 10px;
+    border: 2px solid var(--granica); background: var(--povrsina); color: var(--tekst);
+    font: inherit; font-size: 1rem; font-weight: 800; cursor: pointer; touch-action: manipulation;
+}
+.biraj-dugme.izabran { border-color: var(--zelena); background: var(--zelena-svetla); }
+.biraj-dugme:focus-visible { outline: 3px solid var(--zelena); outline-offset: 2px; }
+.roba-redovi { display: grid; gap: 10px; margin-bottom: 8px; }
+.roba-red { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 8px; padding: 10px; border: 1px solid var(--granica); border-radius: 12px; background: var(--povrsina); }
+.roba-broj { grid-row: 1 / span 3; align-self: start; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-top: 11px; border-radius: 14px; background: var(--povrsina-2); color: var(--tekst-bled); font-size: .85rem; font-weight: 800; }
+.roba-red .roba-kol { margin: 0; }
+.roba-red .popis-zbir { margin: 0; }
+.roba-red .popis-zbir:empty { display: none; }
 .zbirna-redovi { display: grid; gap: 8px; margin-bottom: 8px; }
-.zbirna-red { display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem; gap: 4px 8px; align-items: center; }
-.zbirna-red .artikal-ime { grid-column: 1 / -1; margin-top: 0; }
-.zbirna-red > .polje { min-height: 50px; }
-.zbirna-red > [data-zbirna-kol] { text-align: center; font-weight: 800; }
+.zbirna-red { display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem; gap: 4px 8px; align-items: start; }
+.zbirna-red > .polje { min-height: 50px; text-align: center; font-weight: 800; }
+.zbirna-info { grid-column: 1 / -1; margin: 0 2px; font-size: .88rem; font-weight: 600; color: var(--zelena-tamno); }
+.zbirna-info:empty { display: none; }
+.zbirna-info.tekst-crveno { color: var(--crvena); }
 .zbirna-red-naslov { font-size: .75rem; font-weight: 700; color: var(--tekst-bled); text-transform: uppercase; letter-spacing: .03em; }
-.utovar-ime { display: block; font-size: .85rem; font-weight: 600; color: var(--tekst-bled); }
-.stampa-ime { display: block; color: #6b5a4a; font-size: .75rem; }
+
+/* ── Spisak sa papira: tekst → pregled → sačuvaj sve ── */
+.papir-tekst { min-height: 280px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: vertical; }
+.papir-primer { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--povrsina-2); font-size: .9rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.papir-mesto .mesto-polja { margin-bottom: 8px; }
+.papir-izbor { border: 0; margin: 0 0 14px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.papir-izbor legend { width: 100%; margin-bottom: 6px; font-weight: 700; }
+.radio-red { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 700; cursor: pointer; }
+.radio-red input { width: 22px; height: 22px; accent-color: var(--zelena); }
+.papir-izvor { display: block; margin: 0 0 2px; font-size: .8rem; color: var(--tekst-bled); overflow-wrap: anywhere; }
+.papir-izvor::before { content: "sa papira: "; font-weight: 700; }
+.papir-red { grid-template-columns: minmax(0, 1fr); }
+.papir-red.papir-greska { border-color: var(--crvena); background: var(--crvena-svetla); }
+.papir-red.papir-proveri { border-color: var(--upozorenje); border-width: 2px; }
+.papir-red.papir-preskocen { opacity: .55; }
+.papir-napomena { margin: 0; font-size: .85rem; font-weight: 600; color: var(--upozorenje); }
+.papir-red .papir-greska-tekst { margin: 0; font-size: .88rem; font-weight: 700; color: var(--crvena); }
+.papir-preskoci { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; font-weight: 600; color: var(--tekst-bled); }
+.papir-zbirna { border-style: dashed; }
+.papir-zbirna-glava { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-weight: 800; }
+.papir-zbirna-glava .polje { width: 5rem; min-height: 44px; text-align: center; font-weight: 800; }

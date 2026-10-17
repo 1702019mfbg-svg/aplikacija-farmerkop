@@ -136,7 +136,7 @@ function spisak_stavke(int $spisak_id): array
                 st.tezina_kg AS ostalo_kg, st.kolicina, st.palete AS u_palete, st.paketi AS u_paketi, st.komadi AS u_komadi,
                 st.utovareno, st.redosled, st.dodao_id, d.ime AS dodao,
                 st.paleta_id, pl.naziv AS paleta_naziv, pl.broj AS paleta_broj,
-                s.sifra, s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
+                s.po_paleti, s.po_paketu, s.tezina_kg, a.naziv AS artikal, a.oznaka, v.naziv AS varijanta,
                 p.kolicina AS pak_kolicina, p.jedinica
          FROM spisak_stavke st
          LEFT JOIN spisak_mesta m ON m.id = st.mesto_id
@@ -200,20 +200,8 @@ function stavka_naziv(array $st): string
     return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_naziv($st);
 }
 
-/** Kako stavka piše na spisku: "H10L", "B oblutak 4/6"; za "ostalo" njen naziv. */
-function stavka_kratko(array $st): string
-{
-    return $st['sku_id'] === null ? (string)$st['ostalo_naziv'] : sku_kratko($st);
-}
-
-/** Pun naziv sitno ispod šifre (samo uz šifru kao H50L – ime kao "B oblutak 4/6" je već jasno). */
-function stavka_ime_ispod(array $st): ?string
-{
-    return $st['sku_id'] !== null && sifra_je_kod($st['sifra'] ?? null) ? sku_naziv($st) : null;
-}
-
 /**
- * Kratko ime sa zbirnom paletom (i mestom, kad utovar ima više mesta): "H10L (mesto 8, Zbirna paleta 1)".
+ * Naziv sa zbirnom paletom (i mestom, kad utovar ima više mesta): "Humovit · 10 l (mesto 8, Zbirna paleta 1)".
  */
 function stavka_puni_naziv(array $st, bool $sa_mestom = false): string
 {
@@ -224,7 +212,7 @@ function stavka_puni_naziv(array $st, bool $sa_mestom = false): string
     if ((int)($st['paleta_id'] ?? 0) > 0) {
         $dodaci[] = (string)$st['paleta_naziv'];
     }
-    return stavka_kratko($st) . ($dodaci ? ' (' . implode(', ', $dodaci) . ')' : '');
+    return stavka_naziv($st) . ($dodaci ? ' (' . implode(', ', $dodaci) . ')' : '');
 }
 
 /** Da li stavke idu za više od jednog mesta (kupca). */
@@ -384,7 +372,7 @@ function spisak_manjak(int $spisak_id, array $stavke): array
 function kolicina_na_paleti(string $t, array $sku): array
 {
     $t = mb_strtolower((string)preg_replace('/\s+/u', '', $t));
-    $ime = sku_kratko($sku);
+    $ime = sku_naziv($sku);
     if ($t === 'pola' || $t === '½') {
         $t = '1/2';
     }
@@ -418,6 +406,42 @@ function kolicina_na_paleti(string $t, array $sku): array
         return ['komadi' => (int)$m[1] * (int)$sku['po_paketu'], 'paketi' => (int)$m[1], 'kom' => 0];
     }
     return ['greska' => $ime . ': količinu upišite kao broj komada (25), deo palete (1/2) ili pakete (3 pak).'];
+}
+
+/**
+ * Polje za izbor artikla kucanjem: "humovit" → ispod polja dugmad sa pakovanjima (Humovit: 5 l, 10 l, 25 l, 50 l),
+ * dodir izabere artikal (u polje se upiše pun naziv, a u skriveno polje id). Radi i bez JavaScript-a: server tada
+ * prepoznaje otkucano (sku_iz_unosa). $natpis prazan = polje bez natpisa ($aria ga opisuje).
+ */
+function polje_artikla(string $ime_teksta, string $ime_id, string $tekst = '', int $sku_id = 0, string $html_id = '', string $natpis = '', string $aria = '', string $primer = ''): string
+{
+    ob_start(); ?>
+    <div class="biraj" data-biraj>
+        <?php if ($natpis !== ''): ?><label for="<?= e($html_id) ?>"><?= e($natpis) ?></label><?php endif; ?>
+        <input class="polje" <?= $html_id !== '' ? 'id="' . e($html_id) . '" ' : '' ?>name="<?= e($ime_teksta) ?>" type="text" maxlength="120"
+               autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next"
+               <?= $aria !== '' ? 'aria-label="' . e($aria) . '" ' : '' ?>placeholder="<?= e($primer) ?>" value="<?= e($tekst) ?>" data-biraj-tekst>
+        <input type="hidden" name="<?= e($ime_id) ?>" value="<?= $sku_id > 0 ? $sku_id : '' ?>" data-biraj-id>
+        <p class="biraj-status" data-biraj-status aria-live="polite"></p>
+        <div class="biraj-ponuda" data-biraj-ponuda hidden></div>
+    </div>
+    <?php
+    return (string)ob_get_clean();
+}
+
+/**
+ * Artikli za polje_artikla(), kao JSON za stranicu: [id, artikal, varijanta, pakovanje, po paleti, po paketu, stanje?].
+ * Stanje samo za administratora ($sku_unos iz sku_za_unos(true)).
+ */
+function sku_podaci_json(array $sku_unos): string
+{
+    return json_za_html(array_map(static function (array $r): array {
+        $red = [$r['sku_id'], $r['artikal'], $r['varijanta'], $r['pakovanje'], $r['po'], $r['pp']];
+        if (array_key_exists('stanje', $r)) {
+            $red[] = $r['stanje'];
+        }
+        return $red;
+    }, $sku_unos));
 }
 
 /** Zapis u dnevnik izmena za spisak. */
@@ -681,7 +705,7 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
                 $n++;
                 $kol = $utovaren && $st['utovareno'] !== null ? (int)$st['utovareno'] : (int)$st['kolicina'];
                 $opis = $utovaren && $kol !== (int)$st['kolicina'] ? broj($kol) . ' kom (utovareno)' : stavka_plan_tekst($st);
-                $l[] = ($pid > 0 ? '     ' : '  ') . $n . '. ' . stavka_kratko($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
+                $l[] = ($pid > 0 ? '     ' : '  ') . $n . '. ' . stavka_naziv($st) . ' – ' . $opis . ($st['dodao_id'] !== null ? ' (dodato pri utovaru)' : '');
             }
         }
     }
@@ -720,7 +744,7 @@ function spisak_dodaj_pri_utovaru(int $id, int $mesto_id, array $sku, int $komad
             return $ne('Izaberite za koje mesto je roba (Za mesto).');
         }
         if (db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = 0 AND sku_id = ?', [$id, $mesto_id, (int)$sku['sku_id']]) !== null) {
-            return $ne(sku_oznaka($sku) . ' je već na spisku' . ($mesto !== null ? ' za ' . mesto_naslov((int)$mesto['broj'], $mesto['kupac']) : '')
+            return $ne(sku_naziv($sku) . ' je već na spisku' . ($mesto !== null ? ' za ' . mesto_naslov((int)$mesto['broj'], $mesto['kupac']) : '')
                 . ' – kod te stavke dodirnite „Više ili manje od plana“ i upišite količinu.');
         }
         $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;

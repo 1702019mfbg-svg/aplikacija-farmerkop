@@ -1,7 +1,7 @@
-/* Spisak za utovar: unos artikla kako piše na spisku (H50L, B oblutak 4/6) ili nazivom ("oblutak beli 40-60"),
- * zbir paleta + paketa + komada uživo i prikaz samo onih polja koja artikal ima. U zbirnoj paleti se upisuje količina
- * za jednu paletu (bez celih paleta), a zbir pokazuje i ukupno × broj paleta. Zbirna paleta odjednom: redovi
- * artikal + koliko na paleti (25, 1/2, 3 pak). */
+/* Spisak za utovar: izbor artikla kucanjem ("humovit" → dugmad 5 l / 10 l / 25 l / 50 l, dodir izabere),
+ * više artikala odjednom (redovi + "Još jedan artikal"), zbir paleta + paketa + komada uživo i prikaz samo onih
+ * polja koja artikal ima. U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje
+ * i ukupno × broj paleta. Zbirna paleta odjednom: redovi artikal + koliko na paleti (25, 1/2, 3 pak). */
 (function () {
     'use strict';
     function broj(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
@@ -12,76 +12,214 @@
         return v === '' ? 0 : parseInt(v, 10);
     }
 
-    /* ── Artikli za unos: [kako piše na spisku, naziv, id, po paleti, po paketu, stanje] ── */
-    function velika(t) {
-        return t.toUpperCase().replace(/[ČĆ]/g, 'C').replace(/Ž/g, 'Z').replace(/Š/g, 'S').replace(/Đ/g, 'DJ');
+    /* ── Artikli: [id, artikal, varijanta, pakovanje, po paleti, po paketu, stanje (samo administrator)] ── */
+    function ascii(t) {
+        return t.toUpperCase().replace(/[ČĆ]/g, 'C').replace(/Ž/g, 'Z').replace(/Š/g, 'S').replace(/Đ/g, 'DJ')
+            .replace(/[^A-Z0-9]+/g, ' ').trim();
     }
-    function samoSlova(t) { return velika(t).replace(/[^A-Z0-9]+/g, ''); }
-    function reci(t) { return velika(t).replace(/[^A-Z0-9]+/g, ' ').trim().split(' '); }
+    function reci(t) { var a = ascii(t); return a === '' ? [] : a.split(' '); }
     var artikli = [];
+    var poId = {};
     var podaci = document.getElementById('sku-podaci');
     if (podaci) {
         try {
-            artikli = JSON.parse(podaci.textContent).map(function (r) {
-                return { sifra: r[0], naziv: r[1], id: r[2], po: r[3], pp: r[4], stanje: r.length > 5 ? r[5] : null,
-                         k: samoSlova(r[0]), s: samoSlova(r[1]), w: reci(r[1] + ' ' + r[0]) };
+            artikli = JSON.parse(podaci.textContent).map(function (r, i) {
+                var a = { id: r[0], artikal: r[1], varijanta: r[2], pakovanje: r[3], po: r[4], pp: r[5],
+                          stanje: r.length > 6 ? r[6] : null, red: i };
+                a.naziv = a.artikal + (a.varijanta ? ' · ' + a.varijanta : '') + ' · ' + a.pakovanje;
+                a.w = reci(a.artikal + ' ' + a.varijanta + ' ' + a.pakovanje);
+                poId[a.id] = a;
+                return a;
             });
         } catch (e) { artikli = []; }
     }
-    function nadji(kljuc, t) {
-        if (!t) { return null; }
-        var isti = artikli.filter(function (a) { return a[kljuc] === t; });
-        if (isti.length === 1) { return isti; }
-        var pocinje = artikli.filter(function (a) { return a[kljuc] !== '' && a[kljuc].indexOf(t) === 0; });
-        if (pocinje.length > 1) {
-            var saJedinicom = pocinje.filter(function (a) { return a[kljuc] === t + 'L' || a[kljuc] === t + 'KG'; });
-            return saJedinicom.length === 1 ? saJedinicom : pocinje;
+
+    /* Isto kao na serveru (katalog.php): 0 = ista reč, 1 = početak reči, isti koren ("sitna" – SITNIJA)
+     * ili milimetri ("40" – 4 cm), null = ne poklapa se. */
+    function poklapanje(w, n) {
+        if (w === n) { return 0; }
+        if (/^\d+$/.test(w)) {
+            if (w.length >= 2 && w.slice(-1) === '0' && n === w.slice(0, -1)) { return 1; }
+            return /^\d+$/.test(n) && n.indexOf(w) === 0 ? 1 : null;
         }
-        return pocinje;
+        if (n.indexOf(w) === 0 || (w.length >= 4 && n.slice(0, 4) === w.slice(0, 4))) { return 1; }
+        return null;
     }
-    /* Reč odgovara: početak reči ("obl"), isti koren od 4 slova ("sitna" – SITNIJA) ili milimetri ("40" – 4 cm). */
-    function recOdgovara(w, n) {
-        if (n.indexOf(w) === 0) { return true; }
-        if (w.length >= 4 && !/^\d+$/.test(w) && n.slice(0, 4) === w.slice(0, 4)) { return true; }
-        return /^\d+0$/.test(w) && w.length >= 2 && n === w.slice(0, -1);
-    }
-    /* Isti redosled kao na serveru: kako piše na spisku ("b oblutak 4/6"), početak toga ("h50" → H50L),
-     * naziv, pa reči u bilo kom redu ("rizla bela sitna", "oblutak beli 40-60"). */
+    var JEDINICE = { L: 1, KG: 1, G: 1, CM: 1, MM: 1 };
+    /* Svaka otkucana reč mora da postoji u nazivu; manja ocena = bolje (najbolji prvi, pa redom kao u katalogu). */
     function pronadji(tekst) {
         var w = reci(tekst);
-        var poRecima = w.length > 1 && w[0] !== '' ? artikli.filter(function (a) {
-            return w.every(function (rec) { return a.w.some(function (n) { return recOdgovara(rec, n); }); });
-        }) : null;
-        var probe = [nadji('k', samoSlova(tekst)), nadji('s', samoSlova(tekst)), poRecima];
-        for (var i = 0; i < probe.length; i++) {
-            if (probe[i] && probe[i].length === 1) { return { artikal: probe[i][0] }; }
-            if (probe[i] && probe[i].length > 1) { return { vise: probe[i] }; }
+        if (!w.length) { return []; }
+        var rez = [];
+        artikli.forEach(function (a) {
+            var ocena = 0;
+            var pokrivene = {};
+            for (var i = 0; i < w.length; i++) {
+                var najbolje = null;
+                for (var j = 0; j < a.w.length; j++) {
+                    var p = poklapanje(w[i], a.w[j]);
+                    if (p !== null && (najbolje === null || p < najbolje[0])) { najbolje = [p, j]; }
+                }
+                if (najbolje === null) { return; }
+                ocena += najbolje[0] * 0.5;
+                pokrivene[najbolje[1]] = true;
+            }
+            a.w.forEach(function (n, j) {
+                if (!pokrivene[j] && !/^\d+$/.test(n) && !JEDINICE[n]) { ocena += 1; }
+            });
+            rez.push({ a: a, ocena: ocena });
+        });
+        rez.sort(function (x, y) { return x.ocena - y.ocena || x.a.red - y.a.red; });
+        return rez;
+    }
+    /* Jedan najbolji artikal (kao na serveru: otkucano se prihvata i bez dodira) ili null. */
+    function jedini(nadjeni) {
+        return nadjeni.length && (nadjeni.length === 1 || nadjeni[1].ocena > nadjeni[0].ocena) ? nadjeni[0].a : null;
+    }
+
+    /* ── Polje za izbor artikla (data-biraj) ── */
+    function delovi(okvir) {
+        return {
+            tekst: okvir.querySelector('[data-biraj-tekst]'),
+            id: okvir.querySelector('[data-biraj-id]'),
+            status: okvir.querySelector('[data-biraj-status]'),
+            ponuda: okvir.querySelector('[data-biraj-ponuda]')
+        };
+    }
+    function izabrani(okvir) {
+        return poId[delovi(okvir).id.value] || null;
+    }
+    /* Dugmad po artiklu: Humovit [5 l][10 l][25 l][50 l], Beli oblutak [1-3 cm][2-4 cm] … */
+    function nacrtajPonudu(d, nadjeni, istaknut) {
+        var grupe = [];
+        var poArtiklu = {};
+        nadjeni.slice(0, 40).forEach(function (n) {
+            var g = poArtiklu[n.a.artikal];
+            if (!g) {
+                if (grupe.length >= 6) { return; }
+                g = poArtiklu[n.a.artikal] = { ime: n.a.artikal, clanovi: [] };
+                grupe.push(g);
+            }
+            g.clanovi.push(n.a);
+        });
+        d.ponuda.textContent = '';
+        grupe.forEach(function (g) {
+            g.clanovi.sort(function (x, y) { return x.red - y.red; });
+            var istoPak = g.clanovi.every(function (a) { return a.pakovanje === g.clanovi[0].pakovanje; });
+            var istaVar = g.clanovi.every(function (a) { return a.varijanta === g.clanovi[0].varijanta; });
+            var red = document.createElement('div');
+            red.className = 'biraj-grupa';
+            var ime = document.createElement('span');
+            ime.className = 'biraj-ime';
+            ime.textContent = g.ime + (istaVar && g.clanovi[0].varijanta ? ' · ' + g.clanovi[0].varijanta : '');
+            red.appendChild(ime);
+            var dugmad = document.createElement('span');
+            dugmad.className = 'biraj-dugmad';
+            g.clanovi.forEach(function (a) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'biraj-dugme' + (istaknut === a ? ' izabran' : '');
+                b.setAttribute('data-biraj-sku', String(a.id));
+                b.setAttribute('aria-pressed', istaknut === a ? 'true' : 'false');
+                b.setAttribute('aria-label', a.naziv);
+                b.textContent = istaVar ? a.pakovanje : (istoPak ? a.varijanta : a.varijanta + ' · ' + a.pakovanje);
+                dugmad.appendChild(b);
+            });
+            red.appendChild(dugmad);
+            d.ponuda.appendChild(red);
+        });
+        d.ponuda.hidden = grupe.length === 0;
+    }
+    function postaviStatus(d, tekst, greska) {
+        d.status.textContent = tekst;
+        d.status.classList.toggle('tekst-crveno', !!greska);
+    }
+    /* Posle kucanja: ponuda pakovanja i (kad je samo jedno najbolje) izabran artikal.
+     * javi: false = bez osvežavanja reda (početak), 'uvek' = osveži red i kad je id isti. */
+    function osveziBiraj(okvir, javi) {
+        var d = delovi(okvir);
+        var t = d.tekst.value.trim();
+        var pre = d.id.value;
+        var a = poId[d.id.value];
+        if (a && t === a.naziv) {
+            d.ponuda.hidden = true;
+            d.ponuda.textContent = '';
+            postaviStatus(d, '', false);
+        } else if (t === '') {
+            d.id.value = '';
+            d.ponuda.hidden = true;
+            d.ponuda.textContent = '';
+            postaviStatus(d, '', false);
+        } else {
+            var nadjeni = pronadji(t);
+            var jedan = jedini(nadjeni);
+            d.id.value = jedan ? String(jedan.id) : '';
+            nacrtajPonudu(d, nadjeni, jedan);
+            if (!nadjeni.length) {
+                postaviStatus(d, artikli.length ? 'Nema takvog artikla – proverite naziv.' : '', true);
+            } else if (jedan) {
+                postaviStatus(d, '✓ ' + jedan.naziv + (nadjeni.length > 1 ? ' (ili dodirnite drugo)' : ''), false);
+            } else {
+                postaviStatus(d, 'Dodirnite pakovanje:', false);
+            }
+        }
+        if (javi === 'uvek' || (javi !== false && pre !== d.id.value)) { promenaArtikla(okvir); }
+    }
+    /* Sledeće polje za upis posle izbora (palete, paketi, komadi ili "na paleti"). */
+    function sledecePolje(polje) {
+        var forma = polje.form;
+        if (!forma) { return null; }
+        var sva = forma.querySelectorAll('input:not([type="hidden"]), select, textarea');
+        var posle = false;
+        for (var i = 0; i < sva.length; i++) {
+            if (posle && !sva[i].closest('[hidden]') && !sva[i].disabled) { return sva[i]; }
+            if (sva[i] === polje) { posle = true; }
         }
         return null;
     }
-    /* Ispod polja: koji je artikal prepoznat (ili da nije). */
-    function prikaziIme(polje, nadjeno, dodatak) {
-        var red = polje.closest('[data-zbirna-red]') || polje.closest('.red-polja') || polje.parentNode;
-        var ime = red ? red.querySelector('[data-artikal-ime]') : null;
-        if (!ime) { return; }
-        var greska = false;
-        var t = '';
-        if (polje.value.trim() === '') {
-            t = '';
-        } else if (nadjeno && nadjeno.artikal) {
-            t = '= ' + nadjeno.artikal.naziv + (dodatak ? ' – ' + dodatak.tekst : '');
-            greska = !!(dodatak && dodatak.greska);
-        } else if (nadjeno && nadjeno.vise) {
-            t = 'Nije jasno – da li ste mislili: ' + nadjeno.vise.slice(0, 5).map(function (a) { return a.sifra || a.naziv; }).join(', ') + '?';
-            greska = true;
-        } else {
-            t = 'Nema takvog artikla.';
-            greska = true;
-        }
-        ime.textContent = t;
-        ime.classList.toggle('tekst-crveno', greska);
+    function izaberi(okvir, a) {
+        var d = delovi(okvir);
+        d.tekst.value = a.naziv;
+        d.id.value = String(a.id);
+        osveziBiraj(okvir, 'uvek');
+        var sledece = sledecePolje(d.tekst);
+        if (sledece) { sledece.focus(); }
     }
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-biraj-sku]') : null;
+        if (!b) { return; }
+        var a = poId[b.getAttribute('data-biraj-sku')];
+        if (a) { izaberi(b.closest('[data-biraj]'), a); }
+    });
+    document.addEventListener('keydown', function (e) {
+        var t = e.target;
+        if (!t.hasAttribute || !t.hasAttribute('data-biraj-tekst')) { return; }
+        var okvir = t.closest('[data-biraj]');
+        var d = delovi(okvir);
+        if (e.key === 'ArrowDown' && !d.ponuda.hidden) {
+            var prvo = d.ponuda.querySelector('.izabran') || d.ponuda.querySelector('button');
+            if (prvo) { e.preventDefault(); prvo.focus(); }
+            return;
+        }
+        if (e.key !== 'Enter' || t.value.trim() === '') { return; }
+        e.preventDefault();                       // Enter u polju artikla bira, ne šalje formu
+        var a = izabrani(okvir);
+        if (a) { izaberi(okvir, a); return; }
+        var dugme = d.ponuda.querySelector('button');
+        if (dugme) { dugme.focus(); }
+    });
+    document.addEventListener('focusin', function (e) {
+        var t = e.target;
+        if (!t.hasAttribute) { return; }
+        if (t.hasAttribute('data-oznaci')) { t.select(); return; }      // broj mesta: označi ceo broj
+        // izabran artikal: dodir označi ceo naziv, pa se samo kuca novi
+        if (t.hasAttribute('data-biraj-tekst')) {
+            var a = izabrani(t.closest('[data-biraj]'));
+            if (a && t.value === a.naziv) { t.select(); }
+        }
+    });
 
+    /* ── Količina: palete / paketi / komadi i zbir ── */
     function zbirPolje(red) {
         var s = red.nextElementSibling;
         return s && s.hasAttribute('data-zbir') ? s : red.querySelector('[data-zbir]');
@@ -106,42 +244,47 @@
             tekst = '= ' + broj(ukupno) + ' kom';
             if (po > 0) { tekst += ' (≈ ' + String(Math.round(ukupno / po * 10) / 10).replace('.', ',') + ' pal)'; }
         }
-        var nova = red.closest('[data-nova-stavka]') && red.getAttribute('data-ima-stanje') === '1';
-        if (nova) { tekst += ' · na stanju ' + broj(sada); }
+        var saStanjem = red.getAttribute('data-ima-stanje') === '1';
+        if (saStanjem) { tekst += ' · na stanju ' + broj(sada); }
         zbir.textContent = tekst;
-        zbir.className = 'popis-zbir' + (nova && ukupno > sada ? ' tekst-crveno' : '');
+        zbir.className = 'popis-zbir' + (saStanjem && ukupno > sada ? ' tekst-crveno' : '');
     }
-
-    /* Forma za jedan artikal: prepoznat artikal određuje polja (palete / paketi / komadi) i zbir. */
-    function osvezi(okvir) {
-        var unos = okvir.querySelector('[data-artikal]');
-        var red = okvir.querySelector('[data-popis]');
-        if (!unos || !red) { return; }
-        var nadjeno = unos.value.trim() !== '' ? pronadji(unos.value) : null;
-        var a = nadjeno && nadjeno.artikal ? nadjeno.artikal : null;
-        prikaziIme(unos, nadjeno, null);
-        var odr = okvir.querySelector('[data-odrediste]');
-        var uPaleti = odr && odr.value !== '0';
+    /* Red robe (ili forma radnika): izabran artikal određuje polja (palete / paketi / komadi) i zbir. */
+    function popisZa(okvir) {
+        var red = okvir.closest('[data-roba-red]') || okvir.closest('[data-dodavanje]');
+        if (!red) { return null; }
+        return red.hasAttribute('data-popis') ? red : red.querySelector('[data-popis]');
+    }
+    function osveziRed(red) {
+        var okvir = red.closest('[data-roba-red]') || red.closest('[data-dodavanje]') || red;
+        var biraj = okvir.querySelector('[data-biraj]');
+        var a = biraj ? izabrani(biraj) : null;
+        var forma = red.closest('form') || red;
+        var odr = forma.querySelector('[data-odrediste]');
+        var uPaleti = !!(odr && odr.value !== '0' && odr.value !== '');
         var oOdr = uPaleti ? odr.options[odr.selectedIndex] : null;
-        var po = a && !uPaleti ? a.po : 0;                 // u zbirnu paletu ne idu cele palete
-        red.setAttribute('data-po', String(po));
+        red.setAttribute('data-po', String(a && !uPaleti ? a.po : 0));     // u zbirnu paletu ne idu cele palete
         red.setAttribute('data-pp', String(a ? a.pp : 0));
         red.setAttribute('data-broj', oOdr ? (oOdr.getAttribute('data-broj') || '1') : '1');
         red.setAttribute('data-sada', String(a && a.stanje !== null ? a.stanje : 0));
         red.setAttribute('data-ima-stanje', a && a.stanje !== null ? '1' : '0');
         var pal = okvir.querySelector('[data-polje-pal]');
         var pak = okvir.querySelector('[data-polje-pak]');
-        // dok artikal nije prepoznat, vide se sva polja (ništa ne skače dok se kuca)
-        pal.hidden = uPaleti || (a !== null && a.po === 0);
-        pak.hidden = a !== null && a.pp === 0;
-        if (pal.hidden) { pal.querySelector('input').value = ''; }
-        if (pak.hidden) { pak.querySelector('input').value = ''; }
-        var pomoc = okvir.querySelector('[data-pomoc-zbirna]');
+        // dok artikal nije izabran, vide se sva polja (ništa ne skače dok se kuca)
+        if (pal) {
+            pal.hidden = uPaleti || (a !== null && !a.po);
+            if (pal.hidden) { pal.querySelector('input').value = ''; }
+        }
+        if (pak) {
+            pak.hidden = a !== null && !a.pp;
+            if (pak.hidden) { pak.querySelector('input').value = ''; }
+        }
+        var pomoc = forma.querySelector('[data-pomoc-zbirna]');
         if (pomoc) { pomoc.hidden = !uPaleti; }
         preracunaj(red);
     }
 
-    /* Zbirna paleta: koliko na jednoj paleti – 25 (komada), 1/2 (deo palete) ili 3 pak (paketa). */
+    /* ── Zbirna paleta: koliko na jednoj paleti – 25 (komada), 1/2 (deo palete) ili 3 pak (paketa) ── */
     function naPaleti(t, a) {
         t = t.toLowerCase().replace(/\s+/g, '');
         if (t === 'pola' || t === '½') { t = '1/2'; }
@@ -163,52 +306,84 @@
         return { tekst: 'upišite 25, 1/2 ili 3 pak', greska: true };
     }
     function osveziZbirniRed(red) {
-        var unos = red.querySelector('[data-artikal]');
+        var info = red.querySelector('[data-zbirna-info]');
         var kol = red.querySelector('[data-zbirna-kol]');
-        var nadjeno = unos.value.trim() !== '' ? pronadji(unos.value) : null;
-        var dodatak = nadjeno && nadjeno.artikal && kol ? naPaleti(kol.value, nadjeno.artikal) : null;
-        prikaziIme(unos, nadjeno, dodatak);
+        var biraj = red.querySelector('[data-biraj]');
+        if (!info || !kol || !biraj) { return; }
+        var a = izabrani(biraj);
+        var r = a ? naPaleti(kol.value, a) : null;
+        info.textContent = r ? '= ' + r.tekst : '';
+        info.classList.toggle('tekst-crveno', !!(r && r.greska));
+    }
+
+    function promenaArtikla(okvir) {
+        var zr = okvir.closest('[data-zbirna-red]');
+        if (zr) { osveziZbirniRed(zr); return; }
+        var red = popisZa(okvir);
+        if (red) { osveziRed(red); }
     }
 
     document.addEventListener('input', function (e) {
         var t = e.target;
         if (!t.closest) { return; }
+        if (t.hasAttribute('data-biraj-tekst')) { osveziBiraj(t.closest('[data-biraj]')); return; }
         var zr = t.closest('[data-zbirna-red]');
         if (zr) { osveziZbirniRed(zr); return; }
-        if (t.hasAttribute('data-artikal')) { osvezi(t.closest('[data-dodavanje]') || t.closest('form')); return; }
         var red = t.closest('[data-popis]');
         if (red) { preracunaj(red); }
     });
     document.addEventListener('change', function (e) {
         var t = e.target;
-        if (!t.hasAttribute || !(t.hasAttribute('data-artikal') || t.hasAttribute('data-odrediste'))) { return; }
-        var zr = t.closest('[data-zbirna-red]');
-        if (zr) { osveziZbirniRed(zr); return; }
-        osvezi(t.closest('[data-dodavanje]') || t.closest('form'));
+        if (t.hasAttribute && t.hasAttribute('data-papir-preskoci')) {     // spisak sa papira: preskočen red bledi
+            t.closest('.papir-red').classList.toggle('papir-preskocen', t.checked);
+            return;
+        }
+        if (!t.hasAttribute || !t.hasAttribute('data-odrediste')) { return; }
+        var redovi = t.form.querySelectorAll('[data-popis]');
+        for (var i = 0; i < redovi.length; i++) { osveziRed(redovi[i]); }
     });
-    var okviri = document.querySelectorAll('[data-dodavanje]');
-    for (var i = 0; i < okviri.length; i++) { osvezi(okviri[i]); }
+
+    /* Početno stanje (i posle neuspelog čuvanja, kad upisano ostane u formi). */
+    var birajSvi = document.querySelectorAll('[data-biraj]');
+    for (var b = 0; b < birajSvi.length; b++) { osveziBiraj(birajSvi[b], false); }
+    var popisi = document.querySelectorAll('[data-roba-red], [data-dodavanje] [data-popis]');
+    for (var p = 0; p < popisi.length; p++) { osveziRed(popisi[p]); }
     var zbirni = document.querySelectorAll('[data-zbirna-red]');
     for (var z = 0; z < zbirni.length; z++) { osveziZbirniRed(zbirni[z]); }
 
-    /* Zbirna paleta: još jedan red (artikal + količina). */
-    var jos = document.querySelectorAll('[data-zbirna-jos]');
+    /* "Još jedan artikal": novi prazan red (roba za mesto do 30, zbirna paleta do 20). */
+    function noviRed(dugme, okvirSel, redSel, najvise) {
+        var redovi = dugme.closest('form').querySelector(okvirSel);
+        var svi = redovi.querySelectorAll(redSel);
+        if (svi.length >= najvise) { return; }
+        var novi = svi[svi.length - 1].cloneNode(true);
+        var n = svi.length + 1;
+        var polja = novi.querySelectorAll('input');
+        for (var k = 0; k < polja.length; k++) {
+            polja[k].value = '';
+            if (polja[k].type !== 'hidden') { polja[k].placeholder = polja[k].hasAttribute('data-p') ? '0' : ''; }
+            var al = polja[k].getAttribute('aria-label');
+            if (al) { polja[k].setAttribute('aria-label', al.replace(/\d+$/, String(n))); }
+        }
+        var skriveni = novi.querySelectorAll('[data-polje-pal], [data-polje-pak]');
+        for (var h = 0; h < skriveni.length; h++) { skriveni[h].hidden = false; }
+        var prazni = novi.querySelectorAll('[data-biraj-status], [data-zbir], [data-zbirna-info]');
+        for (var q = 0; q < prazni.length; q++) { prazni[q].textContent = ''; prazni[q].classList.remove('tekst-crveno'); }
+        var ponuda = novi.querySelector('[data-biraj-ponuda]');
+        if (ponuda) { ponuda.textContent = ''; ponuda.hidden = true; }
+        var rb = novi.querySelector('.roba-broj');
+        if (rb) { rb.textContent = String(n); }
+        redovi.appendChild(novi);
+        if (novi.hasAttribute('data-roba-red')) { osveziRed(novi); }
+        novi.querySelector('[data-biraj-tekst]').focus();
+        dugme.hidden = n >= najvise;
+    }
+    var jos = document.querySelectorAll('[data-roba-jos], [data-zbirna-jos]');
     for (var j = 0; j < jos.length; j++) {
         jos[j].hidden = false;
         jos[j].addEventListener('click', function () {
-            var redovi = this.closest('form').querySelector('[data-zbirna-redovi]');
-            var svi = redovi.querySelectorAll('[data-zbirna-red]');
-            if (svi.length >= 20) { return; }
-            var novi = svi[svi.length - 1].cloneNode(true);
-            var polja = novi.querySelectorAll('input');
-            for (var k = 0; k < polja.length; k++) {
-                polja[k].value = '';
-                polja[k].placeholder = '';
-                polja[k].setAttribute('aria-label', polja[k].getAttribute('aria-label').replace(/\d+$/, String(svi.length + 1)));
-            }
-            novi.querySelector('[data-artikal-ime]').textContent = '';
-            redovi.appendChild(novi);
-            polja[0].focus();
+            if (this.hasAttribute('data-roba-jos')) { noviRed(this, '[data-roba-redovi]', '[data-roba-red]', 30); }
+            else { noviRed(this, '[data-zbirna-redovi]', '[data-zbirna-red]', 20); }
         });
     }
 
@@ -229,23 +404,19 @@
         if (pomereno) { cilj.scrollIntoView({ block: 'start' }); }
     }
 
-    /* Broj mesta: dodir označi ceo broj, pa se samo upiše novi. */
-    document.addEventListener('focusin', function (e) {
-        if (e.target.hasAttribute && e.target.hasAttribute('data-oznaci')) { e.target.select(); }
-    });
-
-    /* Nesačuvane izmene (količine, mesta, palete): upozorenje pre napuštanja stranice. */
+    /* Nesačuvane izmene (količine, mesta, palete, upisana roba): upozorenje pre napuštanja stranice. */
     var izmene = document.getElementById('izmene');
-    if (izmene) {
-        var promenjeno = false;
-        document.addEventListener('input', function (e) {
-            if (e.target.form === izmene) { promenjeno = true; }
-        });
-        window.addEventListener('submit', function (e) {
-            if (e.target === izmene && !e.defaultPrevented) { promenjeno = false; }
-        });
-        window.addEventListener('beforeunload', function (e) {
-            if (promenjeno) { e.preventDefault(); e.returnValue = ''; }
-        });
+    function prati(forma) {
+        return !!forma && (forma === izmene || (forma.matches && forma.matches('form[data-dodavanje], form[data-zbirna], form[data-papir]')));
     }
+    var promenjeno = false;
+    document.addEventListener('input', function (e) {
+        if (prati(e.target.form)) { promenjeno = true; }
+    });
+    window.addEventListener('submit', function (e) {
+        if (prati(e.target) && !e.defaultPrevented) { promenjeno = false; }
+    });
+    window.addEventListener('beforeunload', function (e) {
+        if (promenjeno) { e.preventDefault(); e.returnValue = ''; }
+    });
 })();

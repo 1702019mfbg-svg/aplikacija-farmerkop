@@ -15,13 +15,13 @@
  *            stavka pripada paleti (paleta_id, 0 = posebna stavka).
  * Verzija 7: jedan utovar (kamion) za više kupaca – mesta istovara (spisak_mesta: broj mesta koji upisuje
  *            vlasnik, npr. 8, 9, 5 …, kupac nije obavezan), stavke i zbirne palete pripadaju mestu;
- *            postojeći spiskovi dobijaju Mesto 1 sa svojim kupcem; kako artikal piše na spisku (sku.sifra).
- * Verzija 8: na spisku šifru ima samo Humovit (H50L), ostali artikli pišu se imenom (B oblutak 4/6,
- *            B rizla sitnija); šifre iz verzije 7 (BO46, BRS …) postaju imena, a ono što je upisano ručno ostaje.
+ *            postojeći spiskovi dobijaju Mesto 1 sa svojim kupcem.
+ * Verzija 8: (kratka imena artikala na spisku – kasnije ukinuta, vidi verziju 9; sada ne radi ništa).
+ * Verzija 9: na spisku se opet piše pun naziv proizvoda – kolona sku.sifra (kratka imena iz verzija 7 i 8) se uklanja.
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 8;
+const SCHEMA_VERZIJA = 9;
 
 function kolona_postoji(string $tabela, string $kolona): bool
 {
@@ -360,39 +360,26 @@ function migracija_7(): void
         // isti artikal sme da ide za više kupaca na istom utovaru
         db()->exec('ALTER TABLE spisak_stavke ADD UNIQUE KEY uq_stavka_mesto (spisak_id, mesto_id, paleta_id, sku_id), DROP INDEX uq_stavka_paleta');
     }
-    // kako artikal piše na spisku (H50L, B oblutak 4/6)
-    if (!kolona_postoji('sku', 'sifra')) {
-        db()->exec('ALTER TABLE sku ADD COLUMN sifra VARCHAR(40) NULL DEFAULT NULL AFTER pakovanje_id, ADD UNIQUE KEY uq_sku_sifra (sifra)');
-    }
     db_trans('prenesi_kupce_u_mesta_v7');
-    db_trans('dopuni_sifre');
 }
 
-/**
- * Šifre iz verzije 7 koje niko nije menjao (sve velikim slovima, bez razmaka: BO46, BRS, MFCRV …) postaju imena
- * (B oblutak 4/6, B rizla sitnija …). Humovit zadržava šifru (H50L), a ručno upisana imena ostaju.
- */
-function preimenuj_sifre_v8(): void
-{
-    foreach (db_all('SELECT s.id, s.sifra, s.varijanta_id, a.naziv FROM sku s JOIN artikli a ON a.id = s.artikal_id WHERE s.sifra IS NOT NULL') as $s) {
-        $humovit = mb_strtolower(trim((string)$s['naziv'])) === 'humovit' && (int)$s['varijanta_id'] === 0;
-        if (!$humovit && preg_match('/^[A-Z0-9-]+$/', (string)$s['sifra'])) {
-            db_run('UPDATE sku SET sifra = NULL WHERE id = ?', [(int)$s['id']]);
-        }
-    }
-    dopuni_sifre();
-}
-
+/** Verzija 8 je menjala kratka imena artikala (sku.sifra), koja su ukinuta u verziji 9 – sada ne radi ništa. */
 function migracija_8(): void
 {
-    db()->exec('ALTER TABLE sku MODIFY sifra VARCHAR(40) NULL DEFAULT NULL');
-    db_trans('preimenuj_sifre_v8');
+}
+
+/** Na spisku se opet piše pun naziv proizvoda: kratka imena (sku.sifra) iz verzija 7 i 8 se uklanjaju. */
+function migracija_9(): void
+{
+    if (kolona_postoji('sku', 'sifra')) {
+        db()->exec(indeks_postoji('sku', 'uq_sku_sifra') ? 'ALTER TABLE sku DROP INDEX uq_sku_sifra, DROP COLUMN sifra' : 'ALTER TABLE sku DROP COLUMN sifra');
+    }
 }
 
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
-    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7', 8 => 'migracija_8'];
+    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7', 8 => 'migracija_8', 9 => 'migracija_9'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

@@ -45,12 +45,12 @@ try:
         "UPDATE podesavanja SET vrednost='5' WHERE kljuc='schema_verzija'")
     R.provera(not sql("SHOW TABLES LIKE 'spisak_palete'"), "priprema: baza je kao verzija 5")
     Client(site.base).get("/login.php")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "8", "posle prvog otvaranja: verzija 8")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "9", "posle prvog otvaranja: verzija 9")
     R.provera(sql("SHOW TABLES LIKE 'spisak_palete'") == "spisak_palete", "napravljena je tabela zbirnih paleta")
     kljucevi = sql("SELECT GROUP_CONCAT(DISTINCT index_name ORDER BY index_name) FROM information_schema.statistics WHERE table_schema='%s' AND table_name='spisak_stavke'" % DB_NAME)
     R.provera("uq_stavka_mesto" in kljucevi and "uq_stavka," not in kljucevi + "," and "uq_stavka_paleta" not in kljucevi and sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND table_name='spisak_stavke' AND column_name IN ('paleta_id', 'mesto_id')" % DB_NAME) == 2,
               "stavka ima paleta_id i mesto_id i novi jedinstveni ključ (isti artikal sme i posebno i u zbirnoj paleti)", kljucevi)
-    R.provera(all(site.log().count("nadogradnja baze na verziju %d" % v) == 1 for v in (6, 7, 8)), "nadogradnje 6, 7 i 8 su se izvršile po jednom")
+    R.provera(all(site.log().count("nadogradnja baze na verziju %d" % v) == 1 for v in (6, 7, 8, 9)), "nadogradnje 6–9 su se izvršile po jednom")
 
     for sku, kol, nacin in [(hum10, "2", "palete"), (hum5, "100", "komadi"), (hum50, "1", "palete")]:
         jelena.get("/radnik/index.php")
@@ -142,7 +142,7 @@ try:
     s10p = sql_int("SELECT id FROM spisak_stavke WHERE paleta_id=%d AND sku_id=%d" % (pid, hum10))
     f["kom[%d]" % s10p] = "20"
     o = jelena.post("/radnik/utovar.php", f)
-    R.provera("Utovar je potvrđen" in poruke(o) and "H10L (Mešovita <b>Flora</b>): 20 umesto 24" in poruke(o), "potvrđeno; razlika u paleti je označena nazivom palete", poruke(o))
+    R.provera("Utovar je potvrđen" in poruke(o) and "Humovit · 10 l (Mešovita <b>Flora</b>): 20 umesto 24" in poruke(o), "potvrđeno; razlika u paleti je označena nazivom palete", poruke(o))
     R.provera((stanje(hum10), stanje(hum5), stanje(hum50)) == (540 - 270 - 20, 100 - 12, 40 - 15 - 30), "stanje: Humovit 10 l −290, 5 l −12, 50 l −45 (minus dozvoljen)", (stanje(hum10), stanje(hum5), stanje(hum50)))
     R.provera(sql_int("SELECT COUNT(*) FROM unosi WHERE spisak_id=%d AND napomena LIKE '%%– Mešovita%%'" % sp) == 3, "utovar iz zbirne palete u Istoriji nosi naziv palete")
 
