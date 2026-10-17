@@ -957,8 +957,7 @@ module.exports = {
         await page.waitForURL('**/admin/spisak.php?id=*');
         await page.getByRole('link', { name: 'Spisak sa papira' }).first().click();
         await page.waitForURL('**/admin/spisak_papir.php?id=*');
-        tvrdi((await page.locator('#slika').innerText()).includes('ANTHROPIC_API_KEY'), 'bez ključa: uputstvo za slikanje');
-        await p.slika('98-slikaj-spisak');
+        tvrdi((await page.locator('#slika').count()) === 0, 'bez ključa: nema kartice za slikanje');
         // otkazan spisak: dugme za brisanje
         await page.goto(page.url().replace('/admin/spisak_papir.php', '/admin/spisak.php'));
         page.once('dialog', (d) => d.accept());

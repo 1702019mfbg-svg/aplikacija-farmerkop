@@ -143,27 +143,25 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
 <p><a class="btn btn-mali" href="<?= e(url($nazad)) ?>"><?= ikona('nazad') ?> Spisak #<?= $id ?></a></p>
 
 <?php if ($uredi_tekst): ?>
+    <?php if (slika_ukljucena()): /* samo kad je u config.php upisan ključ – inače se slika ne čita i ništa ne košta */ ?>
     <form method="post" class="kartica" enctype="multipart/form-data" action="<?= e(url('admin/spisak_papir.php?id=' . $id)) ?>" id="slika" data-slika-forma>
         <?= csrf_polje() ?>
         <input type="hidden" name="akcija" value="slika">
         <input type="hidden" name="id" value="<?= $id ?>">
         <div class="kartica-naslov"><h2><?= ikona('kamera') ?> Slikaj spisak</h2></div>
-        <?php if (!slika_ukljucena()): ?>
-            <p class="pomoc bez-margine">Da bi aplikacija čitala sliku spiska, u <strong>config.php</strong> treba upisati ključ servisa za čitanje (ANTHROPIC_API_KEY) – vidi UPUTSTVO, deo „Slikaj spisak“. Do tada spisak otkucajte ili izdiktirajte ispod.</p>
-        <?php else: ?>
             <p class="pomoc">Slikajte <strong>ceo papir</strong>, oštro i sa dovoljno svetla (ili izaberite sliku iz galerije). Aplikacija pročita rukopis (oko pola minuta) i pokaže vam šta je pročitala – <strong>proverite svaki red</strong> pre čuvanja.</p>
             <label class="btn btn-primary btn-blok btn-veliko slika-dugme"><?= ikona('kamera') ?> Slikaj spisak
                 <input type="file" name="slika" accept="image/*" class="skriven-vizuelno" required data-slika>
             </label>
             <p class="pomoc bez-margine razmak-gore" data-slika-status aria-live="polite"></p>
             <button class="btn btn-braon btn-blok razmak-gore" type="submit" data-slika-posalji>Pročitaj sliku</button>
-        <?php endif; ?>
     </form>
+    <?php endif; ?>
     <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/spisak_papir.php')) ?>" data-papir>
         <?= csrf_polje() ?>
         <input type="hidden" name="akcija" value="procitaj">
         <input type="hidden" name="id" value="<?= $id ?>">
-        <div class="kartica-naslov"><h2><?= ikona('olovka') ?> Ili otkucajte spisak</h2></div>
+        <div class="kartica-naslov"><h2><?= ikona('olovka') ?> <?= slika_ukljucena() ? 'Ili otkucajte spisak' : 'Spisak sa papira' ?></h2></div>
         <p class="pomoc">Prepišite spisak kako je napisan na papiru – ili ga na telefonu <strong>izdiktirajte</strong> (dodirnite mikrofon na tastaturi). Aplikacija ga pročita i pokaže vam šta je razumela, pa vi proverite i sačuvate.</p>
         <ul class="pomoc">
             <li>Svako mesto počnite <strong>brojem</strong> u svom redu (8, (8) ili Mesto 8), a iza broja može kupac.</li>

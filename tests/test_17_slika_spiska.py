@@ -90,10 +90,10 @@ try:
     adm.post("/admin/utovar.php", {"kupac": "", "datum": danas_bg(), "mesto_broj": "8"})
     sp = sql_int("SELECT MAX(id) FROM spiskovi")
 
-    R.odeljak("Bez ključa: uputstvo umesto dugmeta")
+    R.odeljak("Bez ključa: nema slikanja (ništa se ne šalje i ne plaća)")
     o = adm.get(PAPIR + "?id=%d" % sp)
-    R.provera("Slikaj spisak" in o.text and "ANTHROPIC_API_KEY" in o.text and 'name="slika"' not in o.text and 'name="tekst"' in o.text,
-              "bez ključa: piše šta treba upisati u config.php; kucanje radi kao pre")
+    R.provera("Slikaj spisak" not in o.text and 'name="slika"' not in o.text and 'name="tekst"' in o.text and "<h2>" in o.text and "Spisak sa papira" in o.text,
+              "bez ključa: nema kartice „Slikaj spisak“; kucanje radi kao pre")
     o = adm.post_fajl(PAPIR + "?id=%d" % sp, {"akcija": "slika", "id": sp}, ("slika", "spisak.jpg", slika(800, 600)))
     R.provera("nije uključeno" in poruke(o), "slanje slike bez ključa: jasna poruka", poruke(o))
     site.stop()

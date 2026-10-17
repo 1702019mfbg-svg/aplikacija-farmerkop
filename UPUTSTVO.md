@@ -203,7 +203,7 @@ Na **Spisak sa papira** je gore dugme **Slikaj spisak**: slikajte ceo papir (ili
    `define('ANTHROPIC_API_KEY', 'sk-ant-…vaš ključ…');`
 3. Sačuvajte. Dugme **Slikaj spisak** se odmah pojavljuje.
 
-Ključ stoji samo na serveru (nikad se ne vidi u telefonu) – ne šaljite ga nikome i ne lepite ga u poruke. Čitanje jedne slike košta otprilike 4–6 dinara (plaća se na console.anthropic.com; tamo možete postaviti i mesečni limit). Bez ključa sve ostalo radi isto, a spisak se kuca ili diktira.
+Ključ stoji samo na serveru (nikad se ne vidi u telefonu) – ne šaljite ga nikome i ne lepite ga u poruke. Čitanje jedne slike košta otprilike 4–6 dinara (plaća se na console.anthropic.com; tamo možete postaviti i mesečni limit). **Bez ključa dugme se ne prikazuje i ništa se ne plaća** – spisak se kuca ili diktira kao i do sada.
 
 ### Kupci po godini (ko je koliko uzeo)
 Meni **☰** → **Kupci po godini** (ili Istorija → **Kupci po godini**): za izabranu godinu, svaki kupac i koliko je robe uzeo – po artiklu, u komadima, litrima i kilogramima; kupci sa najviše robe su prvi. Računa se ručna prodaja + utovar sa spiskova (na kupca mesta) − povrat; otkazani utovari i obrisani unosi se ne računaju, a kućna prodaja i mesta bez kupca su pod „Bez kupca“. Dodir na kupca otvara spisak artikala; **Izvoz u Excel (CSV)** daje celu godinu u tabeli. Podaci se čuvaju zauvek (iz istorije unosa), pa se može izabrati i svaka ranija godina.
