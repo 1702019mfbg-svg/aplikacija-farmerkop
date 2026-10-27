@@ -18,10 +18,15 @@
  *            postojeći spiskovi dobijaju Mesto 1 sa svojim kupcem.
  * Verzija 8: (kratka imena artikala na spisku – kasnije ukinuta, vidi verziju 9; sada ne radi ništa).
  * Verzija 9: na spisku se opet piše pun naziv proizvoda – kolona sku.sifra (kratka imena iz verzija 7 i 8) se uklanja.
+ * Verzija 10: novi artikal "Humovit S (stara ambalaža)" – 25 l i 50 l u staroj ambalaži, vodi se posebno dok se
+ *             ne potroši (posle se isključi u Podešavanjima); palete, paketi i težina kao kod Humovita.
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 9;
+const SCHEMA_VERZIJA = 10;
+
+/** Artikal za Humovit u staroj ambalaži (verzija 10). */
+const HUMOVIT_STARA = 'Humovit S (stara ambalaža)';
 
 function kolona_postoji(string $tabela, string $kolona): bool
 {
@@ -376,10 +381,45 @@ function migracija_9(): void
     }
 }
 
+/** Humovit 25 l i 50 l u staroj ambalaži, odmah posle Humovita (samo ako ga još nema). */
+function migracija_10(): void
+{
+    db_trans('dodaj_humovit_staru_ambalazu_v10');
+}
+
+function dodaj_humovit_staru_ambalazu_v10(): void
+{
+    if (db_val('SELECT id FROM artikli WHERE naziv = ?', [HUMOVIT_STARA]) !== null) {
+        return;
+    }
+    $h = db_one("SELECT * FROM artikli WHERE naziv = 'Humovit' ORDER BY id LIMIT 1");
+    if ($h === null) {
+        return;
+    }
+    db_run('INSERT INTO artikli (kategorija_id, naziv, redosled, aktivan) VALUES (?, ?, ?, 1)', [(int)$h['kategorija_id'], HUMOVIT_STARA, (int)$h['redosled']]);
+    $novi = db_id();
+    foreach ([25, 50] as $litara) {
+        $s = db_one(
+            "SELECT s.* FROM sku s JOIN pakovanja p ON p.id = s.pakovanje_id
+             WHERE s.artikal_id = ? AND s.varijanta_id = 0 AND p.jedinica = 'l' AND p.kolicina = ?",
+            [(int)$h['id'], $litara]
+        );
+        $pak = $s !== null ? (int)$s['pakovanje_id'] : (int)db_val("SELECT id FROM pakovanja WHERE jedinica = 'l' AND kolicina = ?", [$litara]);
+        if ($pak === 0) {
+            continue;
+        }
+        db_run(
+            'INSERT INTO sku (artikal_id, varijanta_id, pakovanje_id, po_paleti, po_paketu, tezina_kg, min_zaliha, aktivan) VALUES (?, 0, ?, ?, ?, ?, 0, 1)',
+            [$novi, $pak, $s['po_paleti'] ?? null, $s['po_paketu'] ?? null, $s['tezina_kg'] ?? null]
+        );
+    }
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
-    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7', 8 => 'migracija_8', 9 => 'migracija_9'];
+    return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7', 8 => 'migracija_8', 9 => 'migracija_9',
+            10 => 'migracija_10'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

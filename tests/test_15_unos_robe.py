@@ -71,17 +71,17 @@ try:
     bo46, bo47, bo13 = (sku_id("Beli oblutak", 20, "kg", g) for g in ("4-6 cm", "4-7 cm (krupnija)", "1-3 cm"))
 
     R.odeljak("Nadogradnja v8 → v9: kratka imena (sku.sifra) se uklanjaju")
-    R.provera(verzija() == "9" and kolona_sifra() == "0", "nova instalacija: verzija 9, bez kolone sifra")
+    R.provera(verzija() == "10" and kolona_sifra() == "0", "nova instalacija: verzija 10, bez kolone sifra")
     sql("ALTER TABLE sku ADD COLUMN sifra VARCHAR(40) NULL DEFAULT NULL, ADD UNIQUE KEY uq_sku_sifra (sifra); "
         "UPDATE sku SET sifra=CONCAT('S', id); UPDATE podesavanja SET vrednost='8' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "9" and kolona_sifra() == "0" and site.log().count("nadogradnja baze na verziju 9") == 1, "posle nadogradnje: kolona i indeks su uklonjeni")
+    R.provera(verzija() == "10" and kolona_sifra() == "0" and site.log().count("nadogradnja baze na verziju 9") == 1, "posle nadogradnje: kolona i indeks su uklonjeni")
     sql("ALTER TABLE sku ADD COLUMN sifra VARCHAR(20) NULL DEFAULT NULL; UPDATE podesavanja SET vrednost='7' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "9" and kolona_sifra() == "0", "sa verzije 7 (kolona bez indeksa): takođe uklonjena")
+    R.provera(verzija() == "10" and kolona_sifra() == "0", "sa verzije 7 (kolona bez indeksa): takođe uklonjena")
     sql("UPDATE podesavanja SET vrednost='8' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "9", "ponovljena nadogradnja bez kolone: bez greške")
+    R.provera(verzija() == "10", "ponovljena nadogradnja bez kolone: bez greške")
     o = adm.get("/admin/artikal.php?id=%d" % sql_int("SELECT id FROM artikli WHERE naziv='Humovit'"))
     R.provera(o.status == 200 and "Kako piše na spisku" not in o.text, "Podešavanja artikla više nemaju „Kako piše na spisku“")
 

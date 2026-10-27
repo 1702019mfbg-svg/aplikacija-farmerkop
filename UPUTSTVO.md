@@ -279,6 +279,11 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
+**Novo – Humovit u staroj ambalaži (verzija baze 10):** pri prvom otvaranju posle ažuriranja dodaje se artikal **Humovit S (stara ambalaža)** sa 25 l i 50 l (palete, paketi i težina kao kod Humovita). Do sada upisan Humovit 25 l i 50 l ostaje kao **nova ambalaža**. Šta uraditi jednom:
+1. Prebrojte koliko imate stare ambalaže, pa u **Podešavanja → Popis i korekcija stanja** upišite to kod *Humovit S (stara ambalaža)*, a kod *Humovit* 25 l i 50 l ostatak (novu ambalažu).
+2. Radnici od sada biraju *Humovit S (stara ambalaža)* kad prodaju ili tovare staru ambalažu. Na spisku se kuca „humovit s 50“ (ili „humovit stara 50“), a „humovit 50“ je nova ambalaža.
+3. Kad se stara ambalaža potroši: **Podešavanja → Artikli → Humovit S (stara ambalaža) → Isključi** – istorija ostaje, a artikal se više ne nudi.
+
 **Novo – Slikaj spisak, Kupci po godini, brisanje otkazanog spiska:** na Spisku sa papira dugme **Slikaj spisak** (radi kad u config.php upišete ključ – vidi *Slikaj spisak*); meni ☰ → **Kupci po godini**; otkazan spisak ima dugme **Obriši spisak**. Baza se ne menja.
 
 **Novo – Kalkulacija (recepture i cena po džaku):** dugme **☰** gore desno (samo administrator) otvara modul Kalkulacija. Pre prve upotrebe pokrenite **ručno** migraciju `migracije/001_kalkulacija.sql` u phpMyAdmin-u (vidi *Kalkulacija* gore) – ona samo dodaje nove tabele. Ostatak aplikacije radi isto i bez nje.

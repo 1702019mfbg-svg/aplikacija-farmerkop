@@ -99,6 +99,7 @@ python3 tests/test_16_kalkulacija.py       # kalkulacija: ručna migracija, samo
 php tests/kalkulacija_test.php             # formula bez baze (60/40, faktor ≠ 1, nedostaje cena, zbir 100 %)
 python3 tests/test_17_slika_spiska.py      # slikaj spisak: zahtev AI servisu (lažni server), smanjenje slike, greške
 python3 tests/test_18_kupci_brisanje.py    # kupci po godini (prodaja + utovar − povrat, CSV), brisanje otkazanog spiska
+python3 tests/test_19_humovit_stara_ambalaza.py  # v10: Humovit S (stara ambalaža) 25/50 l, unos, stanje, „humovit s 50“
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```
