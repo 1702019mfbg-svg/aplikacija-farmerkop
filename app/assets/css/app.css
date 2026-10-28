@@ -150,6 +150,8 @@ p { margin: 0 0 .75rem; }
 .poruka-greska { background: var(--crvena-svetla); color: var(--crvena); border-color: var(--crvena); }
 .poruka-info { background: var(--povrsina-2); color: var(--tekst); border-color: var(--granica); }
 .poruka-upozorenje { background: var(--upozorenje-svetla); color: var(--upozorenje); border-color: var(--upozorenje); }
+/* telefon u prikazu „za računare“ je umanjen (~980 px na ekranu telefona) – zato krupno */
+.poruka[data-prikaz-racunar] { font-size: 2rem; line-height: 1.35; }
 
 /* ── Dugmići ── */
 .btn {

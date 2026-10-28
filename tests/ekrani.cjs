@@ -58,7 +58,7 @@ async function prijavaAdmin(page, korisnik, sifra) {
     const tokovi = require('./ekrani_tokovi.cjs');
     for (const tema of TEME) {
         const { ctx, page, greske } = await novaStranica(browser, tema);
-        const pom = { base, slika: (ime, cela) => slika(page, ime, tema, cela), prijavaRadnik: (i, p) => prijavaRadnik(page, i, p), prijavaAdmin: (k, s) => prijavaAdmin(page, k, s), tema, browser, novaStranica: (t) => novaStranica(browser, t) };
+        const pom = { base, izlaz, slika: (ime, cela) => slika(page, ime, tema, cela), prijavaRadnik: (i, p) => prijavaRadnik(page, i, p), prijavaAdmin: (k, s) => prijavaAdmin(page, k, s), tema, browser, novaStranica: (t) => novaStranica(browser, t) };
         for (const [naziv, tok] of Object.entries(tokovi)) {
             if (zeljeni.length && !zeljeni.includes(naziv)) { continue; }
             try {

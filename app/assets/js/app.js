@@ -85,6 +85,26 @@
         if (d) { d.hidden = true; }
     });
 
+    /* ── Telefon u prikazu „za računare“ (Chrome: Verzija za računare / Desktop site): pregledač tada namerno
+     *    slaže stranicu kao na računaru (oko 980 px, sve sitno) i aplikacija to ne može da promeni – kaže kako
+     *    da se isključi. Samo telefon uspravno, kad je stranica mnogo šira od ekrana. ── */
+    (function () {
+        var kratka = Math.min(screen.width || 0, screen.height || 0);
+        var polozaj = screen.orientation && screen.orientation.type ? screen.orientation.type
+            : (Math.abs(window.orientation || 0) === 90 ? 'landscape' : 'portrait');
+        var dodir = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        if (!dodir || !kratka || kratka > 600 || polozaj.indexOf('portrait') !== 0 || window.innerWidth < kratka * 1.5) { return; }
+        var mesto = document.querySelector('main') || document.body;
+        var p = document.createElement('div');
+        p.className = 'poruka poruka-upozorenje ne-stampa';
+        p.setAttribute('role', 'status');
+        p.setAttribute('data-prikaz-racunar', '');
+        p.innerHTML = '<strong>Telefon prikazuje aplikaciju kao na računaru.</strong> Isključite to u pregledaču: u <strong>Chrome</strong>-u '
+            + 'dodirnite <strong>⋮</strong> (gore desno) i skinite kvačicu sa <strong>„Verzija za računare“</strong> (Desktop site). '
+            + 'Samsung Internet: <strong>☰ → Verzija za mobilne</strong>. iPhone: <strong>aA → Zatraži mobilnu verziju</strong>.';
+        mesto.insertBefore(p, mesto.firstChild);
+    })();
+
     /* ── Meni ☰ u zaglavlju: zatvara se dodirom van njega ili tasterom Esc ── */
     function zatvoriMeni(osim) {
         var meniji = document.querySelectorAll('[data-glavni-meni][open]');

@@ -1032,6 +1032,37 @@ module.exports = {
         await p.slika('99b-mesalice-pregled');
     },
 
+    async prikaz(page, p) {
+        // Telefon u prikazu „za računare“ (Chrome: Verzija za računare) ne gleda oznaku viewport, pa je stranica
+        // široka ~980 px na ekranu od 412 px → aplikacija pokaže uputstvo kako da se to isključi
+        const telefon = { viewport: { width: 412, height: 915 }, screen: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
+        const slucajevi = [
+            ['telefon u prikazu za računare', telefon, true, 1],
+            ['običan telefon', telefon, false, 0],
+            ['telefon položen', { viewport: { width: 915, height: 412 }, screen: { width: 915, height: 412 }, isMobile: true, hasTouch: true }, false, 0],
+            ['računar', { viewport: { width: 1280, height: 800 } }, false, 0],
+        ];
+        for (const [opis, podesavanja, bezViewporta, ocekivano] of slucajevi) {
+            const ctx = await p.browser.newContext(Object.assign({ colorScheme: p.tema, locale: 'sr-Latn-RS' }, podesavanja));
+            const s = await ctx.newPage();
+            if (bezViewporta) {
+                await s.route('**/*', async (route) => {
+                    if (route.request().resourceType() !== 'document') { return route.continue(); }
+                    const r = await route.fetch();
+                    await route.fulfill({ response: r, body: (await r.text()).replace(/<meta name="viewport"[^>]*>/, '') });
+                });
+            }
+            await s.goto(p.base + '/login.php');
+            const n = await s.locator('[data-prikaz-racunar]').count();
+            tvrdi(n === ocekivano, opis + ': uputstvo ' + (ocekivano ? 'se vidi' : 'se ne vidi') + ' (' + n + ', širina ' + await s.evaluate(() => innerWidth) + ')');
+            if (ocekivano) {
+                tvrdi((await s.locator('[data-prikaz-racunar]').innerText()).includes('Verzija za računare'), 'uputstvo kaže šta da se isključi');
+                await s.screenshot({ path: p.izlaz + '/02b-prikaz-za-racunare-' + (p.tema === 'dark' ? 'tamno' : 'svetlo') + '.png' });
+            }
+            await ctx.close();
+        }
+    },
+
     async pwa(page, p) {
         // Posrednik ispred servera: gašenjem posrednika simuliramo da je telefon izgubio vezu.
         const http = require('http');
