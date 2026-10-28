@@ -406,44 +406,50 @@ function sku_pronadji(string $tekst, ?array $lista = null): array
 /**
  * Jedan artikal iz otkucanog teksta ("humovit 50", "oblutak beli 40-60", "rizla bela sitna"): ako je najbolje
  * poklapanje samo jedno. Inače poruka sa ponudom ("Humovit · 5 l, Humovit · 10 l …").
- * Vraća ['sku' => red iz sku_aktivan() ili null, 'greska' => ?string, 'ponuda' => [nazivi]].
+ * Vraća ['sku' => red iz sku_aktivan() ili null, 'greska' => ?string, 'ponuda' => [nazivi], 'nepoznat' => bool];
+ * 'nepoznat' = takvog artikla nema u katalogu (npr. "kora") – na spisku to može da bude ostalo.
  */
 function sku_po_unosu(string $tekst): array
 {
     $tekst = trim((string)preg_replace('/\s+/u', ' ', $tekst));
     if (tekst_reci($tekst) === []) {
-        return ['sku' => null, 'greska' => 'Upišite artikal (npr. humovit 50).', 'ponuda' => []];
+        return ['sku' => null, 'greska' => 'Upišite artikal (npr. humovit 50).', 'ponuda' => [], 'nepoznat' => false];
     }
     $nadjeni = sku_pronadji($tekst);
     if (!$nadjeni) {
         $iskljuceni = sku_pronadji($tekst, sku_za_unos(false, true));
-        return ['sku' => null, 'ponuda' => [], 'greska' => $iskljuceni && $iskljuceni[0]['ocena'] === 0.0
-            ? $iskljuceni[0]['sku']['naziv'] . ' je isključen u Podešavanjima.'
-            : 'Nema artikla „' . $tekst . '“. Upišite npr. humovit 50, idea 10, oblutak beli 4-6.'];
+        if ($iskljuceni && $iskljuceni[0]['ocena'] === 0.0) {
+            return ['sku' => null, 'ponuda' => [], 'nepoznat' => false, 'greska' => $iskljuceni[0]['sku']['naziv'] . ' je isključen u Podešavanjima.'];
+        }
+        return ['sku' => null, 'ponuda' => [], 'nepoznat' => mb_strlen($tekst) >= 2 && preg_match('/\p{L}/u', $tekst) === 1,
+                'greska' => 'Nema artikla „' . $tekst . '“. Upišite npr. humovit 50, idea 10, oblutak beli 4-6.'];
     }
     $najbolji = array_values(array_filter($nadjeni, static fn(array $n): bool => $n['ocena'] === $nadjeni[0]['ocena']));
     if (count($najbolji) === 1) {
-        return ['sku' => sku_aktivan($najbolji[0]['sku']['sku_id']), 'greska' => null, 'ponuda' => []];
+        return ['sku' => sku_aktivan($najbolji[0]['sku']['sku_id']), 'greska' => null, 'ponuda' => [], 'nepoznat' => false];
     }
     $ponuda = array_map(static fn(array $n): string => $n['sku']['naziv'], array_slice($najbolji, 0, 6));
-    return ['sku' => null, 'ponuda' => $ponuda,
+    return ['sku' => null, 'ponuda' => $ponuda, 'nepoznat' => false,
             'greska' => '„' . $tekst . '“ – izaberite pakovanje: ' . implode(', ', $ponuda) . (count($najbolji) > 6 ? ' …' : '') . '.'];
 }
 
-/** Artikal iz forme: izabran sa ponude (id) ili otkucan tekst. Vraća [sku|null, greška|null]. */
+/**
+ * Artikal iz forme: izabran sa ponude (id) ili otkucan tekst. Vraća [sku|null, greška|null, nepoznat]
+ * (nepoznat = otkucanog artikla nema u katalogu, vidi sku_po_unosu()).
+ */
 function sku_iz_unosa(int $sku_id, string $tekst): array
 {
     if ($sku_id > 0) {
         $sku = sku_aktivan($sku_id);
         if ($sku !== null) {
-            return [$sku, null];
+            return [$sku, null, false];
         }
     }
     if (trim($tekst) === '') {
-        return [null, 'Izaberite artikal: kucajte npr. humovit, pa dodirnite pakovanje.'];
+        return [null, 'Izaberite artikal: kucajte npr. humovit, pa dodirnite pakovanje.', false];
     }
     $r = sku_po_unosu($tekst);
-    return [$r['sku'], $r['greska']];
+    return [$r['sku'], $r['greska'], $r['nepoznat']];
 }
 
 // ─── Količina iz forme ─────────────────────────────────────────────────────

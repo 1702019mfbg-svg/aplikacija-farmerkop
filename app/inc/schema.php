@@ -124,6 +124,7 @@ function schema_sql(): array
         DDL_SPISAK_MESTA,
         DDL_SPISAK_PALETE,
         DDL_SPISAK_STAVKE,
+        DDL_MESALICE,
 
         // Sva kretanja zaliha: proizvodnja, prodaja, kućna prodaja (radnik), korekcija stanja (popis),
         // utovar po spisku (skida stanje) i povrat (otkazan utovar, vraća stanje).

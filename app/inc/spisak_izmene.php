@@ -120,13 +120,14 @@ function roba_polja(): array
 /**
  * Jedan red robe: artikal (izabran id ili otkucan tekst) i količina u paletama, paketima i komadima.
  * U zbirnu paletu ($u_paleti) ne idu cele palete – upisuje se koliko ide na jednu paletu.
- * Vraća ['sku', 'komadi', 'pal', 'pak', 'kom'] ili ['greska' => tekst].
+ * Artikal kog nema u katalogu ("kora") je ostalo: samo naziv i komadi (roba_ostalo()).
+ * Vraća ['sku', 'komadi', 'pal', 'pak', 'kom'] (za ostalo 'sku' => null i 'naziv') ili ['greska' => tekst].
  */
 function roba_red(int $sku_id, string $tekst, string $pal, string $pak, string $kom, bool $u_paleti): array
 {
-    [$sku, $greska] = sku_iz_unosa($sku_id, $tekst);
+    [$sku, $greska, $nepoznat] = sku_iz_unosa($sku_id, $tekst);
     if ($sku === null) {
-        return ['greska' => (string)$greska];
+        return $nepoznat ? roba_ostalo($tekst, $pal, $pak, $kom, $u_paleti) : ['greska' => (string)$greska];
     }
     if ($u_paleti && (int)$pal > 0) {
         return ['greska' => 'u zbirnu paletu upišite pakete i/ili komade (koliko ide na jednu paletu), ne cele palete.'];
@@ -141,22 +142,54 @@ function roba_red(int $sku_id, string $tekst, string $pal, string $pak, string $
     return ['sku' => $sku, 'komadi' => (int)$r['komadi'], 'pal' => $u_paleti ? 0 : (int)$pal, 'pak' => (int)$pak, 'kom' => (int)$kom];
 }
 
-/** Dodaje red robe u zbir po artiklu (isti artikal dva puta = jedna stavka sa zbirom). */
+/**
+ * Roba koje nema u katalogu ("kora", "saksije 30 cm") ide na spisak kao ostalo: naziv i broj komada,
+ * bez stanja i bez težine. Vraća red kao roba_red() ('sku' => null, 'naziv') ili ['greska' => tekst].
+ */
+function roba_ostalo(string $tekst, string $pal, string $pak, string $kom, bool $u_paleti): array
+{
+    $naziv = ostalo_naziv($tekst);
+    if ($u_paleti) {
+        return ['greska' => '„' . $naziv . '“ nije u katalogu – roba van kataloga ne ide u zbirnu paletu (Gde ide: Posebne stavke).'];
+    }
+    if (trim($pal, '0') !== '' || trim($pak, '0') !== '') {
+        return ['greska' => '„' . $naziv . '“ nije u katalogu (ostalo) – upišite samo broj komada.'];
+    }
+    if (!ctype_digit($kom) || (int)$kom <= 0) {
+        return ['greska' => 'upišite broj komada za „' . $naziv . '“ (nije u katalogu – ide na spisak kao ostalo).'];
+    }
+    return ['sku' => null, 'naziv' => $naziv, 'komadi' => (int)$kom, 'pal' => 0, 'pak' => 0, 'kom' => 0];   // kao staro ostalo: samo količina
+}
+
+/** Naziv robe van kataloga kako se upisuje: "kora" → "Kora". */
+function ostalo_naziv(string $tekst): string
+{
+    $t = mb_substr(trim((string)preg_replace('/\s+/u', ' ', $tekst)), 0, 120);
+    return mb_strtoupper(mb_substr($t, 0, 1)) . mb_substr($t, 1);
+}
+
+/** Naziv reda robe za poruke: "Humovit · 50 l" ili "Kora (ostalo)". */
+function roba_naziv(array $r): string
+{
+    return $r['sku'] !== null ? sku_naziv($r['sku']) : $r['naziv'] . ' (ostalo)';
+}
+
+/** Dodaje red robe u zbir po artiklu (isti artikal dva puta = jedna stavka sa zbirom; ostalo po nazivu). */
 function roba_saberi(array &$redovi, array $r): void
 {
-    $sid = (int)$r['sku']['sku_id'];
-    if (!isset($redovi[$sid])) {
-        $redovi[$sid] = $r;
+    $kljuc = $r['sku'] !== null ? (int)$r['sku']['sku_id'] : 'o:' . mb_strtolower($r['naziv']);
+    if (!isset($redovi[$kljuc])) {
+        $redovi[$kljuc] = $r;
         return;
     }
     foreach (['komadi', 'pal', 'pak', 'kom'] as $k) {
-        $redovi[$sid][$k] += $r[$k];
+        $redovi[$kljuc][$k] += $r[$k];
     }
 }
 
 /**
  * Redovi forme "Dodaj robu" (r_tekst[], r_id[], r_pal[], r_pak[], r_kom[]): prazni se preskaču, isti artikal se sabira.
- * Vraća [[sku_id => red iz roba_red()], greška|null] – greška kaže i koji je red ("Red 2: …").
+ * Vraća [[ključ iz roba_saberi() => red iz roba_red()], greška|null] – greška kaže i koji je red ("Red 2: …").
  */
 function roba_iz_posta(bool $u_paleti): array
 {
@@ -180,34 +213,45 @@ function roba_iz_posta(bool $u_paleti): array
 }
 
 /**
- * Upisuje robu za mesto (unutar izmene nacrta): nova stavka ili zamena količine ako je artikal već tu.
- * $pid > 0 = u zbirnu paletu (količina je za jednu paletu, ukupno = × $broj paleta).
- * Vraća [opisi za poruku, broj zamenjenih] ili ['greska' => tekst].
+ * Upisuje robu za mesto (unutar izmene nacrta): nova stavka ili zamena količine ako je artikal već tu
+ * (ostalo: ista roba = isti naziv u komadima). $pid > 0 = u zbirnu paletu (količina je za jednu paletu,
+ * ukupno = × $broj paleta). Vraća [opisi za poruku, nazivi zamenjenih stavki] ili ['greska' => tekst].
  */
 function spisak_upisi_robu(int $id, int $mid, int $pid, int $broj, array $redovi): array
 {
     $opisi = [];
-    $zamenjeno = 0;
-    foreach ($redovi as $sid => $r) {
+    $zamenjeni = [];
+    foreach ($redovi as $r) {
         $komadi = (int)$r['komadi'] * max(1, $broj);
         if ($komadi > 99999999) {
-            return ['greska' => sku_naziv($r['sku']) . ': količina je prevelika.'];
+            return ['greska' => roba_naziv($r) . ': količina je prevelika.'];
         }
-        $postoji = db_val('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = ? AND sku_id = ?', [$id, $mid, $pid, (int)$sid]);
+        $postoji = $r['sku'] === null
+            ? db_one("SELECT id, naziv FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = ? AND sku_id IS NULL AND naziv = ? AND COALESCE(jedinica, 'kom') = 'kom'", [$id, $mid, $pid, $r['naziv']])
+            : db_one('SELECT id FROM spisak_stavke WHERE spisak_id = ? AND mesto_id = ? AND paleta_id = ? AND sku_id = ?', [$id, $mid, $pid, (int)$r['sku']['sku_id']]);
         if ($postoji !== null) {
-            db_run('UPDATE spisak_stavke SET kolicina = ?, palete = ?, paketi = ?, komadi = ? WHERE id = ?', [$komadi, $r['pal'], $r['pak'], $r['kom'], (int)$postoji]);
-            $zamenjeno++;
-            $opisi[] = sku_naziv($r['sku']) . ' – ' . broj($komadi) . ' kom (bilo je već na spisku – zamenjena količina)';
+            db_run('UPDATE spisak_stavke SET kolicina = ?, palete = ?, paketi = ?, komadi = ? WHERE id = ?', [$komadi, $r['pal'], $r['pak'], $r['kom'], (int)$postoji['id']]);
+            $ime = roba_naziv(isset($postoji['naziv']) ? ['naziv' => $postoji['naziv']] + $r : $r);    // ostalo: naziv kako je već upisan
+            $zamenjeni[] = $ime;
+            $opisi[] = $ime . ' – ' . broj($komadi) . ' kom (bilo je već na spisku – zamenjena količina)';
             continue;
         }
         $red = (int)db_val('SELECT COALESCE(MAX(redosled), 0) FROM spisak_stavke WHERE spisak_id = ?', [$id]) + 10;
-        db_run(
-            'INSERT INTO spisak_stavke (spisak_id, mesto_id, paleta_id, sku_id, kolicina, palete, paketi, komadi, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [$id, $mid, $pid, (int)$sid, $komadi, $r['pal'], $r['pak'], $r['kom'], $red]
-        );
-        $opisi[] = sku_naziv($r['sku']) . ' – ' . broj($komadi) . ' kom';
+        if ($r['sku'] === null) {
+            // ostalo: ne vodi se na stanju, bez težine
+            db_run(
+                "INSERT INTO spisak_stavke (spisak_id, mesto_id, paleta_id, sku_id, naziv, jedinica, tezina_kg, kolicina, redosled) VALUES (?, ?, ?, NULL, ?, 'kom', NULL, ?, ?)",
+                [$id, $mid, $pid, $r['naziv'], $komadi, $red]
+            );
+        } else {
+            db_run(
+                'INSERT INTO spisak_stavke (spisak_id, mesto_id, paleta_id, sku_id, kolicina, palete, paketi, komadi, redosled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$id, $mid, $pid, (int)$r['sku']['sku_id'], $komadi, $r['pal'], $r['pak'], $r['kom'], $red]
+            );
+        }
+        $opisi[] = roba_naziv($r) . ' – ' . broj($komadi) . ' kom';
     }
-    return [$opisi, $zamenjeno];
+    return [$opisi, $zamenjeni];
 }
 
 /**

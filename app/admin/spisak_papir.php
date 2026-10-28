@@ -167,6 +167,7 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
             <li>Svako mesto počnite <strong>brojem</strong> u svom redu (8, (8) ili Mesto 8), a iza broja može kupac.</li>
             <li>Svaki artikal u svom redu, sa količinom: <strong>2 pal</strong>, <strong>3 pak</strong>, <strong>30 kom</strong>, <strong>2 t</strong> ili <strong>1/2</strong> (pola palete). Za 5 l i 10 l broj bez oznake znači <strong>pakete</strong>.</li>
             <li>Zbirna paleta u jednom redu, sa <strong>+</strong> između: 1/2 rizla bela sitna + 1/2 oblutak beli 40-60.</li>
+            <li>Roba koje nema u katalogu (npr. <strong>kora 20</strong>) ide na spisak kao <strong>ostalo</strong> – samo naziv i komadi, bez stanja.</li>
         </ul>
         <p class="papir-primer" aria-label="Primer"><?= e($primer) ?></p>
         <div class="red-polja">
@@ -184,14 +185,23 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
     $mesta = $papir['mesta'];
     $robe = 0;
     $proveri = 0;
-    /** Red koji treba pogledati: artikal nije izabran ili nema količine (ili je čuvanje javilo grešku). */
-    $nejasan = static fn(array $r): bool => $r['preskoci'] !== '1' && ($r['greska'] !== '' || ($r['vrsta'] === 'zbirna'
+    $van = 0;
+    /** Ostalo: artikla nema u katalogu ("kora") – čuva se samo naziv i komadi, bez stanja. */
+    $ostalo = [];
+    foreach ($mesta as $i => $m) {
+        foreach ($m['redovi'] as $j => $r) {
+            $ostalo[$i][$j] = $r['vrsta'] === 'roba' && $r['id'] === '' && $r['tekst'] !== '' && sku_po_unosu($r['tekst'])['nepoznat'];
+        }
+    }
+    /** Red koji treba pogledati: artikal nije izabran (a nije ostalo sa komadima) ili nema količine (ili je čuvanje javilo grešku). */
+    $nejasan = static fn(array $r, bool $o): bool => $r['preskoci'] !== '1' && ($r['greska'] !== '' || ($r['vrsta'] === 'zbirna'
         ? (bool)array_filter($r['delovi'], static fn(array $d): bool => $d['id'] === '' || $d['kol'] === '')
-        : $r['id'] === '' || $r['pal'] . $r['pak'] . $r['kom'] === ''));
-    foreach ($mesta as $m) {
-        foreach ($m['redovi'] as $r) {
+        : ($o ? $r['pal'] . $r['pak'] !== '' || $r['kom'] === '' : $r['id'] === '' || $r['pal'] . $r['pak'] . $r['kom'] === '')));
+    foreach ($mesta as $i => $m) {
+        foreach ($m['redovi'] as $j => $r) {
             $robe++;
-            $proveri += $nejasan($r) ? 1 : 0;
+            $proveri += $nejasan($r, $ostalo[$i][$j]) ? 1 : 0;
+            $van += $ostalo[$i][$j] && $r['preskoci'] !== '1' ? 1 : 0;
         }
     }
     ?>
@@ -205,6 +215,7 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
                 <?= e(mesta_tekst(count($mesta))) ?>, <?= e(stavki_tekst($robe)) ?>.
                 <?php if ($proveri > 0): ?><strong class="tekst-crveno">Proverite označeno (<?= $proveri ?>)</strong> – kucajte artikal i dodirnite pakovanje, upišite količinu ili štiklirajte „Preskoči“.<?php else: ?>Sve je prepoznato – proverite količine i sačuvajte.<?php endif; ?>
             </p>
+            <?php if ($van > 0): ?><p class="pomoc bez-margine razmak-gore">Van kataloga (ostalo): <strong><?= $van ?></strong> – ide samo na spisak (naziv i komadi), stanje se ne menja.</p><?php endif; ?>
         </section>
         <?php foreach ($mesta as $i => $m): ?>
             <section class="kartica papir-mesto" aria-label="Mesto <?= e($m['broj']) ?>">
@@ -232,7 +243,8 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
                     <?php foreach ($m['redovi'] as $j => $r):
                         $ime = 'r[' . $i . '][' . $j . ']';
                         $preskocen = $r['preskoci'] === '1';
-                        $klasa = ($r['greska'] !== '' && !$preskocen ? ' papir-greska' : ($nejasan($r) ? ' papir-proveri' : '')) . ($preskocen ? ' papir-preskocen' : ''); ?>
+                        $o = $ostalo[$i][$j];
+                        $klasa = ($r['greska'] !== '' && !$preskocen ? ' papir-greska' : ($nejasan($r, $o) ? ' papir-proveri' : ($o ? ' papir-ostalo' : ''))) . ($preskocen ? ' papir-preskocen' : ''); ?>
                         <?php if ($r['vrsta'] === 'zbirna'): ?>
                             <div class="roba-red papir-red papir-zbirna<?= $klasa ?>">
                                 <span class="papir-izvor"><?= e($r['izvor']) ?></span>
@@ -260,7 +272,7 @@ ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
                                 <input type="hidden" name="<?= $ime ?>[vrsta]" value="roba">
                                 <input type="hidden" name="<?= $ime ?>[izvor]" value="<?= e($r['izvor']) ?>">
                                 <input type="hidden" name="<?= $ime ?>[napomena]" value="<?= e($r['napomena']) ?>">
-                                <?= polje_artikla($ime . '[tekst]', $ime . '[id]', $r['tekst'], (int)$r['id'], '', '', 'Artikal: ' . $r['izvor']) ?>
+                                <?= polje_artikla($ime . '[tekst]', $ime . '[id]', $r['tekst'], (int)$r['id'], '', '', 'Artikal: ' . $r['izvor'], '', true) ?>
                                 <div class="popis-polja roba-kol">
                                     <label class="mala-oznaka" data-polje-pal>paleta<input class="polje" name="<?= $ime ?>[pal]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pal" value="<?= e($r['pal']) ?>"></label>
                                     <label class="mala-oznaka" data-polje-pak>paketa<input class="polje" name="<?= $ime ?>[pak]" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" data-p="pak" value="<?= e($r['pak']) ?>"></label>

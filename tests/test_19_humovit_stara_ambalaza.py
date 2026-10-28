@@ -31,10 +31,10 @@ def verzija():
 try:
     ids = pripremi_sajt(site)
     R.odeljak("Nadogradnja na verziju 10")
-    R.provera(verzija() == "10", "nova instalacija je na verziji 10")
+    R.provera(verzija() == "11", "nova instalacija je na verziji 11")
     sql("UPDATE podesavanja SET vrednost='9' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "10" and site.log().count("nadogradnja baze na verziju 10") == 1, "posle prvog otvaranja: verzija 10")
+    R.provera(verzija() == "11" and site.log().count("nadogradnja baze na verziju 10") == 1, "posle prvog otvaranja: nadogradnja 10 (i 11), verzija 11")
     hum = sql("SELECT CONCAT(id, '|', kategorija_id, '|', redosled) FROM artikli WHERE naziv='Humovit'").split("|")
     st = sql("SELECT CONCAT(id, '|', kategorija_id, '|', redosled, '|', aktivan) FROM artikli WHERE naziv='%s'" % STARA).split("|")
     R.provera(st[1:] == hum[1:] + ["1"], "Humovit S (stara ambalaža): ista kategorija kao Humovit, uključen", (st, hum))

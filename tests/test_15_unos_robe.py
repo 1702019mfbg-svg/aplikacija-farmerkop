@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Unos robe na spisku punim nazivom: kuca se "humovit", pa se bira pakovanje (5 / 10 / 25 / 50 l); više artikala
-za jedno mesto se čuva odjednom; spisak sa papira (prepisan ili izdiktiran tekst → mesta i roba, provera, sačuvaj
-sve). Nadogradnja v8 → v9 uklanja kratka imena (sku.sifra). Prikaz punog naziva na spisku, kod radnika i na štampi."""
+za jedno mesto se čuva odjednom; roba koje nema u katalogu ("kora 20") ide u iste redove kao ostalo (samo komadi);
+spisak sa papira (prepisan ili izdiktiran tekst → mesta i roba, provera, sačuvaj sve). Nadogradnja v8 → v9 uklanja
+kratka imena (sku.sifra). Prikaz punog naziva na spisku, kod radnika i na štampi."""
 import html as htmllib
 import json
 import re
@@ -43,6 +44,13 @@ def stavke(sp, mesto=None):
     return "" if r == "NULL" else r
 
 
+def ostalo(sp):
+    """Ostalo na spisku: "naziv|jedinica|kolicina|kg" redom kako je upisano."""
+    r = sql("SELECT GROUP_CONCAT(CONCAT(naziv, '|', jedinica, '|', kolicina, '|', IFNULL(tezina_kg, '-')) ORDER BY id) FROM spisak_stavke "
+            "WHERE spisak_id=%d AND sku_id IS NULL" % sp)
+    return "" if r == "NULL" else r
+
+
 def podaci_za_unos(o):
     m = re.search(r'<script type="application/json" id="sku-podaci">(.*?)</script>', o.text, re.S)
     return json.loads(htmllib.unescape(m.group(1))) if m else []
@@ -71,17 +79,17 @@ try:
     bo46, bo47, bo13 = (sku_id("Beli oblutak", 20, "kg", g) for g in ("4-6 cm", "4-7 cm (krupnija)", "1-3 cm"))
 
     R.odeljak("Nadogradnja v8 → v9: kratka imena (sku.sifra) se uklanjaju")
-    R.provera(verzija() == "10" and kolona_sifra() == "0", "nova instalacija: verzija 10, bez kolone sifra")
+    R.provera(verzija() == "11" and kolona_sifra() == "0", "nova instalacija: verzija 11, bez kolone sifra")
     sql("ALTER TABLE sku ADD COLUMN sifra VARCHAR(40) NULL DEFAULT NULL, ADD UNIQUE KEY uq_sku_sifra (sifra); "
         "UPDATE sku SET sifra=CONCAT('S', id); UPDATE podesavanja SET vrednost='8' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "10" and kolona_sifra() == "0" and site.log().count("nadogradnja baze na verziju 9") == 1, "posle nadogradnje: kolona i indeks su uklonjeni")
+    R.provera(verzija() == "11" and kolona_sifra() == "0" and site.log().count("nadogradnja baze na verziju 9") == 1, "posle nadogradnje: kolona i indeks su uklonjeni")
     sql("ALTER TABLE sku ADD COLUMN sifra VARCHAR(20) NULL DEFAULT NULL; UPDATE podesavanja SET vrednost='7' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "10" and kolona_sifra() == "0", "sa verzije 7 (kolona bez indeksa): takođe uklonjena")
+    R.provera(verzija() == "11" and kolona_sifra() == "0", "sa verzije 7 (kolona bez indeksa): takođe uklonjena")
     sql("UPDATE podesavanja SET vrednost='8' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "10", "ponovljena nadogradnja bez kolone: bez greške")
+    R.provera(verzija() == "11", "ponovljena nadogradnja bez kolone: bez greške")
     o = adm.get("/admin/artikal.php?id=%d" % sql_int("SELECT id FROM artikli WHERE naziv='Humovit'"))
     R.provera(o.status == 200 and "Kako piše na spisku" not in o.text, "Podešavanja artikla više nemaju „Kako piše na spisku“")
 
@@ -115,8 +123,8 @@ try:
               "samo „humovit“: traži izbor pakovanja (5, 10, 25, 50 l)", poruke(o))
     o = adm.post(SP, {"akcija": "dodaj", "id": sp, "mesto_id": m8, "paleta_id": "0", "artikal": "nešto treće", "sku_id": hum25, "kom": "1"})
     R.provera(stavke(sp) == "%d:1:0:0:1" % hum25, "izabrano pakovanje (id) ima prednost nad otkucanim")
-    o = adm.post(SP, {"akcija": "dodaj", "id": sp, "mesto_id": m8, "paleta_id": "0", "artikal": "qqq9", "kom": "1"})
-    R.provera("Nema artikla „qqq9“" in poruke(o), "nepoznato: odbijeno", poruke(o))
+    o = adm.post(SP, {"akcija": "dodaj", "id": sp, "mesto_id": m8, "paleta_id": "0", "artikal": "123", "kom": "1"})
+    R.provera("Nema artikla „123“" in poruke(o), "samo broj (bez naziva): odbijeno", poruke(o))
     o = adm.post(SP, {"akcija": "dodaj", "id": sp, "mesto_id": m8, "paleta_id": "0", "artikal": "Cmana supstrat 10 l", "kom": "1"})
     R.provera("je isključen" in poruke(o), "isključen artikal: odbijeno", poruke(o))
     sql("DELETE FROM spisak_stavke WHERE spisak_id=%d" % sp)
@@ -131,12 +139,13 @@ try:
     R.provera(sql_int("SELECT COUNT(*) FROM dnevnik WHERE detalji LIKE 'Spisak #%d: dodato za Mesto 8: Humovit · 50 l – 80 kom, Idea%%'" % sp) == 1, "u dnevniku je jedan zapis")
     pre = stavke(sp)
     o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0",
-                      "r_tekst[]": ["humovit 5", "qqq9", ""], "r_id[]": ["", "", ""], "r_pal[]": ["1", "", ""], "r_pak[]": ["", "", ""], "r_kom[]": ["", "5", ""]})
-    R.provera("Red 2: Nema artikla „qqq9“" in poruke(o) and stavke(sp) == pre, "greška u redu 2: ništa se ne upisuje (ni red 1)", poruke(o))
-    R.provera('value="qqq9"' in o.text and 'value="humovit 5"' in o.text and re.search(r'name="r_kom\[\]"[^>]*value="5"', o.text)
+                      "r_tekst[]": ["humovit 5", "kora", ""], "r_id[]": ["", "", ""], "r_pal[]": ["1", "2", ""], "r_pak[]": ["", "", ""], "r_kom[]": ["", "", ""]})
+    R.provera("Red 2: „Kora“ nije u katalogu (ostalo) – upišite samo broj komada" in poruke(o) and stavke(sp) == pre and not ostalo(sp),
+              "greška u redu 2: ništa se ne upisuje (ni red 1)", poruke(o))
+    R.provera('value="kora"' in o.text and 'value="humovit 5"' in o.text and re.search(r'name="r_pal\[\]"[^>]*value="2"', o.text)
               and re.search(r'id="dodaj-%d" open' % m8, o.text), "upisano ostaje u formi, forma je otvorena")
     o = adm.get(SP + "?id=%d" % sp)
-    R.provera('value="qqq9"' not in o.text, "upisano se pamti samo za jedno otvaranje")
+    R.provera('value="kora"' not in o.text, "upisano se pamti samo za jedno otvaranje")
     for redovi, poruka, opis in [
         ({"r_tekst[]": ["humovit"], "r_kom[]": ["5"]}, "Red 1: „humovit“ – izaberite pakovanje", "nejasno: traži pakovanje"),
         ({"r_tekst[]": ["idea 5"], "r_kom[]": [""]}, "Red 1: upišite količinu", "bez količine"),
@@ -161,6 +170,37 @@ try:
     R.provera(sql("SELECT GROUP_CONCAT(CONCAT(sku_id, ':', kolicina) ORDER BY id) FROM spisak_stavke WHERE paleta_id=%d" % pid) == "%d:40,%d:12" % (hum5, idea5)
               and o.url.endswith("&u=%d#paleta-%d" % (pid, pid)), "u zbirnu paletu × 2: 2 pak (20) i 6 kom → 40 i 12", poruke(o))
     R.provera("(Mešovita)" in poruke(o), "poruka kaže u koju paletu", poruke(o))
+
+    R.odeljak("Ostalo u redovima robe (roba koje nema u katalogu)")
+    o = adm.get(SP + "?id=%d" % sp)
+    forma = o.text.split('id="dodaj-%d"' % m8)[1].split('id="zbirna-%d"' % m8)[0]
+    zbirna = o.text.split('id="zbirna-%d"' % m8)[1].split("</details>")[0]
+    R.provera(forma.count("data-biraj-ostalo") == 3 and "data-biraj-ostalo" not in zbirna and "Dodaj ostalo" not in o.text and 'name="o_naziv"' not in o.text
+              and "lista-jedinica" not in o.text, "redovi robe primaju i ostalo (zbirna paleta ne); nema više posebne forme „Ostalo“")
+    R.provera("ide na spisak kao ostalo" in tekst(forma), "uputstvo u formi: roba koje nema u katalogu ide kao ostalo")
+    o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0",
+                      "r_tekst[]": ["kora", "saksije 30 cm", "Kora"], "r_id[]": ["", "", ""], "r_pal[]": ["", "", ""], "r_pak[]": ["", "", ""], "r_kom[]": ["20", "40", "5"]})
+    R.provera(ostalo(sp) == "Kora|kom|25|-,Saksije 30 cm|kom|40|-", "„kora“ 20 + „Kora“ 5 = Kora 25 kom; Saksije 30 cm 40 kom – bez težine", ostalo(sp))
+    R.provera("Dodato za Mesto 8: Kora (ostalo) – 25 kom, Saksije 30 cm (ostalo) – 40 kom" in poruke(o), "poruka: ostalo", poruke(o))
+    o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0", "r_tekst[]": ["KORA"], "r_id[]": [""], "r_pal[]": [""], "r_pak[]": [""], "r_kom[]": ["30"]})
+    R.provera(ostalo(sp) == "Kora|kom|30|-,Saksije 30 cm|kom|40|-" and "Stavka Kora (ostalo) je već bila na spisku za Mesto 8 – zamenjena novom količinom (30 kom)" in poruke(o),
+              "ista roba ponovo: nova količina, ne nova stavka", poruke(o))
+    for redovi, poruka, opis in [
+        ({"r_tekst[]": ["kora"], "r_pal[]": ["2"], "r_kom[]": [""]}, "Red 1: „Kora“ nije u katalogu (ostalo) – upišite samo broj komada", "ostalo u paletama"),
+        ({"r_tekst[]": ["kora"], "r_kom[]": [""]}, "Red 1: upišite broj komada za „Kora“", "ostalo bez broja"),
+        ({"r_tekst[]": ["123"], "r_kom[]": ["4"]}, "Red 1: Nema artikla „123“", "samo broj nije naziv"),
+        ({"r_tekst[]": ["Cmana supstrat 10 l"], "r_kom[]": ["4"]}, "je isključen u Podešavanjima", "isključen artikal nije ostalo"),
+        ({"r_tekst[]": ["humovit"], "r_kom[]": ["4"]}, "izaberite pakovanje", "artikal bez pakovanja nije ostalo"),
+    ]:
+        o = adm.post(SP, dict({"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0"}, **redovi))
+        R.provera(poruka in poruke(o) and ostalo(sp) == "Kora|kom|30|-,Saksije 30 cm|kom|40|-", "odbijeno: " + opis, poruke(o))
+    o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": pid, "r_tekst[]": ["kora"], "r_kom[]": ["3"]})
+    R.provera("ne ide u zbirnu paletu" in poruke(o) and ostalo(sp) == "Kora|kom|30|-,Saksije 30 cm|kom|40|-", "ostalo ne ide u zbirnu paletu", poruke(o))
+    stanje_pre = stanje(hum5)
+    o = adm.get(SP + "?id=%d" % sp)
+    R.provera('<strong class="stavka-naziv">Kora</strong>' in o.text and o.text.count("ostalo – ne vodi se na stanju") == 2, "na spisku: Kora i Saksije, označeni kao ostalo")
+    R.provera("bez težine" not in tekst(o.text), "ostalo bez težine se ne broji kao „bez težine“", re.findall(r".{60}bez težine.{20}", tekst(o.text)))
+    R.provera("Kora" not in adm.get("/admin/stanje.php").text and stanje(hum5) == stanje_pre, "ostalo ne ulazi u Stanje")
 
     R.odeljak("Zbirna paleta: izbor artikla u redovima")
     o = adm.post(SP, {"akcija": "nova_paleta", "id": sp, "mesto_id": m8, "p_broj": "1", "p_naziv": "",
@@ -229,14 +269,16 @@ try:
     R.provera((f["r[1][0][id]"], f["r[1][0][pal]"]) == (str(idea10), "1") and (f["r[1][1][id]"], f["r[1][1][kom]"]) == (str(bo46), "100"),
               "„jedna paleta idea 10“ → 1 paleta; „2 t oblutak beli 4-6“ → 100 kom (20 kg)")
     R.provera("2 t ≈ 100 kom" in tekst(o.text) and "sa papira" not in f, "napomena: kako je preračunato")
-    R.provera(f["r[1][2][id]"] == "" and f["r[1][3][id]"] == "" and "Proverite označeno (2)" in tekst(o.text) and o.text.count("papir-proveri") == 2,
-              "„humovit“ (bez pakovanja i količine) i „saksije“ su označeni za proveru", tekst(o.text)[:300])
+    R.provera(f["r[1][2][id]"] == "" and "Proverite označeno (1)" in tekst(o.text) and o.text.count("papir-proveri") == 1,
+              "„humovit“ (bez pakovanja i količine) je označen za proveru", tekst(o.text)[:300])
+    R.provera((f["r[1][3][tekst]"], f["r[1][3][id]"], f["r[1][3][kom]"]) == ("saksije", "", "30") and o.text.count("papir-ostalo") == 1
+              and "Van kataloga (ostalo): 1" in tekst(o.text), "„saksije 30 kom“: nema ga u katalogu – ostalo, 30 komada (nije greška)")
 
     R.odeljak("Spisak sa papira: provera i čuvanje")
     o = adm.post(PAPIR, dict(f, akcija="sacuvaj"))
-    R.provera("Proverite označene redove (2)" in poruke(o) and sql_int("SELECT COUNT(*) FROM spisak_mesta WHERE spisak_id=%d" % sp2) == 1 and stavke(sp2) == "%d:1:0:0:1" % hum50,
-              "neispravni redovi: ništa se ne upisuje", poruke(o))
-    R.provera(o.text.count("papir-greska") >= 2 and "izaberite pakovanje" in tekst(o.text) and "Nema artikla „saksije“" in tekst(o.text), "greška stoji uz svoj red")
+    R.provera("Proverite označene redove (1)" in poruke(o) and sql_int("SELECT COUNT(*) FROM spisak_mesta WHERE spisak_id=%d" % sp2) == 1 and stavke(sp2) == "%d:1:0:0:1" % hum50
+              and not ostalo(sp2), "neispravan red: ništa se ne upisuje", poruke(o))
+    R.provera("papir-greska" in o.text and "izaberite pakovanje" in tekst(o.text) and "Nema artikla" not in tekst(o.text), "greška stoji uz svoj red (ostalo nije greška)")
     f = polja_forme(o.text, "pregled")
     f["r[1][2][id]"] = str(hum25)
     f["r[1][2][kom]"] = "10"
@@ -257,6 +299,31 @@ try:
     o = adm.get(PAPIR + "?id=%d" % sp2)
     t = re.search(r'<textarea[^>]*name="tekst"[^>]*>(.*?)</textarea>', o.text, re.S)
     R.provera(t is not None and t.group(1).strip() == "", "posle čuvanja počinje se od praznog teksta")
+    R.provera("kora 20" in tekst(o.text), "uputstvo: roba koje nema u katalogu (kora 20)")
+
+    R.odeljak("Spisak sa papira: roba van kataloga (ostalo)")
+    o = adm.post(PAPIR, {"akcija": "procitaj", "id": sp2, "tekst": "9\nkora 20\n15 kom kora\nsaksije 30 cm - 40\n2 pal kora", "bez_oznake": "kom"})
+    f = polja_forme(o.text, "pregled")
+    R.provera([(f["r[0][%d][tekst]" % j], f["r[0][%d][id]" % j], f["r[0][%d][pal]" % j], f["r[0][%d][kom]" % j]) for j in range(4)]
+              == [("kora", "", "", "20"), ("kora", "", "", "15"), ("saksije 30 cm", "", "", "40"), ("kora", "", "2", "")],
+              "„kora 20“ (odmah ispod broja mesta), „15 kom kora“, „saksije 30 cm - 40“ → komadi; „2 pal kora“ ostaje u paletama", [(f.get("r[0][%d][tekst]" % j), f.get("r[0][%d][kom]" % j)) for j in range(4)])
+    R.provera(o.text.count("papir-ostalo") == 3 and o.text.count("papir-proveri") == 1 and "Proverite označeno (1)" in tekst(o.text) and "Van kataloga (ostalo): 4" in tekst(o.text),
+              "ostalo sa komadima je u redu, ostalo u paletama je označeno za proveru")
+    o = adm.post(PAPIR, dict(f, akcija="sacuvaj"))
+    R.provera("Proverite označene redove (1)" in poruke(o) and "„Kora“ nije u katalogu (ostalo) – upišite samo broj komada" in tekst(o.text) and ostalo(sp2) == "",
+              "ostalo u paletama: odbijeno, ništa se ne upisuje", poruke(o))
+    f = polja_forme(o.text, "pregled")
+    f["r[0][3][pal]"] = ""
+    f["r[0][3][kom]"] = "5"
+    o = adm.post(PAPIR, dict(f, akcija="sacuvaj"))
+    R.provera("Upisan spisak sa papira: Mesto 9 (2 stavke)" in poruke(o) and ostalo(sp2) == "Kora|kom|40|-,Saksije 30 cm|kom|40|-"
+              and sql("SELECT GROUP_CONCAT(DISTINCT mesto_id) FROM spisak_stavke WHERE spisak_id=%d AND sku_id IS NULL" % sp2) == str(p9),
+              "Mesto 9: Kora 20 + 15 + 5 = 40 kom i Saksije 30 cm 40 kom (ostalo)", poruke(o))
+    o = adm.post(PAPIR, {"akcija": "procitaj", "id": sp2, "tekst": "12 Agrocentar 2\n1 pal humovit 50", "bez_oznake": "kom"})
+    f = polja_forme(o.text, "pregled")
+    R.provera((f.get("m[0][broj]"), f.get("m[0][kupac]"), f.get("r[0][0][id]")) == ("12", "Agrocentar 2", str(hum50)) and "papir-ostalo" not in o.text,
+              "„12 Agrocentar 2“: broj iza kupca u redu mesta ostaje deo kupca (nije roba)", (f.get("m[0][broj]"), f.get("m[0][kupac]")))
+    adm.post(PAPIR, {"akcija": "odustani", "id": sp2})
 
     R.odeljak("Spisak sa papira: broj bez oznake, odustajanje, pristup")
     o = adm.post(PAPIR, {"akcija": "procitaj", "id": sp2, "tekst": "5\nidea 10 - 2\n30 kom humovit 5\n3 humovit 5 + 1/2 rizla bela sitna", "bez_oznake": "kom"})

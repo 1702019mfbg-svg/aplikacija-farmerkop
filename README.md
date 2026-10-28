@@ -10,20 +10,20 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 
 | Ko | Šta |
 |---|---|
-| **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
-| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici**, **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
+| **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10), **Mešalice** (koliko je mešalica malča ofarbao, po boji; ne menja stanje). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
+| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, roba van kataloga („kora“) kao ostalo u istim redovima, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici** (i pregled **Mešalice** u meniju ☰), **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
 
 ```
 app/                  ← ceo sadržaj ovog foldera ide u koren poddomena
   index.php login.php logout.php install.php config.php
-  radnik/             proizvodnja, kućna prodaja, utovar (potvrda spiska)
+  radnik/             proizvodnja, kućna prodaja, utovar (potvrda spiska), mesalice
   admin/              stanje, prodaja, istorija, unos (ispravka), izvoz (CSV), dnevnik,
                       radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak,
-                      spisak_stampa (štampa / PDF / deljenje), spisak_papir (spisak sa papira)
+                      spisak_stampa (štampa / PDF / deljenje), spisak_papir (spisak sa papira), kupci, mesalice
   inc/                bootstrap, db, auth, csrf, session, katalog, unosi, istorija,
-                      podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi (zaštićeno .htaccess-om)
+                      podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi, mesalice (zaštićeno .htaccess-om)
   assets/             css, js, ikone;  sw.js, manifest.webmanifest, offline.html
 tests/                HTTP testovi (Python, nad pravom MariaDB), Apache test, snimci ekrana
 tools/                napravi_zip.sh, napravi_ikone.php
@@ -49,9 +49,11 @@ dist/                 gotovi ZIP paketi
   (`spisak_potvrdi_utovar`), na kupca mesta.
 - **Izbor artikla kucanjem** (`inc/katalog.php`): `sku_pronadji()` – svaka otkucana reč mora biti u nazivu (bilo kojim redom,
   početak reči, koren od 4 slova, milimetri „40-60“ = 4-6 cm), ocena bira najbolje; `sku_iz_unosa()` uzima izabrani id ili
-  jedino najbolje poklapanje. Isto računa `assets/js/spisak.js`, koji ispod polja (`polje_artikla()`) nudi pakovanja dodirom.
+  jedino najbolje poklapanje; tekst kog nema u katalogu je `nepoznat` (na spisku = ostalo). Isto računa `assets/js/spisak.js`,
+  koji ispod polja (`polje_artikla()`) nudi pakovanja dodirom, a za polje sa `$ostalo` pokazuje žutu napomenu i samo komade.
   Na spisku i svuda se piše pun naziv (`sku_naziv()`); kratka imena (`sku.sifra`, v7–v8) uklonjena su u v9.
-- **Unos robe** (`inc/spisak_izmene.php`): više artikala odjednom (`roba_iz_posta()` → `spisak_upisi_robu()`), zbirna paleta
+- **Unos robe** (`inc/spisak_izmene.php`): više artikala odjednom (`roba_iz_posta()` → `spisak_upisi_robu()`), roba van kataloga
+  kao ostalo (`roba_ostalo()`: `sku_id` NULL, naziv, jedinica „kom“, bez težine; isti naziv se sabira / zamenjuje), zbirna paleta
   (`zbirna_redovi()` → `spisak_nova_zbirna()`), sve u jednoj transakciji (`u_nacrtu()`).
 - **Slikaj spisak** (`inc/slika_spiska.php`, `assets/js/slika_spiska.js`): slika (u pregledaču smanjena na 2000 px, na serveru
   GD kao rezerva) → Anthropic Messages API (`ANTHROPIC_API_KEY` u config.php, model `claude-opus-5-5`, curl bez SDK-a jer se
@@ -66,6 +68,9 @@ dist/                 gotovi ZIP paketi
 - **Spisak sa papira** (`inc/spisak_papir.php`, `admin/spisak_papir.php`): tekst → mesta (8, (8), Mesto 8, ⑧) i roba
   (2 pal, 3 pak, 30 kom, 2 t, 1/2, „dve palete“, „a + b“ = zbirna paleta) → pregled sa izborom pakovanja → `papir_proveri()` →
   sve se upisuje odjednom.
+- **Mešalice** (v11; `inc/mesalice.php`, `radnik/mesalice.php`, `admin/mesalice.php`): tabela `mesalice` (radnik, boja kao tekst,
+  broj, meko brisanje, ključ protiv duplog slanja) – samo praćenje rada, **ne ulazi u stanje**. Boje = aktivne varijante malča
+  (bez neobojenog). Admin: period, po radniku/boji/danu, brisanje (dnevnik, objekat `mesalica`), CSV.
 - **Uvoz stanja** (`inc/uvoz.php`, `admin/uvoz.php`): čita CSV/tabelu, uparuje redove sa SKU-ovima po normalizovanim rečima
   (latinica/ćirilica, pakovanje, granulacija, boja), pamti ručna uparivanja u `uvoz_mapiranje`, a upisuje preko `popis_postavi()`.
 
@@ -94,12 +99,13 @@ python3 tests/test_12_potvrda_utovara.py   # potvrda utovara: atomično, dupli k
                                            # utovar na licu mesta (više od plana, radnik dodaje artikal)
 python3 tests/test_13_zbirna_paleta.py     # zbirna paleta: više artikala na paleti, broj paleta, radnik, štampa, v5 → v7
 python3 tests/test_14_mesta.py             # mesta istovara: više kupaca na kamionu, pomeranje, izmene, radnik, štampa, v6 → v7
-python3 tests/test_15_unos_robe.py         # v8 → v9, izbor pakovanja, više artikala odjednom, spisak sa papira
+python3 tests/test_15_unos_robe.py         # v8 → v9, izbor pakovanja, više artikala odjednom, ostalo u redovima, spisak sa papira
 python3 tests/test_16_kalkulacija.py       # kalkulacija: ručna migracija, samo admin, cene, recepture, pregled, šta ako, Stanje isto
 php tests/kalkulacija_test.php             # formula bez baze (60/40, faktor ≠ 1, nedostaje cena, zbir 100 %)
 python3 tests/test_17_slika_spiska.py      # slikaj spisak: zahtev AI servisu (lažni server), smanjenje slike, greške
 python3 tests/test_18_kupci_brisanje.py    # kupci po godini (prodaja + utovar − povrat, CSV), brisanje otkazanog spiska
 python3 tests/test_19_humovit_stara_ambalaza.py  # v10: Humovit S (stara ambalaža) 25/50 l, unos, stanje, „humovit s 50“
+python3 tests/test_20_mesalice.py          # v11: mešalice po boji (radnik), brisanje u roku, pregled, CSV, pristup
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

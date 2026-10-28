@@ -1,6 +1,7 @@
 /* Spisak za utovar: izbor artikla kucanjem ("humovit" → dugmad 5 l / 10 l / 25 l / 50 l, dodir izabere),
  * više artikala odjednom (redovi + "Još jedan artikal"), zbir paleta + paketa + komada uživo i prikaz samo onih
- * polja koja artikal ima. U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje
+ * polja koja artikal ima. Naziv kog nema u katalogu ("kora") u redovima robe je ostalo: žuta napomena i samo
+ * komadi. U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje
  * i ukupno × broj paleta. Zbirna paleta odjednom: redovi artikal + koliko na paleti (25, 1/2, 3 pak). */
 (function () {
     'use strict';
@@ -130,9 +131,15 @@
         });
         d.ponuda.hidden = grupe.length === 0;
     }
-    function postaviStatus(d, tekst, greska) {
+    /* vrsta: '' = obično, 'greska' = crveno, 'ostalo' = žuta napomena (nije u katalogu) */
+    function postaviStatus(d, tekst, vrsta) {
         d.status.textContent = tekst;
-        d.status.classList.toggle('tekst-crveno', !!greska);
+        d.status.classList.toggle('tekst-crveno', vrsta === 'greska');
+        d.status.classList.toggle('biraj-napomena', vrsta === 'ostalo');
+    }
+    /* Polje u redu robe (data-biraj-ostalo), naziv sa slovom, a takvog artikla nema – ide kao ostalo. */
+    function vanKataloga(okvir, t, nadjeni) {
+        return okvir.hasAttribute('data-biraj-ostalo') && !nadjeni.length && artikli.length > 0 && t.length >= 2 && /[A-Z]/.test(ascii(t));
     }
     /* Posle kucanja: ponuda pakovanja i (kad je samo jedno najbolje) izabran artikal.
      * javi: false = bez osvežavanja reda (početak), 'uvek' = osveži red i kad je id isti. */
@@ -140,30 +147,44 @@
         var d = delovi(okvir);
         var t = d.tekst.value.trim();
         var pre = d.id.value;
+        var preVan = okvir.classList.contains('biraj-van');
+        var van = false;
         var a = poId[d.id.value];
         if (a && t === a.naziv) {
             d.ponuda.hidden = true;
             d.ponuda.textContent = '';
-            postaviStatus(d, '', false);
+            postaviStatus(d, '', '');
         } else if (t === '') {
             d.id.value = '';
             d.ponuda.hidden = true;
             d.ponuda.textContent = '';
-            postaviStatus(d, '', false);
+            postaviStatus(d, '', '');
         } else {
             var nadjeni = pronadji(t);
             var jedan = jedini(nadjeni);
             d.id.value = jedan ? String(jedan.id) : '';
-            nacrtajPonudu(d, nadjeni, jedan);
-            if (!nadjeni.length) {
-                postaviStatus(d, artikli.length ? 'Nema takvog artikla – proverite naziv.' : '', true);
-            } else if (jedan) {
-                postaviStatus(d, '✓ ' + jedan.naziv + (nadjeni.length > 1 ? ' (ili dodirnite drugo)' : ''), false);
+            van = vanKataloga(okvir, t, nadjeni);
+            if (van) {
+                // "humovit 15": nema ga, ali ponudi Humovit (možda je greška u kucanju)
+                var w = reci(t);
+                var slicni = w.length > 1 ? pronadji(w[0]) : [];
+                nacrtajPonudu(d, slicni, null);
+                postaviStatus(d, 'Nema u katalogu – ide na spisak kao ostalo (samo komadi, bez stanja).'
+                    + (slicni.length ? ' Ako ste mislili na artikal iz kataloga, dodirnite ga:' : ''), 'ostalo');
             } else {
-                postaviStatus(d, 'Dodirnite pakovanje:', false);
+                nacrtajPonudu(d, nadjeni, jedan);
+                if (!nadjeni.length) {
+                    var ostaloPolje = okvir.hasAttribute('data-biraj-ostalo');
+                    postaviStatus(d, artikli.length && (!ostaloPolje || t.length >= 2) ? 'Nema takvog artikla – proverite naziv.' : '', 'greska');
+                } else if (jedan) {
+                    postaviStatus(d, '✓ ' + jedan.naziv + (nadjeni.length > 1 ? ' (ili dodirnite drugo)' : ''), '');
+                } else {
+                    postaviStatus(d, 'Dodirnite pakovanje:', '');
+                }
             }
         }
-        if (javi === 'uvek' || (javi !== false && pre !== d.id.value)) { promenaArtikla(okvir); }
+        okvir.classList.toggle('biraj-van', van);
+        if (javi === 'uvek' || (javi !== false && (pre !== d.id.value || preVan !== van))) { promenaArtikla(okvir); }
     }
     /* Sledeće polje za upis posle izbora (palete, paketi, komadi ili "na paleti"). */
     function sledecePolje(polje) {
@@ -205,6 +226,11 @@
         e.preventDefault();                       // Enter u polju artikla bira, ne šalje formu
         var a = izabrani(okvir);
         if (a) { izaberi(okvir, a); return; }
+        if (okvir.classList.contains('biraj-van')) {         // ostalo ("kora"): dalje na komade
+            var sledece = sledecePolje(t);
+            if (sledece) { sledece.focus(); }
+            return;
+        }
         var dugme = d.ponuda.querySelector('button');
         if (dugme) { dugme.focus(); }
     });
@@ -259,6 +285,7 @@
         var okvir = red.closest('[data-roba-red]') || red.closest('[data-dodavanje]') || red;
         var biraj = okvir.querySelector('[data-biraj]');
         var a = biraj ? izabrani(biraj) : null;
+        var van = !!(biraj && biraj.classList.contains('biraj-van'));      // ostalo: samo komadi
         var forma = red.closest('form') || red;
         var odr = forma.querySelector('[data-odrediste]');
         var uPaleti = !!(odr && odr.value !== '0' && odr.value !== '');
@@ -270,13 +297,14 @@
         red.setAttribute('data-ima-stanje', a && a.stanje !== null ? '1' : '0');
         var pal = okvir.querySelector('[data-polje-pal]');
         var pak = okvir.querySelector('[data-polje-pak]');
-        // dok artikal nije izabran, vide se sva polja (ništa ne skače dok se kuca)
+        // dok artikal nije izabran, vide se sva polja (ništa ne skače dok se kuca); za ostalo samo komadi
+        // (upisane palete / pakete ne briše – ostaju vidljive, pa čuvanje kaže šta da se ispravi)
         if (pal) {
-            pal.hidden = uPaleti || (a !== null && !a.po);
+            pal.hidden = uPaleti || (a !== null && !a.po) || (van && pal.querySelector('input').value === '');
             if (pal.hidden) { pal.querySelector('input').value = ''; }
         }
         if (pak) {
-            pak.hidden = a !== null && !a.pp;
+            pak.hidden = (a !== null && !a.pp) || (van && pak.querySelector('input').value === '');
             if (pak.hidden) { pak.querySelector('input').value = ''; }
         }
         var pomoc = forma.querySelector('[data-pomoc-zbirna]');
@@ -368,7 +396,9 @@
         var skriveni = novi.querySelectorAll('[data-polje-pal], [data-polje-pak]');
         for (var h = 0; h < skriveni.length; h++) { skriveni[h].hidden = false; }
         var prazni = novi.querySelectorAll('[data-biraj-status], [data-zbir], [data-zbirna-info]');
-        for (var q = 0; q < prazni.length; q++) { prazni[q].textContent = ''; prazni[q].classList.remove('tekst-crveno'); }
+        for (var q = 0; q < prazni.length; q++) { prazni[q].textContent = ''; prazni[q].classList.remove('tekst-crveno', 'biraj-napomena'); }
+        var biraj = novi.querySelector('[data-biraj]');
+        if (biraj) { biraj.classList.remove('biraj-van'); }
         var ponuda = novi.querySelector('[data-biraj-ponuda]');
         if (ponuda) { ponuda.textContent = ''; ponuda.hidden = true; }
         var rb = novi.querySelector('.roba-broj');

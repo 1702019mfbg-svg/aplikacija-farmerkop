@@ -92,12 +92,14 @@ if (je_post()) {
 }
 
 $radnici = db_all(
-    "SELECT k.*, COALESCE(p.kom, 0) AS danas_kom
+    "SELECT k.*, COALESCE(p.kom, 0) AS danas_kom, COALESCE(m.broj, 0) AS danas_mesalice
      FROM korisnici k
      LEFT JOIN (SELECT korisnik_id, SUM(kolicina) AS kom FROM unosi
                 WHERE tip = 'proizvodnja' AND obrisan = 0 AND nastalo >= ? AND nastalo < ? GROUP BY korisnik_id) p ON p.korisnik_id = k.id
+     LEFT JOIN (SELECT korisnik_id, SUM(broj) AS broj FROM mesalice
+                WHERE obrisan = 0 AND nastalo >= ? AND nastalo < ? GROUP BY korisnik_id) m ON m.korisnik_id = k.id
      WHERE k.uloga = 'radnik' ORDER BY k.aktivan DESC, k.ime",
-    [danas_od(), danas_do()]
+    [danas_od(), danas_do(), danas_od(), danas_do()]
 );
 
 // ── Proizvodnja po danima ──
@@ -166,6 +168,7 @@ ui_start('Radnici', ['nav' => 'admin', 'aktivno' => 'radnici', 'js' => ['assets/
 </form>
 
 <h2 class="kat-naslov">Radnici (<?= count($radnici) ?>)</h2>
+<p class="grupa-dugmica"><a class="btn btn-mali" href="<?= e(url('admin/mesalice.php')) ?>"><?= ikona('mesalica') ?> Mešalice – ko je koliko ofarbao</a></p>
 <?php if (!$radnici): ?>
     <div class="kartica"><p class="bez-margine">Još nema radnika. Dodajte prvog iznad.</p></div>
 <?php endif; ?>
@@ -182,6 +185,7 @@ ui_start('Radnici', ['nav' => 'admin', 'aktivno' => 'radnici', 'js' => ['assets/
         </div>
         <p class="pomoc">
             Danas proizvedeno: <strong><?= e(broj((int)$r['danas_kom'])) ?> kom</strong>
+            <?php if ((int)$r['danas_mesalice'] > 0): ?>· Mešalice danas: <strong><?= e(broj((int)$r['danas_mesalice'])) ?></strong><?php endif; ?>
             · Poslednja prijava: <?= $r['poslednja_prijava'] ? e(datum_kratko((string)$r['poslednja_prijava'])) : 'nikad' ?>
         </p>
         <div class="grupa-dugmica">

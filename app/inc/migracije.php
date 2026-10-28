@@ -20,10 +20,12 @@
  * Verzija 9: na spisku se opet piše pun naziv proizvoda – kolona sku.sifra (kratka imena iz verzija 7 i 8) se uklanja.
  * Verzija 10: novi artikal "Humovit S (stara ambalaža)" – 25 l i 50 l u staroj ambalaži, vodi se posebno dok se
  *             ne potroši (posle se isključi u Podešavanjima); palete, paketi i težina kao kod Humovita.
+ * Verzija 11: mešalice – radnik upisuje koliko je mešalica malča ofarbao (po boji); samo za praćenje rada,
+ *             stanje se ne menja (tabela mesalice).
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 10;
+const SCHEMA_VERZIJA = 11;
 
 /** Artikal za Humovit u staroj ambalaži (verzija 10). */
 const HUMOVIT_STARA = 'Humovit S (stara ambalaža)';
@@ -135,6 +137,28 @@ const DDL_SPISAK_MESTA = 'CREATE TABLE IF NOT EXISTS spisak_mesta (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
 const TIPOVI_UNOSA_SQL = "ENUM('proizvodnja','prodaja','kucna_prodaja','korekcija','utovar','povrat')";
+
+/**
+ * Mešalice malča: koliko je radnik ofarbao (broj mešalica, po boji – "Crveni", "Crni" …). Samo za praćenje rada:
+ * ofarban malč se suši i još nije spakovan, pa ne ulazi u stanje (vreće se upisuju u Proizvodnji).
+ */
+const DDL_MESALICE = 'CREATE TABLE IF NOT EXISTS mesalice (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    korisnik_id INT UNSIGNED NOT NULL,
+    boja VARCHAR(60) NOT NULL,
+    broj SMALLINT UNSIGNED NOT NULL,
+    nastalo DATETIME NOT NULL,
+    uneto DATETIME NOT NULL,
+    kljuc CHAR(32) NULL DEFAULT NULL,
+    obrisan TINYINT(1) NOT NULL DEFAULT 0,
+    obrisan_u DATETIME NULL DEFAULT NULL,
+    obrisao_id INT UNSIGNED NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_mesalice_kljuc (kljuc),
+    KEY idx_mesalice_nastalo (nastalo),
+    KEY idx_mesalice_korisnik (korisnik_id, nastalo),
+    CONSTRAINT fk_mesalice_korisnik FOREIGN KEY (korisnik_id) REFERENCES korisnici (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
 function ogranicenje_postoji(string $tabela, string $ime): bool
 {
@@ -415,11 +439,17 @@ function dodaj_humovit_staru_ambalazu_v10(): void
     }
 }
 
+/** Mešalice malča (samo nova tabela; postojeći podaci se ne diraju). */
+function migracija_11(): void
+{
+    db()->exec(DDL_MESALICE);
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
     return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7', 8 => 'migracija_8', 9 => 'migracija_9',
-            10 => 'migracija_10'];
+            10 => 'migracija_10', 11 => 'migracija_11'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

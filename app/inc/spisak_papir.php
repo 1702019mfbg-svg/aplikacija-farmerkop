@@ -9,6 +9,7 @@
  *   3 pak idea 5
  *   1/2 rizla bela sitna + 1/2 oblutak beli 40-60    ← zbirna paleta (pola + pola)
  *   2x 1/2 rizla + 1/2 oblutak                       ← dve takve zbirne palete
+ *   kora 20                                          ← roba koje nema u katalogu: ostalo, 20 komada
  *
  * Ništa se ne upisuje naslepo: sve pročitano se prikaže na proveru (admin/spisak_papir.php), nejasno se označi
  * i ispravi (dodirom na pakovanje), pa se sve sačuva odjednom.
@@ -132,10 +133,11 @@ function papir_kolicina(string $l, string $bez_oznake, array $lista): array
         } elseif (preg_match('/\s[-=:x*]\s*(\d{1,5})$/u', $t, $m)) {                    // "humovit 10 - 30"
             $bez = (int)$m[1];
             $t = trim(substr($t, 0, -strlen($m[0])));
-        } elseif (preg_match('/^(.+?)\s(\d{1,5})$/u', $t, $m)) {                          // "humovit 10 30"
+        } elseif (preg_match('/^(.+?)\s(\d{1,5})$/u', $t, $m)) {                          // "humovit 10 30", "kora 20"
             $sa = papir_ocena(papir_naziv($t), $lista);
             $bez_br = papir_ocena(papir_naziv($m[1]), $lista);
-            if ($bez_br !== null && ($sa === null || $bez_br < $sa)) {
+            // broj na kraju je količina kad je naziv bez njega bolji – ili kad artikla nema ni sa njim ni bez njega (ostalo)
+            if ($bez_br !== null ? $sa === null || $bez_br < $sa : $sa === null && preg_match('/\p{L}/u', $m[1]) === 1) {
                 $bez = (int)$m[2];
                 $t = $m[1];
             }
@@ -249,10 +251,17 @@ function papir_deo_zbirne(string $l, array $lista): array
     return ['tekst' => $sku !== null ? $sku['naziv'] : $naziv, 'id' => $sku !== null ? (string)$sku['sku_id'] : '', 'kol' => $kol];
 }
 
-/** Da li tekst izgleda kao roba (ima količinu ili poznat artikal), a ne kao kupac ili adresa. */
-function papir_lici_na_robu(string $t, array $lista): bool
+/**
+ * Da li tekst izgleda kao roba (ima količinu ili poznat artikal), a ne kao kupac ili adresa. Roba van kataloga
+ * ($van_kataloga): jedna reč i broj ("kora 20") ili broj iza crtice ("saksije 30 cm - 40"); adresa je obično
+ * više reči ("Futoški put 12"). Za ostatak reda sa brojem mesta ("8 Agrocentar 2") to se ne gleda – tu je kupac.
+ */
+function papir_lici_na_robu(string $t, array $lista, bool $van_kataloga = true): bool
 {
     if (preg_match('/(?<![\d\/.,])\d{1,5}\s*' . PAPIR_JEDINICA . '\.?(?![\p{L}\d])/iu', $t) || str_contains($t, '+')) {
+        return true;
+    }
+    if ($van_kataloga && (preg_match('/^\p{L}[\p{L}.]*\s+\d{1,5}$/u', $t) || preg_match('/\S\s+[-=:x*]\s*\d{1,5}$/u', $t))) {
         return true;
     }
     $naziv = papir_naziv((string)preg_replace('/\d+/', ' ', $t));
@@ -316,7 +325,7 @@ function papir_procitaj(string $tekst, string $bez_oznake, int $prvi_broj): arra
 
         $mesto = papir_mesto($l);
         if ($mesto !== null && $mesto[0] >= 1 && ($mesto[2] || !papir_lici_na_robu($l, $lista))) {
-            if ($mesto[1] === '' || !papir_lici_na_robu($mesto[1], $lista)) {
+            if ($mesto[1] === '' || !papir_lici_na_robu($mesto[1], $lista, false)) {
                 $novo_mesto($mesto[0], mb_substr(trim($mesto[1], " -:,."), 0, 120));
                 continue;
             }

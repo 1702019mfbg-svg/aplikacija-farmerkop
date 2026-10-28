@@ -282,7 +282,7 @@ function stavka_kg(array $st, ?int $kolicina = null): ?float
 
 /**
  * Zbir spiska: ukupno paleta (komadi / komada po paleti, a zbirna paleta je cela paleta), težina u kg
- * i šta nije moglo da se uračuna.
+ * i šta nije moglo da se uračuna (ostalo bez težine se ne broji – njegova težina se ne vodi).
  * ['palete' => float, 'zbirnih' => int, 'kg' => float, 'bez_palete' => int, 'bez_tezine' => int, 'stavki' => int]
  */
 function spisak_zbir(array $stavke, bool $utovareno = false): array
@@ -306,10 +306,10 @@ function spisak_zbir(array $stavke, bool $utovareno = false): array
             }
         }
         $kg = stavka_kg($st, $kol);
-        if ($kg === null) {
-            $z['bez_tezine']++;
-        } else {
+        if ($kg !== null) {
             $z['kg'] += $kg;
+        } elseif ($st['sku_id'] !== null) {
+            $z['bez_tezine']++;
         }
     }
     return $z;
@@ -412,11 +412,12 @@ function kolicina_na_paleti(string $t, array $sku): array
  * Polje za izbor artikla kucanjem: "humovit" → ispod polja dugmad sa pakovanjima (Humovit: 5 l, 10 l, 25 l, 50 l),
  * dodir izabere artikal (u polje se upiše pun naziv, a u skriveno polje id). Radi i bez JavaScript-a: server tada
  * prepoznaje otkucano (sku_iz_unosa). $natpis prazan = polje bez natpisa ($aria ga opisuje).
+ * $ostalo: naziv kog nema u katalogu ("kora") nije greška nego ostalo (napomena ispod polja, samo komadi).
  */
-function polje_artikla(string $ime_teksta, string $ime_id, string $tekst = '', int $sku_id = 0, string $html_id = '', string $natpis = '', string $aria = '', string $primer = ''): string
+function polje_artikla(string $ime_teksta, string $ime_id, string $tekst = '', int $sku_id = 0, string $html_id = '', string $natpis = '', string $aria = '', string $primer = '', bool $ostalo = false): string
 {
     ob_start(); ?>
-    <div class="biraj" data-biraj>
+    <div class="biraj" data-biraj<?= $ostalo ? ' data-biraj-ostalo' : '' ?>>
         <?php if ($natpis !== ''): ?><label for="<?= e($html_id) ?>"><?= e($natpis) ?></label><?php endif; ?>
         <input class="polje" <?= $html_id !== '' ? 'id="' . e($html_id) . '" ' : '' ?>name="<?= e($ime_teksta) ?>" type="text" maxlength="120"
                autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next"

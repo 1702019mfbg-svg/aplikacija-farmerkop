@@ -486,13 +486,30 @@ module.exports = {
         const dodato = await page.locator('.poruka-uspeh').first().innerText();
         tvrdi(dodato.includes('Humovit · 10 l – 285 kom') && dodato.includes('Humovit · 25 l – 240 kom') && dodato.includes('Idea · 10 l – 225 kom'), 'sva tri artikla jednim čuvanjem: ' + dodato);
 
-        // Ostalo
-        await page.locator('.mesto-ostalo > summary').click();
-        await page.fill('.mesto-ostalo [name="o_naziv"]', 'Saksije 30 cm');
-        await page.fill('.mesto-ostalo [name="o_kolicina"]', '40');
-        await page.fill('.mesto-ostalo [name="o_kg"]', '0,8');
-        await page.getByRole('button', { name: 'Dodaj ostalo' }).click();
+        // Ostalo: roba koje nema u katalogu („saksije 30 cm“) ide u iste redove – žuta napomena, samo komadi
+        tvrdi((await page.locator('.mesto-ostalo').count()) === 0, 'nema više posebne forme „Ostalo“');
+        const ro = page.locator('.mesto-dodaj [data-roba-red]');
+        await ro.nth(0).locator('[data-biraj-tekst]').fill('saksije 30 cm');
+        const napomena = ro.nth(0).locator('[data-biraj-status]');
+        tvrdi((await napomena.innerText()).includes('Nema u katalogu – ide na spisak kao ostalo'), 'napomena: ' + await napomena.innerText());
+        tvrdi(await napomena.evaluate((el) => el.classList.contains('biraj-napomena') && !el.classList.contains('tekst-crveno')), 'napomena je žuta, nije greška');
+        tvrdi(!(await ro.nth(0).locator('[data-polje-pal]').isVisible()) && !(await ro.nth(0).locator('[data-polje-pak]').isVisible()), 'za ostalo se vide samo komadi');
+        await ro.nth(0).locator('[data-biraj-tekst]').press('Enter');
+        tvrdi(await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-p') === 'kom'), 'Enter vodi na komade');
+        await page.keyboard.type('40');
+        tvrdi((await ro.nth(0).locator('[data-zbir]').innerText()).includes('= 40 kom'), 'zbir: 40 kom');
+        // greška u kucanju („humovit 15“): ide kao ostalo, ali nudi Humovit
+        await ro.nth(1).locator('[data-biraj-tekst]').fill('humovit 15');
+        tvrdi((await ro.nth(1).locator('[data-biraj-status]').innerText()).includes('dodirnite ga') && (await ro.nth(1).locator('[data-biraj-ponuda] button').count()) >= 4,
+            'za „humovit 15“ nudi pakovanja Humovita');
+        await ro.nth(1).locator('[data-biraj-ponuda] button[aria-label="Humovit · 5 l"]').click();
+        tvrdi(!(await ro.nth(1).locator('[data-biraj-status]').evaluate((el) => el.classList.contains('biraj-napomena'))) && await ro.nth(1).locator('[data-polje-pak]').isVisible(),
+            'izabran Humovit 5 l: napomena nestaje, vide se i paketi');
+        await ro.nth(1).locator('[data-biraj-tekst]').fill('');
+        await p.slika('70d-ostalo');
+        await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.poruka-uspeh').first().innerText()).includes('Saksije 30 cm (ostalo) – 40 kom'), 'ostalo sačuvano: ' + await page.locator('.poruka-uspeh').first().innerText());
         tvrdi((await page.locator('.stavke-lista .stavka').count()) === 4, '4 stavke na spisku');
         const t = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
         tvrdi(t.includes('1 pal + 2 pak + 3 kom = 285 kom'), 'prikaz stavke Humovit 10 l');
@@ -822,18 +839,20 @@ module.exports = {
         await page.waitForURL('**/admin/spisak.php?id=*');
         await page.getByRole('link', { name: 'Spisak sa papira' }).first().click();
         await page.waitForURL('**/admin/spisak_papir.php?id=*');
-        await page.fill('#tekst', '8 Agrocentar\n2 pal humovit 50\nhumovit 10 - 30\n1/2 rizla bela sitna + 1/2 oblutak beli 40-60\n\n9\njedna paleta idea 10\nhumovit\nsaksije 30 kom');
+        await page.fill('#tekst', '8 Agrocentar\n2 pal humovit 50\nhumovit 10 - 30\n1/2 rizla bela sitna + 1/2 oblutak beli 40-60\n\n9\njedna paleta idea 10\nhumovit\nsaksije 30 kom\nkora 20');
         await p.slika('85-papir-tekst');
         await page.getByRole('button', { name: 'Pročitaj spisak' }).click();
         await page.waitForSelector('#pregled');
         tvrdi((await page.locator('.papir-mesto').count()) === 2, 'pročitana su 2 mesta');
-        tvrdi((await page.locator('.papir-proveri').count()) === 2, 'dva reda treba proveriti (humovit bez pakovanja, saksije)');
+        tvrdi((await page.locator('.papir-proveri').count()) === 1, 'jedan red treba proveriti (humovit bez pakovanja)');
+        tvrdi((await page.locator('.papir-ostalo').count()) === 2 && (await page.locator('.papir-ostalo .biraj-napomena').count()) === 2,
+            'saksije i kora: nema ih u katalogu – ostalo (žuta napomena), nije greška');
         const nejasan = page.locator('.papir-red').filter({ has: page.locator('[data-biraj-tekst][value="humovit"]') });
         tvrdi(await nejasan.locator('[data-biraj-ponuda]').isVisible(), 'uz „humovit“ odmah stoje pakovanja za izbor');
         await p.slika('86-papir-pregled');
         await nejasan.locator('[data-biraj-ponuda] button[aria-label="Humovit · 25 l"]').click();
         await nejasan.locator('[data-p="kom"]').fill('10');
-        await page.locator('.papir-red', { has: page.locator('[data-biraj-tekst][value="saksije"]') }).locator('[data-papir-preskoci]').check();
+        await page.locator('.papir-red', { has: page.locator('[data-biraj-tekst][value="kora"]') }).locator('[data-papir-preskoci]').check();
         tvrdi((await page.locator('.papir-preskocen').count()) === 1, 'preskočen red je bled');
         await page.getByRole('button', { name: 'Sačuvaj sve na spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
@@ -841,6 +860,8 @@ module.exports = {
         tvrdi(por.includes('Upisan spisak sa papira') && por.includes('Mesto 8 · Agrocentar') && por.includes('Mesto 9'), 'poruka: ' + por);
         tvrdi((await page.locator('.mesto-kartica .mesto-krug').allInnerTexts()).join(',') === '8,9', 'na spisku su mesta 8 i 9');
         tvrdi((await page.locator('.zbirna-paleta').count()) === 1, 'zbirna paleta (pola rizle, pola oblutka) je napravljena');
+        tvrdi((await page.locator('.stavka', { hasText: 'Saksije' }).locator('.znacka', { hasText: 'ostalo' }).count()) === 1 && (await page.locator('.stavka', { hasText: 'Kora' }).count()) === 0,
+            'saksije su na spisku kao ostalo; preskočena kora nije');
         await p.slika('87-papir-upisano');
     },
 
@@ -969,6 +990,46 @@ module.exports = {
         await page.waitForURL('**/admin/utovar.php');
         tvrdi(pitanje.includes('Trajno obrisati'), 'pitanje pre brisanja: ' + pitanje);
         tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('obrisan otkazan spisak'), 'spisak obrisan');
+    },
+
+    async mesalice(page, p) {
+        // Radnik posle mešalice dodirne boju i Sačuvaj (koliko god puta dnevno); stanje se ne menja
+        await p.prijavaRadnik('Marko', '1234');
+        tvrdi((await page.locator('.donja-nav .nav-stavka').count()) === 4, 'radnik: 4 stavke u donjem meniju');
+        await page.locator('.donja-nav').getByRole('link', { name: 'Mešalice' }).click();
+        await page.waitForURL('**/radnik/mesalice.php');
+        const boje = await page.locator('.boje-mesalice .ime span').allInnerTexts();
+        tvrdi(boje.join(',') === 'Crveni,Braon,Žuti,Crni,Narandžasti,Zeleni', 'boje malča: ' + boje.join(','));
+        await page.locator('.boje-mesalice .ime', { hasText: 'Crveni' }).click();
+        await page.locator('[data-mesalice-delta="1"]').click();
+        await page.locator('[data-mesalice-delta="1"]').click();
+        tvrdi((await page.locator('#broj').inputValue()) === '3', '+1 dva puta: 3');
+        for (let i = 0; i < 3; i++) { await page.locator('[data-mesalice-delta="-1"]').click(); }
+        tvrdi((await page.locator('#broj').inputValue()) === '1', '−1 ne ide ispod 1');
+        await page.locator('#broj').click();
+        await page.keyboard.type('3');
+        tvrdi((await page.locator('#broj').inputValue()) === '3', 'dodir na broj ga označi, pa se kuca novi');
+        await p.slika('98-mesalice-radnik');
+        await page.getByRole('button', { name: 'Sačuvaj' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Crveni – 3 mešalice'), 'sačuvano: ' + await page.locator('.poruka-uspeh').innerText());
+        tvrdi(await page.locator('.boje-mesalice input[value="Crveni"]').isChecked(), 'crvena ostaje izabrana');
+        // posle sledeće mešalice: samo Sačuvaj
+        await page.getByRole('button', { name: 'Sačuvaj' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.stat-uspeh .broj').innerText()) === '4', 'danas: 4 mešalice');
+        await p.slika('99-mesalice-sacuvano');
+
+        // Vlasnik: ko je koliko uradio
+        await page.context().clearCookies();
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.locator('.glavni-meni > summary').click();
+        await page.getByRole('link', { name: /Mešalice/ }).click();
+        await page.waitForURL('**/admin/mesalice.php');
+        tvrdi((await page.locator('h2', { hasText: 'Ukupno' }).innerText()) === 'Ukupno: 4 mešalice', 'ukupno 4');
+        tvrdi(await page.locator('.mesalice-radnik').evaluate((el) => el.open), 'jedan radnik: kartica je odmah otvorena (po danima)');
+        tvrdi((await page.locator('.mesalice-radnik').innerText()).includes('Crveni 4'), 'Marko: Crveni 4');
+        await p.slika('99b-mesalice-pregled');
     },
 
     async pwa(page, p) {

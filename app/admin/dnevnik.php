@@ -10,7 +10,7 @@ zahtevaj_ulogu('admin');
 
 $redovi = db_all(
     "SELECT d.*, k.ime FROM dnevnik d LEFT JOIN korisnici k ON k.id = d.korisnik_id
-     WHERE d.objekat IN ('unos', 'podesavanje', 'korisnik', 'spisak') ORDER BY d.id DESC LIMIT 100"
+     WHERE d.objekat IN ('unos', 'podesavanje', 'korisnik', 'spisak', 'mesalica') ORDER BY d.id DESC LIMIT 100"
 );
 
 ui_start('Dnevnik izmena', ['nav' => 'admin', 'aktivno' => 'istorija']);
@@ -21,7 +21,7 @@ ui_start('Dnevnik izmena', ['nav' => 'admin', 'aktivno' => 'istorija']);
     <?php if (!$redovi): ?>
         <p class="bez-margine">Još nema izmena ni brisanja.</p>
     <?php else: ?>
-        <p class="pomoc">Poslednjih <?= count($redovi) ?> promena (unosi, spiskovi za utovar i podešavanja).</p>
+        <p class="pomoc">Poslednjih <?= count($redovi) ?> promena (unosi, spiskovi za utovar, mešalice i podešavanja).</p>
         <ul class="lista">
             <?php foreach ($redovi as $d): ?>
                 <li>
@@ -29,6 +29,7 @@ ui_start('Dnevnik izmena', ['nav' => 'admin', 'aktivno' => 'istorija']);
                     – <?= e($d['ime'] ?? 'nepoznat') ?>, <?= e(datum_vreme_srp((string)$d['vreme'])) ?>
                     <?php if ($d['objekat'] === 'unos'): ?>· <a href="<?= e(url('admin/unos.php?id=' . (int)$d['objekat_id'])) ?>">unos #<?= (int)$d['objekat_id'] ?></a><?php endif; ?>
                     <?php if ($d['objekat'] === 'spisak'): ?>· <a href="<?= e(url('admin/spisak.php?id=' . (int)$d['objekat_id'])) ?>">spisak #<?= (int)$d['objekat_id'] ?></a><?php endif; ?>
+                    <?php if ($d['objekat'] === 'mesalica'): ?>· <a href="<?= e(url('admin/mesalice.php')) ?>">mešalice</a><?php endif; ?>
                     <?php $promene = dnevnik_promene($d['detalji']); ?>
                     <?php if ($promene): ?>
                         <ul class="promene"><?php foreach ($promene as $p): ?><li><?= e($p) ?></li><?php endforeach; ?></ul>

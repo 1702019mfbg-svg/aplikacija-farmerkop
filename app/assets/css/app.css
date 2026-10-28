@@ -228,6 +228,7 @@ textarea.polje { min-height: 96px; resize: vertical; }
     font: inherit; font-size: 1.4rem; font-weight: 800; cursor: pointer; touch-action: manipulation;
 }
 .koraci button:active { background: var(--zelena-svetla); }
+.koraci.koraci-2 { grid-template-columns: repeat(2, 1fr); }
 .zbir { font-size: 1.15rem; font-weight: 700; text-align: center; min-height: 1.7rem; margin: 0 0 14px; }
 .zbir .velik { font-size: 1.5rem; }
 .zbir.greska-tekst { color: var(--crvena); }
@@ -606,9 +607,6 @@ body.stampa { background: var(--bg); }
 .mesto-zbirna > summary { list-style: none; }
 .mesto-zbirna > summary::-webkit-details-marker { display: none; }
 .mesto-zbirna[open] > summary { margin-bottom: 10px; }
-.mesto-ostalo { margin-top: 12px; border: 1px solid var(--granica); border-radius: 12px; padding: 0 12px; background: var(--povrsina-2); }
-.mesto-ostalo > summary { padding: 12px 0; font-weight: 700; cursor: pointer; }
-.mesto-ostalo[open] { padding-bottom: 12px; }
 .mesta-pomoc { margin: 0 0 10px; }
 .mesta-sacuvaj { margin: 0 0 16px; }
 [data-poruke] > .poruka { margin: 10px 0 0; }
@@ -649,6 +647,7 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .biraj-status { margin: 4px 2px 0; font-size: .88rem; font-weight: 600; color: var(--zelena-tamno); overflow-wrap: anywhere; }
 .biraj-status:empty { display: none; }
 .biraj-status.tekst-crveno { color: var(--crvena); }
+.biraj-status.biraj-napomena { color: var(--upozorenje); }
 .biraj-ponuda { display: grid; gap: 6px; margin-top: 6px; padding: 8px; border: 1px solid var(--granica); border-radius: 12px; background: var(--povrsina-2); }
 .biraj-ponuda[hidden] { display: none; }
 .biraj-grupa { display: grid; gap: 4px; }
@@ -688,6 +687,7 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .papir-red { grid-template-columns: minmax(0, 1fr); }
 .papir-red.papir-greska { border-color: var(--crvena); background: var(--crvena-svetla); }
 .papir-red.papir-proveri { border-color: var(--upozorenje); border-width: 2px; }
+.papir-red.papir-ostalo { border-color: var(--upozorenje); border-style: dashed; }
 .papir-red.papir-preskocen { opacity: .55; }
 .papir-napomena { margin: 0; font-size: .85rem; font-weight: 600; color: var(--upozorenje); }
 .papir-red .papir-greska-tekst { margin: 0; font-size: .88rem; font-weight: 700; color: var(--crvena); }
@@ -774,3 +774,21 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .kalk-cela-sirina { grid-column: 1 / -1; }
 .slika-dugme { position: relative; cursor: pointer; }
 .slika-dugme .ikona { width: 1.6rem; height: 1.6rem; }
+
+/* ── Mešalice (boja malča: tačkica u dugmetu) ── */
+.boje-mesalice .ime span { gap: 8px; }
+.boja-tacka { display: inline-block; flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .7); box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+.boja-tacka[data-boja="crven"] { background: #c0392b; }
+.boja-tacka[data-boja="crn"] { background: #1d1d1d; }
+.boja-tacka[data-boja="braon"] { background: #7a4a2a; }
+.boja-tacka[data-boja="zut"] { background: #e8c21c; }
+.boja-tacka[data-boja="narandz"] { background: #e67e22; }
+.boja-tacka[data-boja="zelen"] { background: #2e8b3e; }
+.boja-tacka[data-boja="plav"] { background: #2c6fbb; }
+.boja-tacka[data-boja="bel"] { background: #f4f4f0; }
+.boja-tacka[data-boja="siv"] { background: #8a8a8a; }
+.boja-tacka[data-boja="ljubic"] { background: #7d3c98; }
+.boja-tacka[data-boja="roz"] { background: #e88aa8; }
+.boja-tacka[data-boja="bordo"] { background: #7b1e2b; }
+.boja-tacka[data-boja="oker"] { background: #c8902e; }
+.mesalice-boje { margin: 0 0 6px; font-weight: 700; }
