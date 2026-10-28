@@ -876,7 +876,7 @@ module.exports = {
         await page.locator('.glavni-meni > summary').click();
         tvrdi(await page.locator('.glavni-meni-panel').isVisible(), 'dodir na ☰ otvara meni');
         await p.slika('91-meni-kalkulacija', false);
-        await page.mouse.click(195, 500);
+        await page.mouse.click(8, 700);      // levo dole, van menija (meni je visok skoro do pola ekrana)
         tvrdi(!(await page.locator('.glavni-meni-panel').isVisible()), 'dodir van menija ga zatvara');
         await page.locator('.glavni-meni > summary').click();
         await page.getByRole('link', { name: 'Pregled kalkulacije' }).click();
