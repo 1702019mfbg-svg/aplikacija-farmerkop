@@ -168,7 +168,10 @@ ui_start('Radnici', ['nav' => 'admin', 'aktivno' => 'radnici', 'js' => ['assets/
 </form>
 
 <h2 class="kat-naslov">Radnici (<?= count($radnici) ?>)</h2>
-<p class="grupa-dugmica"><a class="btn btn-mali" href="<?= e(url('admin/mesalice.php')) ?>"><?= ikona('mesalica') ?> Mešalice – ko je koliko ofarbao</a></p>
+<p class="grupa-dugmica">
+    <a class="btn btn-braon btn-mali" href="<?= e(url('admin/proizvodnja.php')) ?>"><?= ikona('kutija') ?> Danas – palete po radniku</a>
+    <a class="btn btn-mali" href="<?= e(url('admin/mesalice.php')) ?>"><?= ikona('mesalica') ?> Mešalice – ko je koliko ofarbao</a>
+</p>
 <?php if (!$radnici): ?>
     <div class="kartica"><p class="bez-margine">Još nema radnika. Dodajte prvog iznad.</p></div>
 <?php endif; ?>
@@ -247,7 +250,7 @@ ui_start('Radnici', ['nav' => 'admin', 'aktivno' => 'radnici', 'js' => ['assets/
     <?php if (!$po_danu): ?>
         <p class="bez-margine">U ovom periodu nema proizvodnje.</p>
     <?php else: ?>
-        <p class="pomoc">Komada po danima (<?= e(datum_srp($od)) ?> – <?= e(datum_srp($do)) ?>). Dodirnite broj da vidite unose.</p>
+        <p class="pomoc">Komada po danima (<?= e(datum_srp($od)) ?> – <?= e(datum_srp($do)) ?>). Dodirnite broj da vidite unose. Palete po artiklu: <a href="<?= e(url('admin/proizvodnja.php?od=' . $od . '&do=' . $do)) ?>">Proizvodnja po radniku</a>.</p>
         <div class="tabela-omot">
             <table class="tabela tabela-radnici">
                 <thead>

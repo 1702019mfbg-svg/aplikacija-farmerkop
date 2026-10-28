@@ -145,7 +145,7 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 | **Stanje** | Stanje svakog artikla po pakovanju (komadi, palete, litri), danas proizvedeno i prodato, crveno kad padne ispod minimuma |
 | **Utovar** | Spiskovi za utovar – jedan spisak je jedan kamion, roba po mestima istovara (Mesto 8, 9, 5 …). Odatle je i **Ručna prodaja** – samo za izuzetke (npr. neko dođe po par vreća bez spiska) |
 | **Istorija** | Svi unosi sa filterima; ispravka i brisanje (uz zapis ko i kad); **Izvoz u Excel (CSV)** |
-| **Radnici** | Dodavanje, PIN, gašenje i vraćanje pristupa, pregled ko je koliko proizveo po danima, mešalice danas i veza na pregled **Mešalice** |
+| **Radnici** | Dodavanje, PIN, gašenje i vraćanje pristupa, pregled ko je koliko proizveo po danima, mešalice danas; dugmad **Danas – palete po radniku** i **Mešalice** |
 | **Podešavanja** | Artikli i varijante, pakovanja, minimum, komada u paketu i po paleti, težina komada, **popis stanja**, **uvoz stanja iz fajla**, promena šifre, dnevnik izmena |
 
 **Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa. Sve se čuva u komadima; palete i paketi su samo način unosa.
@@ -210,6 +210,14 @@ Ključ stoji samo na serveru (nikad se ne vidi u telefonu) – ne šaljite ga ni
 
 ### Kupci po godini (ko je koliko uzeo)
 Meni **☰** → **Kupci po godini** (ili Istorija → **Kupci po godini**): za izabranu godinu, svaki kupac i koliko je robe uzeo – po artiklu, u komadima, litrima i kilogramima; kupci sa najviše robe su prvi. Računa se ručna prodaja + utovar sa spiskova (na kupca mesta) − povrat; otkazani utovari i obrisani unosi se ne računaju, a kućna prodaja i mesta bez kupca su pod „Bez kupca“. Dodir na kupca otvara spisak artikala; **Izvoz u Excel (CSV)** daje celu godinu u tabeli. Podaci se čuvaju zauvek (iz istorije unosa), pa se može izabrati i svaka ranija godina.
+
+### Proizvodnja po radniku (koliko je paleta čega napravio ko)
+Meni **☰** → **Proizvodnja po radniku (palete)** (ili **Radnici** → *Danas – palete po radniku*). Otvara se za **danas**; može i **Juče, Ova nedelja, Ovaj mesec, Prošli mesec** ili **Drugi period** (od–do).
+- Gore: koliko je paleta ukupno napravljeno (i komada, i koliko radnika).
+- Za svakog radnika (ko je napravio više je prvi): svaki artikal sa **paletama** – npr. *Humovit · 10 l – 1 pal + 3 pak (288 kom)*, *Humovit · 50 l – 3 pal (120 kom)*. Palete se računaju iz komada (koliko ide na paletu – Podešavanja → Artikli), pa je isto bilo da je radnik upisao palete, pakete ili komade; manje od palete piše kao paketi i komadi.
+- **Unosi – kako je upisano:** svaki unos tog radnika (vreme, artikal, „40 kom (1 paleta)“) i dugme **U Istoriji** za ispravku ili brisanje.
+- **Po artiklu (svi radnici):** ukupno po artiklu i ko je koliko (npr. *Humovit · 50 l – 4 pal: Dragan 2 pal · Marko 2 pal*).
+- Obrisani unosi se ne računaju. **Izvoz u Excel (CSV)**: po radniku i artiklu, sa komadima i paletama.
 
 ### Mešalice (koliko je ko ofarbao)
 Meni **☰** → **Mešalice** (ili **Radnici** → *Mešalice – ko je koliko ofarbao*): koliko je mešalica malča urađeno u periodu – **Danas, Juče, Ova nedelja, Ovaj mesec, Prošli mesec** ili **Drugi period** (od–do). Gore je ukupno i po boji; ispod svaki radnik (ko je uradio više je prvi) sa bojama, a dodir otvara **po danima**. U **Svi unosi** možete obrisati pogrešan unos (brisanje se upisuje u Dnevnik izmena). **Izvoz u Excel (CSV)** daje sve unose iz perioda (datum, vreme, radnik, boja, broj). Norma se ne postavlja – ovo je samo pregled rada. Na kartici **Radnici** uz svakog radnika piše i koliko je mešalica uradio danas.
@@ -285,6 +293,8 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 ### Ažuriranje aplikacije (kad dobijete novu verziju)
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
+
+**Novo – Proizvodnja po radniku:** meni ☰ → **Proizvodnja po radniku (palete)** – koliko je paleta čega napravio koji radnik danas (ili u drugom periodu). Baza se ne menja.
 
 **Novo – Mešalice i roba van kataloga u redovima (verzija baze 11):** pri prvom otvaranju posle ažuriranja aplikacija sama dodaje tabelu za mešalice (postojeći podaci se ne diraju).
 - Radnici imaju novu stavku **Mešalice** u donjoj traci: boja + koliko mešalica, koliko god puta dnevno; stanje se ne menja. Vi vidite pregled u meniju **☰ → Mešalice** (i na kartici Radnici).

@@ -1032,6 +1032,26 @@ module.exports = {
         await p.slika('99b-mesalice-pregled');
     },
 
+    async proizvodnja(page, p) {
+        // Radnik upiše paletu; vlasnik vidi koliko je paleta čega napravio koji radnik danas
+        await p.prijavaRadnik('Marko', '1234');
+        await page.locator('[data-artikal]', { hasText: /^Humovit$/ }).click();
+        await page.locator('[data-pakovanja] .izbor-dugme', { hasText: '50 l' }).click();
+        await page.locator('[data-nacin-vrednost="palete"]').click();
+        await page.fill('.kolicina-polje', '2');
+        await page.locator('[data-sacuvaj]').click();
+        await page.waitForSelector('.poruka-uspeh');
+        await page.context().clearCookies();
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.locator('.glavni-meni > summary').click();
+        await page.getByRole('link', { name: /Proizvodnja po radniku/ }).click();
+        await page.waitForURL('**/admin/proizvodnja.php');
+        tvrdi((await page.locator('.cip[aria-current="true"]').innerText()) === 'Danas', 'otvara se za danas');
+        const marko = page.locator('.proizvodnja-radnik', { hasText: 'Marko' });
+        tvrdi((await marko.count()) === 1 && (await marko.locator('tr', { hasText: 'Humovit · 50 l' }).innerText()).includes('2 pal'), 'Marko: 2 pal Humovit 50 l');
+        await p.slika('99c-proizvodnja-po-radniku');
+    },
+
     async prikaz(page, p) {
         // Telefon u prikazu „za računare“ (Chrome: Verzija za računare) ne gleda oznaku viewport, pa je stranica
         // široka ~980 px na ekranu od 412 px → aplikacija pokaže uputstvo kako da se to isključi

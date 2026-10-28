@@ -55,7 +55,7 @@ function nav_stavke(string $vrsta): array
     ];
 }
 
-/** Meni ☰ u zaglavlju (samo administrator): modul Kalkulacija (i Kupci po godini, Mešalice). Donja navigacija se ne menja. */
+/** Meni ☰ u zaglavlju (samo administrator): modul Kalkulacija (i Kupci po godini, proizvodnja po radniku, Mešalice). Donja navigacija se ne menja. */
 function kalk_meni_stavke(): array
 {
     return [
@@ -121,7 +121,8 @@ function ui_start(string $naslov, array $o = []): void
                 <?php endforeach; ?>
                 <p class="glavni-meni-naslov"><?= ikona('radnici', 'ikona ikona-mala') ?> Kupci</p>
                 <a href="<?= e(url('admin/kupci.php')) ?>">Kupci po godini (ko je koliko uzeo)</a>
-                <p class="glavni-meni-naslov"><?= ikona('mesalica', 'ikona ikona-mala') ?> Rad</p>
+                <p class="glavni-meni-naslov"><?= ikona('kutija', 'ikona ikona-mala') ?> Rad</p>
+                <a href="<?= e(url('admin/proizvodnja.php')) ?>">Proizvodnja po radniku (palete)</a>
                 <a href="<?= e(url('admin/mesalice.php')) ?>">Mešalice (ko je koliko ofarbao)</a>
             </nav>
         </details>

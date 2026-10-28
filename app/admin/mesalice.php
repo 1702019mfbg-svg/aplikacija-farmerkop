@@ -11,22 +11,7 @@ require __DIR__ . '/../inc/mesalice.php';
 
 $admin = zahtevaj_ulogu('admin');
 
-$danas = date('Y-m-d');
-$opsezi = [
-    'Danas'        => [$danas, $danas],
-    'Juče'         => [date('Y-m-d', strtotime('-1 day')), date('Y-m-d', strtotime('-1 day'))],
-    'Ova nedelja'  => [date('Y-m-d', strtotime('monday this week')), $danas],
-    'Ovaj mesec'   => [date('Y-m-01'), $danas],
-    'Prošli mesec' => [date('Y-m-01', strtotime('first day of last month')), date('Y-m-t', strtotime('first day of last month'))],
-];
-$od = get_str('od', 10);
-$do = get_str('do', 10);
-if (!je_datum($od) || !je_datum($do)) {
-    [$od, $do] = $opsezi['Ova nedelja'];
-}
-if ($od > $do) {
-    [$od, $do] = [$do, $od];
-}
+[$od, $do] = period_iz_adrese('Ova nedelja');
 $period = ['od' => $od, 'do' => $do];
 $ovde = 'admin/mesalice.php?' . http_build_query($period);
 
@@ -42,7 +27,7 @@ if (je_post()) {
 $unosi = db_all(
     'SELECT m.id, m.korisnik_id, k.ime, m.boja, m.broj, m.nastalo FROM mesalice m JOIN korisnici k ON k.id = m.korisnik_id
      WHERE m.obrisan = 0 AND m.nastalo >= ? AND m.nastalo < ? ORDER BY m.nastalo DESC, m.id DESC',
-    [$od . ' 00:00:00', date('Y-m-d', strtotime($do . ' +1 day')) . ' 00:00:00']
+    period_granice($od, $do)
 );
 
 if (get_int('csv') === 1) {
@@ -78,30 +63,14 @@ foreach ($unosi as $u) {
 uasort($radnici, static fn(array $a, array $b): int => [$b['ukupno'], $a['ime']] <=> [$a['ukupno'], $b['ime']]);
 $po_boji = mesalice_po_boji(array_reverse($unosi));
 arsort($po_boji);
-$opis_perioda = $od === $do ? dan_u_nedelji($od) . ', ' . datum_srp($od) : datum_srp($od) . ' – ' . datum_srp($do);
 
 ui_start('Mešalice', ['nav' => 'admin', 'aktivno' => 'radnici']);
 ?>
-<div class="cipovi" role="group" aria-label="Period">
-    <?php foreach ($opsezi as $naziv => [$o_od, $o_do]): ?>
-        <a class="cip" href="<?= e(url('admin/mesalice.php?' . http_build_query(['od' => $o_od, 'do' => $o_do]))) ?>"
-           <?= $od === $o_od && $do === $o_do ? 'aria-current="true"' : '' ?>><?= e($naziv) ?></a>
-    <?php endforeach; ?>
-</div>
-<details class="kartica">
-    <summary class="kartica-naslov"><h2>Drugi period</h2></summary>
-    <form method="get" action="<?= e(url('admin/mesalice.php')) ?>">
-        <div class="red-polja-2 red-polja">
-            <div><label for="od">Od datuma</label><input class="polje" type="date" id="od" name="od" value="<?= e($od) ?>"></div>
-            <div><label for="do">Do datuma</label><input class="polje" type="date" id="do" name="do" value="<?= e($do) ?>"></div>
-        </div>
-        <button class="btn btn-primary btn-blok" type="submit">Prikaži</button>
-    </form>
-</details>
+<?= period_izbor_html('admin/mesalice.php', $od, $do) ?>
 
 <section class="kartica" aria-labelledby="naslov-ukupno">
     <div class="kartica-naslov"><h2 id="naslov-ukupno">Ukupno: <?= e(mesalice_tekst($ukupno)) ?></h2></div>
-    <p class="pomoc bez-margine"><?= e($opis_perioda) ?><?= $po_boji ? ' · ' . e(mesalice_boje_tekst($po_boji)) : '' ?></p>
+    <p class="pomoc bez-margine"><?= e(period_opis($od, $do)) ?><?= $po_boji ? ' · ' . e(mesalice_boje_tekst($po_boji)) : '' ?></p>
     <p class="pomoc bez-margine razmak-gore">Mešalice upisuju radnici (meni Mešalice). Ovo je samo pregled rada – stanje se ne menja, vreće se upisuju u Proizvodnji.</p>
 </section>
 

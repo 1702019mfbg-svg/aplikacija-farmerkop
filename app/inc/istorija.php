@@ -155,6 +155,69 @@ function dnevnik_promene(?string $detalji): array
     return [];
 }
 
+// ─── Period (pregledi: mešalice, proizvodnja po radniku) ───────────────────
+
+/** Brzi izbor perioda: naziv => [od, do]. */
+function period_opsezi(): array
+{
+    $danas = date('Y-m-d');
+    $juce = date('Y-m-d', strtotime('-1 day'));
+    return [
+        'Danas'        => [$danas, $danas],
+        'Juče'         => [$juce, $juce],
+        'Ova nedelja'  => [date('Y-m-d', strtotime('monday this week')), $danas],
+        'Ovaj mesec'   => [date('Y-m-01'), $danas],
+        'Prošli mesec' => [date('Y-m-01', strtotime('first day of last month')), date('Y-m-t', strtotime('first day of last month'))],
+    ];
+}
+
+/** Period iz adrese (?od=…&do=…); bez njega ili neispravan: $podrazumevano (naziv iz period_opsezi()). Vraća [od, do]. */
+function period_iz_adrese(string $podrazumevano): array
+{
+    $od = get_str('od', 10);
+    $do = get_str('do', 10);
+    if (!je_datum($od) || !je_datum($do)) {
+        return period_opsezi()[$podrazumevano];
+    }
+    return $od <= $do ? [$od, $do] : [$do, $od];
+}
+
+/** Uslov za SQL: [od 00:00, dan posle do 00:00). */
+function period_granice(string $od, string $do): array
+{
+    return [$od . ' 00:00:00', date('Y-m-d', (int)strtotime($do . ' +1 day')) . ' 00:00:00'];
+}
+
+/** "sreda, 28.10.2026." za jedan dan, inače "26.10.2026. – 28.10.2026." */
+function period_opis(string $od, string $do): string
+{
+    return $od === $do ? dan_u_nedelji($od) . ', ' . datum_srp($od) : datum_srp($od) . ' – ' . datum_srp($do);
+}
+
+/** Izbor perioda za stranicu $adresa: dugmad (Danas, Juče …) i „Drugi period“ (od–do). */
+function period_izbor_html(string $adresa, string $od, string $do): string
+{
+    ob_start(); ?>
+    <div class="cipovi" role="group" aria-label="Period">
+        <?php foreach (period_opsezi() as $naziv => [$o_od, $o_do]): ?>
+            <a class="cip" href="<?= e(url($adresa . '?' . http_build_query(['od' => $o_od, 'do' => $o_do]))) ?>"
+               <?= $od === $o_od && $do === $o_do ? 'aria-current="true"' : '' ?>><?= e($naziv) ?></a>
+        <?php endforeach; ?>
+    </div>
+    <details class="kartica">
+        <summary class="kartica-naslov"><h2>Drugi period</h2></summary>
+        <form method="get" action="<?= e(url($adresa)) ?>">
+            <div class="red-polja-2 red-polja">
+                <div><label for="od">Od datuma</label><input class="polje" type="date" id="od" name="od" value="<?= e($od) ?>"></div>
+                <div><label for="do">Do datuma</label><input class="polje" type="date" id="do" name="do" value="<?= e($do) ?>"></div>
+            </div>
+            <button class="btn btn-primary btn-blok" type="submit">Prikaži</button>
+        </form>
+    </details>
+    <?php
+    return (string)ob_get_clean();
+}
+
 // ─── CSV ───────────────────────────────────────────────────────────────────
 
 /** Tekst za CSV: zaštita od "formula injection" u Excelu i navodnici po pravilima. */

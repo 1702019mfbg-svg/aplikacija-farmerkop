@@ -11,7 +11,7 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 | Ko | Šta |
 |---|---|
 | **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10), **Mešalice** (koliko je mešalica malča ofarbao, po boji; ne menja stanje). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
-| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, roba van kataloga („kora“) kao ostalo u istim redovima, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici** (i pregled **Mešalice** u meniju ☰), **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
+| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, roba van kataloga („kora“) kao ostalo u istim redovima, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici** (i u meniju ☰: **Proizvodnja po radniku** – palete po artiklu, **Mešalice**), **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
 
@@ -21,7 +21,8 @@ app/                  ← ceo sadržaj ovog foldera ide u koren poddomena
   radnik/             proizvodnja, kućna prodaja, utovar (potvrda spiska), mesalice
   admin/              stanje, prodaja, istorija, unos (ispravka), izvoz (CSV), dnevnik,
                       radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak,
-                      spisak_stampa (štampa / PDF / deljenje), spisak_papir (spisak sa papira), kupci, mesalice
+                      spisak_stampa (štampa / PDF / deljenje), spisak_papir (spisak sa papira), kupci, mesalice,
+                      proizvodnja (palete po radniku i artiklu)
   inc/                bootstrap, db, auth, csrf, session, katalog, unosi, istorija,
                       podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi, mesalice (zaštićeno .htaccess-om)
   assets/             css, js, ikone;  sw.js, manifest.webmanifest, offline.html
@@ -71,6 +72,9 @@ dist/                 gotovi ZIP paketi
 - **Mešalice** (v11; `inc/mesalice.php`, `radnik/mesalice.php`, `admin/mesalice.php`): tabela `mesalice` (radnik, boja kao tekst,
   broj, meko brisanje, ključ protiv duplog slanja) – samo praćenje rada, **ne ulazi u stanje**. Boje = aktivne varijante malča
   (bez neobojenog). Admin: period, po radniku/boji/danu, brisanje (dnevnik, objekat `mesalica`), CSV.
+- **Proizvodnja po radniku** (`admin/proizvodnja.php`): unosi `proizvodnja` u periodu sabrani po radniku i SKU; palete =
+  komadi / `po_paleti` (tekst `razlaganje()`: „2 pal + 3 pak + 4 kom“), pa ne zavisi od načina unosa. Period (danas, juče …,
+  od–do) je zajednički sa Mešalicama: `period_iz_adrese()` / `period_izbor_html()` u `inc/istorija.php`.
 - **Uvoz stanja** (`inc/uvoz.php`, `admin/uvoz.php`): čita CSV/tabelu, uparuje redove sa SKU-ovima po normalizovanim rečima
   (latinica/ćirilica, pakovanje, granulacija, boja), pamti ručna uparivanja u `uvoz_mapiranje`, a upisuje preko `popis_postavi()`.
 
@@ -106,6 +110,7 @@ python3 tests/test_17_slika_spiska.py      # slikaj spisak: zahtev AI servisu (l
 python3 tests/test_18_kupci_brisanje.py    # kupci po godini (prodaja + utovar − povrat, CSV), brisanje otkazanog spiska
 python3 tests/test_19_humovit_stara_ambalaza.py  # v10: Humovit S (stara ambalaža) 25/50 l, unos, stanje, „humovit s 50“
 python3 tests/test_20_mesalice.py          # v11: mešalice po boji (radnik), brisanje u roku, pregled, CSV, pristup
+python3 tests/test_21_proizvodnja_po_radniku.py  # palete po radniku i artiklu (danas, juče, od–do), obrisano/prodaja ne, CSV
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```
