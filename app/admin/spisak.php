@@ -587,6 +587,16 @@ $prikazi_stavku = static function (array $st) use ($nacrt, $utovaren, $manjak, $
 <?php endif; ?>
 
 <?php
+/**
+ * Redovi forme: upisani (bez praznih na kraju) i jedan prazan, najmanje dva i najviše koliko server prima;
+ * sledeći prazan red doda spisak.js čim se piše u poslednji.
+ */
+$redovi_forme = static function (array $redovi, int $polja, int $najvise): array {
+    while ($redovi && implode('', array_map('strval', end($redovi))) === '') {
+        array_pop($redovi);
+    }
+    return array_pad($redovi, max(2, min(count($redovi) + 1, $najvise)), array_fill(0, $polja, null));
+};
 $redni = 0;
 foreach ($po_mestima as $mid => $grupa):
     $m = $grupa['mesto'];
@@ -688,10 +698,10 @@ foreach ($po_mestima as $mid => $grupa):
             $za_zbirnu = $f['vrsta'] === 'zbirna';
             $otvori_dodaj = $za_dodaj || (!$za_zbirnu && (($aktivno_mesto === (int)$mid && !$otvori_zbirnu) || !$mst));
             $rr = $za_dodaj ? array_map(null, $pf['r_tekst'] ?? [], $pf['r_id'] ?? [], $pf['r_pal'] ?? [], $pf['r_pak'] ?? [], $pf['r_kom'] ?? []) : [];
-            $rr = array_pad($rr, max(3, count($rr)), [null, null, null, null, null]);
+            $rr = $redovi_forme($rr, 5, 30);
             $u_paletu = $za_dodaj ? (int)($pf['paleta_id'] ?? 0) : $izabrana_paleta;
             $zr = $za_zbirnu ? array_map(null, $pf['z_artikal'] ?? [], $pf['z_id'] ?? [], $pf['z_kol'] ?? []) : [];
-            $zr = array_pad($zr, max(3, count($zr)), [null, null, null]); ?>
+            $zr = $redovi_forme($zr, 3, 20); ?>
             <details class="mesto-dodaj" id="dodaj-<?= (int)$mid ?>"<?= $otvori_dodaj ? ' open' : '' ?>>
                 <summary class="btn btn-blok"><?= ikona('plus') ?> Dodaj robu za Mesto <?= (int)$m['broj'] ?></summary>
                 <div data-poruke></div>
@@ -714,7 +724,7 @@ foreach ($po_mestima as $mid => $grupa):
                     <?php else: ?>
                         <input type="hidden" name="paleta_id" value="0">
                     <?php endif; ?>
-                    <p class="pomoc">Kucajte naziv (npr. <strong>humovit</strong>), dodirnite pakovanje i upišite količinu. Robu koje nema u katalogu (npr. <strong>kora</strong>) samo upišite sa brojem komada – ide na spisak kao <strong>ostalo</strong>, bez stanja. Popunite koliko god redova treba, pa sve sačuvajte odjednom.</p>
+                    <p class="pomoc">Kucajte naziv (npr. <strong>humovit</strong>), dodirnite pakovanje i upišite količinu. Robu koje nema u katalogu (npr. <strong>kora</strong>) samo upišite sa brojem komada – ide na spisak kao <strong>ostalo</strong>, bez stanja. Čim počnete da pišete u poslednji red, ispod se sam pojavi novi – sve se čuva odjednom.</p>
                     <div class="roba-redovi" data-roba-redovi>
                         <?php foreach ($rr as $i => [$r_t, $r_id, $r_pal, $r_pak, $r_kom]): ?>
                             <div class="roba-red" data-roba-red data-popis data-po="0" data-pp="0" data-sada="0">
@@ -729,7 +739,6 @@ foreach ($po_mestima as $mid => $grupa):
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <button type="button" class="btn btn-mali" data-roba-jos hidden><?= ikona('plus') ?> Još jedan artikal</button>
                     <button class="btn btn-primary btn-blok razmak-gore" type="submit">Sačuvaj robu za Mesto <?= (int)$m['broj'] ?></button>
                 </form>
             </details>
@@ -741,7 +750,7 @@ foreach ($po_mestima as $mid => $grupa):
                     <input type="hidden" name="akcija" value="nova_paleta">
                     <input type="hidden" name="id" value="<?= $id ?>">
                     <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
-                    <p class="pomoc">Šta ide na <strong>jednu</strong> paletu: artikal i koliko – komada (<strong>25</strong>), deo palete (<strong>1/2</strong>) ili paketa (<strong>3 pak</strong>).</p>
+                    <p class="pomoc">Šta ide na <strong>jednu</strong> paletu: artikal i koliko – komada (<strong>25</strong>), deo palete (<strong>1/2</strong>) ili paketa (<strong>3 pak</strong>). Novi red se pojavi sam.</p>
                     <div class="zbirna-redovi" data-zbirna-redovi>
                         <div class="zbirna-red zbirna-red-naslov" aria-hidden="true"><span>Artikal</span><span>Na paleti</span></div>
                         <?php foreach ($zr as $i => [$z_art, $z_id, $z_kol]): ?>
@@ -752,7 +761,6 @@ foreach ($po_mestima as $mid => $grupa):
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <button type="button" class="btn btn-mali" data-zbirna-jos hidden><?= ikona('plus') ?> Još jedan artikal</button>
                     <div class="red-polja-2 red-polja razmak-gore">
                         <div><label for="p_broj_<?= (int)$mid ?>">Koliko ovakvih paleta</label><input class="polje" id="p_broj_<?= (int)$mid ?>" name="p_broj" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= e($za_zbirnu ? (string)($pf['p_broj'] ?? '1') : '1') ?>"></div>
                         <div><label for="p_naziv_<?= (int)$mid ?>">Naziv (nije obavezno)</label><input class="polje" id="p_naziv_<?= (int)$mid ?>" name="p_naziv" type="text" maxlength="60" placeholder="Zbirna paleta" value="<?= e($za_zbirnu ? (string)($pf['p_naziv'] ?? '') : '') ?>"></div>

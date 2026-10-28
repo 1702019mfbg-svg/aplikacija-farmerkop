@@ -1,5 +1,5 @@
 /* Spisak za utovar: izbor artikla kucanjem ("humovit" → dugmad 5 l / 10 l / 25 l / 50 l, dodir izabere),
- * više artikala odjednom (redovi + "Još jedan artikal"), zbir paleta + paketa + komada uživo i prikaz samo onih
+ * više artikala odjednom (uvek jedan prazan red na kraju), zbir paleta + paketa + komada uživo i prikaz samo onih
  * polja koja artikal ima. Naziv kog nema u katalogu ("kora") u redovima robe je ostalo: žuta napomena i samo
  * komadi. U zbirnoj paleti se upisuje količina za jednu paletu (bez celih paleta), a zbir pokazuje
  * i ukupno × broj paleta. Zbirna paleta odjednom: redovi artikal + koliko na paleti (25, 1/2, 3 pak). */
@@ -354,6 +354,8 @@
     document.addEventListener('input', function (e) {
         var t = e.target;
         if (!t.closest) { return; }
+        var redForme = t.closest('[data-roba-red], [data-zbirna-red]');
+        if (redForme) { dodajPrazanRed(redForme); }
         if (t.hasAttribute('data-biraj-tekst')) { osveziBiraj(t.closest('[data-biraj]')); return; }
         var zr = t.closest('[data-zbirna-red]');
         if (zr) { osveziZbirniRed(zr); return; }
@@ -379,12 +381,21 @@
     var zbirni = document.querySelectorAll('[data-zbirna-red]');
     for (var z = 0; z < zbirni.length; z++) { osveziZbirniRed(zbirni[z]); }
 
-    /* "Još jedan artikal": novi prazan red (roba za mesto do 30, zbirna paleta do 20). */
-    function noviRed(dugme, okvirSel, redSel, najvise) {
-        var redovi = dugme.closest('form').querySelector(okvirSel);
-        var svi = redovi.querySelectorAll(redSel);
-        if (svi.length >= najvise) { return; }
-        var novi = svi[svi.length - 1].cloneNode(true);
+    /* Uvek jedan prazan red na kraju: čim se u poslednji red nešto upiše, ispod se sam doda novi prazan
+     * (roba za mesto do 30, zbirna paleta do 20). Samo u formama "Dodaj robu" i "Zbirna paleta" (ne u pregledu sa
+     * papira). Kursor ostaje gde se kuca. */
+    function prazanRed(red) {
+        var polja = red.querySelectorAll('input:not([type="hidden"])');
+        for (var i = 0; i < polja.length; i++) { if (polja[i].value.trim() !== '') { return false; } }
+        return true;
+    }
+    function dodajPrazanRed(red) {
+        var roba = red.hasAttribute('data-roba-red');
+        var redovi = red.parentElement;
+        if (!redovi || !redovi.hasAttribute(roba ? 'data-roba-redovi' : 'data-zbirna-redovi')) { return; }
+        var svi = redovi.querySelectorAll(roba ? '[data-roba-red]' : '[data-zbirna-red]');
+        if (svi[svi.length - 1] !== red || svi.length >= (roba ? 30 : 20) || prazanRed(red)) { return; }
+        var novi = red.cloneNode(true);
         var n = svi.length + 1;
         var polja = novi.querySelectorAll('input');
         for (var k = 0; k < polja.length; k++) {
@@ -404,17 +415,7 @@
         var rb = novi.querySelector('.roba-broj');
         if (rb) { rb.textContent = String(n); }
         redovi.appendChild(novi);
-        if (novi.hasAttribute('data-roba-red')) { osveziRed(novi); }
-        novi.querySelector('[data-biraj-tekst]').focus();
-        dugme.hidden = n >= najvise;
-    }
-    var jos = document.querySelectorAll('[data-roba-jos], [data-zbirna-jos]');
-    for (var j = 0; j < jos.length; j++) {
-        jos[j].hidden = false;
-        jos[j].addEventListener('click', function () {
-            if (this.hasAttribute('data-roba-jos')) { noviRed(this, '[data-roba-redovi]', '[data-roba-red]', 30); }
-            else { noviRed(this, '[data-zbirna-redovi]', '[data-zbirna-red]', 20); }
-        });
+        if (roba) { osveziRed(novi); }
     }
 
     /* Posle dodavanja stranica se otvara kod forme (#dodaj-12, #mesto-12): poruka ide tamo, da se vidi. */

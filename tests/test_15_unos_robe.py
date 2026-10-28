@@ -101,9 +101,13 @@ try:
     R.odeljak("Izbor artikla: pun naziv, kucanjem")
     o = adm.get(SP + "?id=%d" % sp)
     forma = o.text.split('id="dodaj-%d"' % m8)[1].split("</details>")[0]
-    R.provera(forma.count('name="r_tekst[]"') == 3 and forma.count('name="r_id[]"') == 3 and forma.count("data-biraj-ponuda") == 3,
-              "forma „Dodaj robu“ ima 3 reda, svaki sa izborom artikla (tekst + izabrano pakovanje)")
-    R.provera('value="dodaj_vise"' in forma and "data-roba-jos" in forma and "Sačuvaj robu za Mesto 8" in forma, "dugme „Još jedan artikal“ i jedno čuvanje za sve")
+    R.provera(forma.count('name="r_tekst[]"') == 2 and forma.count('name="r_id[]"') == 2 and forma.count("data-biraj-ponuda") == 2,
+              "forma „Dodaj robu“ počinje sa 2 reda, svaki sa izborom artikla (tekst + izabrano pakovanje)")
+    R.provera('value="dodaj_vise"' in forma and "Još jedan artikal" not in forma and "data-roba-jos" not in forma and "Sačuvaj robu za Mesto 8" in forma
+              and "ispod se sam pojavi novi" in tekst(forma), "nema dugmeta „Još jedan artikal“ (novi red se pojavi sam), jedno čuvanje za sve")
+    zbirna = o.text.split('id="zbirna-%d"' % m8)[1].split("</details>")[0]
+    R.provera(zbirna.count('name="z_artikal[]"') == 2 and zbirna.count('name="z_kol[]"') == 2 and "Još jedan artikal" not in zbirna and "data-zbirna-jos" not in zbirna,
+              "i zbirna paleta počinje sa 2 reda, bez dugmeta")
     R.provera("lista-sku" not in o.text and "H50L" not in o.text and "stavka-sifra" not in o.text, "nema šifri ni stare liste za kucanje")
     pod = podaci_za_unos(o)
     R.provera([hum50, "Humovit", "", "50 l", 40, 0, 0] in pod and [bo46, "Beli oblutak", "4-6 cm", "20 kg", 50, 0, 0] in pod and all(len(r) == 7 for r in pod),
@@ -144,6 +148,14 @@ try:
               "greška u redu 2: ništa se ne upisuje (ni red 1)", poruke(o))
     R.provera('value="kora"' in o.text and 'value="humovit 5"' in o.text and re.search(r'name="r_pal\[\]"[^>]*value="2"', o.text)
               and re.search(r'id="dodaj-%d" open' % m8, o.text), "upisano ostaje u formi, forma je otvorena")
+    forma = o.text.split('id="dodaj-%d"' % m8)[1].split("</details>")[0]
+    R.provera(forma.count('name="r_tekst[]"') == 3 and re.findall(r'name="r_tekst\[\]"[^>]*value="([^"]*)"', forma) == ["humovit 5", "kora", ""],
+              "posle greške: dva upisana reda i jedan prazan ispod", re.findall(r'name="r_tekst\[\]"[^>]*value="([^"]*)"', forma))
+    o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0",
+                      "r_tekst[]": ["kora"] + ["idea 5"] * 29, "r_pal[]": ["2"] + [""] * 29, "r_kom[]": [""] + ["1"] * 29})
+    forma = o.text.split('id="dodaj-%d"' % m8)[1].split("</details>")[0]
+    R.provera("Red 1:" in poruke(o) and stavke(sp) == pre and forma.count('name="r_tekst[]"') == 30,
+              "posle greške u punih 30 redova: 30 redova, bez praznog preko granice", forma.count('name="r_tekst[]"'))
     o = adm.get(SP + "?id=%d" % sp)
     R.provera('value="kora"' not in o.text, "upisano se pamti samo za jedno otvaranje")
     for redovi, poruka, opis in [
@@ -175,7 +187,7 @@ try:
     o = adm.get(SP + "?id=%d" % sp)
     forma = o.text.split('id="dodaj-%d"' % m8)[1].split('id="zbirna-%d"' % m8)[0]
     zbirna = o.text.split('id="zbirna-%d"' % m8)[1].split("</details>")[0]
-    R.provera(forma.count("data-biraj-ostalo") == 3 and "data-biraj-ostalo" not in zbirna and "Dodaj ostalo" not in o.text and 'name="o_naziv"' not in o.text
+    R.provera(forma.count("data-biraj-ostalo") == 2 and "data-biraj-ostalo" not in zbirna and "Dodaj ostalo" not in o.text and 'name="o_naziv"' not in o.text
               and "lista-jedinica" not in o.text, "redovi robe primaju i ostalo (zbirna paleta ne); nema više posebne forme „Ostalo“")
     R.provera("ide na spisak kao ostalo" in tekst(forma), "uputstvo u formi: roba koje nema u katalogu ide kao ostalo")
     o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0",

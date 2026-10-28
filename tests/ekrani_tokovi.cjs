@@ -448,7 +448,8 @@ module.exports = {
 
         // Dodaj robu: kuca se „humovit“, izađu pakovanja 5 / 10 / 25 / 50 l, dodirom se bira; više redova, jedno čuvanje
         const redovi = page.locator('.mesto-dodaj [data-roba-red]');
-        tvrdi((await redovi.count()) === 3, 'forma ima 3 reda za artikle');
+        tvrdi((await redovi.count()) === 2, 'forma počinje sa 2 reda za artikle');
+        tvrdi((await page.locator('[data-roba-jos], [data-zbirna-jos]').count()) === 0 && !(await page.locator('main').innerText()).includes('Još jedan artikal'), 'nema dugmeta „Još jedan artikal“');
         await redovi.nth(0).locator('[data-biraj-tekst]').pressSequentially('humovit');
         const ponuda = redovi.nth(0).locator('[data-biraj-ponuda]');
         tvrdi(await ponuda.isVisible(), 'posle „humovit“ se vidi ponuda');
@@ -464,8 +465,15 @@ module.exports = {
         await redovi.nth(0).locator('[data-p="kom"]').fill('3');
         const zbir = await redovi.nth(0).locator('[data-zbir]').innerText();
         tvrdi(zbir.includes('= 285 kom') && zbir.includes('na stanju'), 'zbir reda: ' + zbir);
+        tvrdi((await redovi.count()) === 2, 'pisanje u 1. red ne dodaje red (ispod je već prazan)');
         // „humovit 25“ je jednoznačno: prihvata se i bez dodira; Humovit 25 l nema pakete
         await redovi.nth(1).locator('[data-biraj-tekst]').fill('humovit 25');
+        tvrdi((await redovi.count()) === 3 && (await redovi.nth(2).locator('.roba-broj').innerText()) === '3', 'čim se piše u poslednji red, ispod se sam pojavi novi (3.)');
+        tvrdi(await page.evaluate(() => document.activeElement === document.querySelectorAll('.mesto-dodaj [data-roba-red]')[1].querySelector('[data-biraj-tekst]')), 'kursor ostaje u 2. redu');
+        const treci = redovi.nth(2);
+        tvrdi((await treci.locator('[data-biraj-tekst]').inputValue()) === '' && (await treci.locator('[data-biraj-tekst]').getAttribute('aria-label')) === 'Artikal 3'
+            && (await treci.locator('[data-biraj-status]').innerText()) === '' && !(await treci.locator('[data-biraj-ponuda]').isVisible())
+            && await treci.locator('[data-polje-pak]').isVisible() && (await treci.locator('[data-zbir]').innerText()) === '', 'novi red je prazan (bez teksta, statusa i ponude, vide se palete i paketi)');
         tvrdi((await redovi.nth(1).locator('[data-biraj-status]').innerText()).includes('Humovit · 25 l'), 'jedino poklapanje je prepoznato: ' + await redovi.nth(1).locator('[data-biraj-status]').innerText());
         tvrdi(!(await redovi.nth(1).locator('[data-polje-pak]').isVisible()), 'Humovit 25 l: nema polja za pakete');
         await redovi.nth(1).locator('[data-p="pal"]').fill('2');
@@ -477,9 +485,8 @@ module.exports = {
         tvrdi((await redovi.nth(2).locator('[data-biraj-tekst]').inputValue()) === 'Idea · 10 l' && page.url() === adresaPre && (await redovi.nth(0).locator('[data-p="kom"]').inputValue()) === '3', 'Enter: izabran Idea · 10 l, forma nije poslata');
         await page.keyboard.type('1');
         tvrdi((await redovi.nth(2).locator('[data-p="pal"]').inputValue()) === '1', 'posle Enter-a se odmah kuca količina (paleta)');
-        await page.locator('[data-roba-jos]').click();
-        tvrdi((await redovi.count()) === 4 && (await redovi.nth(3).locator('.roba-broj').innerText()) === '4', '„Još jedan artikal“ dodaje 4. red');
-        tvrdi(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-biraj-tekst')), 'kursor je u novom redu');
+        tvrdi((await redovi.count()) === 4 && (await redovi.nth(3).locator('.roba-broj').innerText()) === '4' && (await redovi.nth(3).locator('[data-biraj-tekst]').inputValue()) === '',
+            'uvek jedan prazan red na kraju (4.)');
         await p.slika('70c-vise-artikala');
         await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
@@ -646,15 +653,17 @@ module.exports = {
         // zbirna paleta odjednom: artikal i koliko ide na JEDNU paletu, 2 ovakve palete
         await page.locator('.mesto-zbirna > summary').click();
         const redovi = page.locator('[data-zbirna-red]');
-        tvrdi((await redovi.count()) === 3, 'forma ima 3 reda za artikle');
-        await page.locator('[data-zbirna-jos]').click();
-        tvrdi((await redovi.count()) === 4, '„Još jedan artikal“ dodaje red');
+        tvrdi((await redovi.count()) === 2, 'forma počinje sa 2 reda za artikle');
         await biraj(redovi.nth(0), 'humovit', 'Humovit · 5 l');
         await redovi.nth(0).locator('[name="z_kol[]"]').fill('5');
+        tvrdi((await redovi.count()) === 2, 'pisanje u 1. red ne dodaje red');
         for (const [i, unos, kol] of [[1, 'humovit 10', '5'], [2, 'humovit 50', '5'], [3, 'rizla bela sitna', '1/2']]) {
             await redovi.nth(i).locator('[data-biraj-tekst]').fill(unos);
+            tvrdi((await redovi.count()) === i + 2, 'pisanje u poslednji red doda novi prazan (' + (i + 2) + '. red)');
             await redovi.nth(i).locator('[name="z_kol[]"]').fill(kol);
         }
+        tvrdi((await redovi.nth(4).locator('[data-zbirna-kol]').getAttribute('aria-label')) === 'Koliko na paleti, artikal 5' && (await redovi.nth(4).locator('[data-zbirna-kol]').inputValue()) === '',
+            'novi red je prazan, sa svojim natpisom (artikal 5)');
         const ime = await redovi.nth(3).locator('[data-zbirna-info]').innerText();
         tvrdi(ime.includes('1/2 palete = 25 kom') && (await redovi.nth(3).locator('[data-biraj-status]').innerText()).includes('Bela rizla · Sitnija · 20 kg'), 'pola palete rizle se odmah preračuna: ' + ime);
         await redovi.nth(3).locator('[data-biraj-tekst]').fill('');
