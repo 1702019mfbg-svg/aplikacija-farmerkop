@@ -57,7 +57,7 @@ try:
     R.provera(stanje(s50) == 80 and stanje(h50) == 0, "2 palete stare ambalaže 50 l = 80 kom, odvojeno od Humovita 50 l", poruke(o))
     adm = prijavi_admina(site)
     o = adm.get("/admin/stanje.php")
-    t = tekst(o.text)
+    t = tekst(o.text.split('class="kat-naslov"', 1)[1])          # lista stanja (bez kartice „Danas“ iznad nje)
     R.provera(STARA in t and t.index("Humovit") < t.index(STARA) < t.index("Humovit premium"), "Stanje: odmah posle Humovita, pre Humovita premium")
 
     R.odeljak("Spisak: kucanje i spisak sa papira")
