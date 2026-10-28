@@ -71,7 +71,7 @@ try:
         % (s1, hum10, s1, p1, hum10, s1, p1, hum50, s2, hum50))
     R.provera(not sql("SHOW TABLES LIKE 'spisak_mesta'") and verzija() == "6", "priprema: baza je kao verzija 6, sa dva stara spiska")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "11" and all(site.log().count("nadogradnja baze na verziju %d" % v) == 1 for v in (7, 8, 9, 10, 11)), "posle prvog otvaranja: verzija 11 (nadogradnje 7–11 po jednom)")
+    R.provera(verzija() == "12" and all(site.log().count("nadogradnja baze na verziju %d" % v) == 1 for v in (7, 8, 9, 10, 11, 12)), "posle prvog otvaranja: verzija 12 (nadogradnje 7–12 po jednom)")
     R.provera(sql("SELECT spisak_id, broj, kupac_id FROM spisak_mesta ORDER BY spisak_id") == "%d\t1\t%d\n%d\t1\t%d" % (s1, k1, s2, k2),
               "svaki stari spisak ima Mesto 1 sa svojim kupcem")
     m_s1 = mesto_id(s1, 1)
@@ -89,7 +89,7 @@ try:
     R.provera("rezervisano 282" in tekst(blok[blok.index(">10 l<"):][:1500]), "rezervacija starog spiska radi: Humovit 10 l 270 + 12 = 282")
     sql("UPDATE podesavanja SET vrednost='6' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "11" and sql_int("SELECT COUNT(*) FROM spisak_mesta") == 2, "ponovljena nadogradnja ne pravi duplikate")
+    R.provera(verzija() == "12" and sql_int("SELECT COUNT(*) FROM spisak_mesta") == 2, "ponovljena nadogradnja ne pravi duplikate")
     adm.post(SP, {"akcija": "status", "id": s1, "ocekivan": "za_utovar", "novi": "otkazano"})
     adm.post(SP, {"akcija": "status", "id": s2, "ocekivan": "nacrt", "novi": "otkazano"})
 

@@ -11,20 +11,20 @@ Web aplikacija (PWA) za firmu Farmerkop d.o.o. (zemlja za cveće, malč, dekorat
 | Ko | Šta |
 |---|---|
 | **Radnik** (ime + PIN od 4 cifre) | **Utovar** (štiklira i potvrđuje spiskove za utovar), **Proizvodnja** i **Kućna prodaja**: artikal → boja/granulacija → pakovanje → komadi, paketi ili palete (−10/−1/+1/+10), **Mešalice** (koliko je mešalica malča ofarbao, po boji; ne menja stanje). Vidi samo svoje današnje unose; svoj poslednji unos može da obriše u roku od 10 min. Ne vidi stanje. |
-| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, roba van kataloga („kora“) kao ostalo u istim redovima, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici** (i u meniju ☰: **Proizvodnja po radniku** – palete po artiklu, **Mešalice**), **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
+| **Administrator** (šifra) | **Stanje** (crveno ispod minimuma, rezervisano/slobodno; gore kartica **Danas**: urađeno / otišlo po artiklu u paletama, i obaveštenje na telefon svako veče u 20h), **Utovar** (spiskovi za utovar: jedan kamion, više mesta istovara, izbor artikla kucanjem („humovit“ → 5 / 10 / 25 / 50 l), više artikala odjednom, roba van kataloga („kora“) kao ostalo u istim redovima, zbirne palete, **spisak sa papira** (prepisan ili izdiktiran tekst → mesta i roba); ručna prodaja za izuzetke), **Istorija** (filteri, ispravka/brisanje sa dnevnikom, CSV za Excel), **Radnici** (i u meniju ☰: **Proizvodnja po radniku** – palete po artiklu, **Mešalice**), **Podešavanja** (artikli, boje/granulacije, pakovanja, komada u paketu i po paleti, minimum, popis u paletama/paketima/komadima, **uvoz stanja iz CSV-a / nalepljene tabele**, šifra) |
 
 ## Struktura
 
 ```
 app/                  ← ceo sadržaj ovog foldera ide u koren poddomena
-  index.php login.php logout.php install.php config.php
+  index.php login.php logout.php install.php config.php cron.php (dnevni zbir na telefon – cPanel Cron Job, jednom na sat)
   radnik/             proizvodnja, kućna prodaja, utovar (potvrda spiska), mesalice
   admin/              stanje, prodaja, istorija, unos (ispravka), izvoz (CSV), dnevnik,
                       radnici, podesavanja, artikli, artikal, pakovanja, popis, uvoz, sifra, utovar, spisak,
                       spisak_stampa (štampa / PDF / deljenje), spisak_papir (spisak sa papira), kupci, mesalice,
-                      proizvodnja (palete po radniku i artiklu)
+                      proizvodnja (palete po radniku i artiklu), obavestenja (telefon, sat, cron), danas (kartica za osvežavanje)
   inc/                bootstrap, db, auth, csrf, session, katalog, unosi, istorija,
-                      podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi, mesalice (zaštićeno .htaccess-om)
+                      podesavanja, izbor, layout, schema, migracije, uvoz, spiskovi, mesalice, danas, push (zaštićeno .htaccess-om)
   assets/             css, js, ikone;  sw.js, manifest.webmanifest, offline.html
 tests/                HTTP testovi (Python, nad pravom MariaDB), Apache test, snimci ekrana
 tools/                napravi_zip.sh, napravi_ikone.php
@@ -75,6 +75,12 @@ dist/                 gotovi ZIP paketi
 - **Proizvodnja po radniku** (`admin/proizvodnja.php`): unosi `proizvodnja` u periodu sabrani po radniku i SKU; palete =
   komadi / `po_paleti` (tekst `razlaganje()`: „2 pal + 3 pak + 4 kom“), pa ne zavisi od načina unosa. Period (danas, juče …,
   od–do) je zajednički sa Mešalicama: `period_iz_adrese()` / `period_izbor_html()` u `inc/istorija.php`.
+- **Danas i obaveštenje u 20h** (v12; `inc/danas.php`, `inc/push.php`, `cron.php`, `admin/obavestenja.php`): `danas_zbir()` – po SKU
+  urađeno (proizvodnja) i otišlo (utovar + prodaja + kućna prodaja − povrat) za dan; kartica na Stanju (`danas_kartica_html()`,
+  osvežava je `assets/js/danas.js` preko `admin/danas.php`). Web Push bez biblioteka: VAPID ključ (EC P-256, u `podesavanja`),
+  poruka šifrovana po RFC 8291 (ECDH + HKDF + AES-128-GCM, `push_sifruj()`), JWT ES256 (`push_vapid_zaglavlje()`), slanje curl-om;
+  pretplate u `push_pretplate` (samo poznati servisi: FCM, Apple, Mozilla, Microsoft). `cron.php` (CLI ili `?kljuc=`) šalje
+  jednom dnevno posle `obavestenje_sat`; 404/410 briše pretplatu. Service worker prikazuje poruku i otvara stranicu na dodir.
 - **Uvoz stanja** (`inc/uvoz.php`, `admin/uvoz.php`): čita CSV/tabelu, uparuje redove sa SKU-ovima po normalizovanim rečima
   (latinica/ćirilica, pakovanje, granulacija, boja), pamti ručna uparivanja u `uvoz_mapiranje`, a upisuje preko `popis_postavi()`.
 
@@ -111,6 +117,7 @@ python3 tests/test_18_kupci_brisanje.py    # kupci po godini (prodaja + utovar �
 python3 tests/test_19_humovit_stara_ambalaza.py  # v10: Humovit S (stara ambalaža) 25/50 l, unos, stanje, „humovit s 50“
 python3 tests/test_20_mesalice.py          # v11: mešalice po boji (radnik), brisanje u roku, pregled, CSV, pristup
 python3 tests/test_21_proizvodnja_po_radniku.py  # palete po radniku i artiklu (danas, juče, od–do), obrisano/prodaja ne, CSV
+python3 tests/test_22_danas_obavestenja.py # v12: kartica Danas; Web Push sa lažnim servisom – poruka se dešifruje u Pythonu, VAPID potpis, cron
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

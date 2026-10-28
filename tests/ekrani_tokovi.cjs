@@ -1052,6 +1052,30 @@ module.exports = {
         await p.slika('99c-proizvodnja-po-radniku');
     },
 
+    async danas(page, p) {
+        // Početna: kartica „Danas“ (urađeno / otišlo po artiklu) i stranica za obaveštenje u 20h
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        const kartica = page.locator('[data-danas]');
+        tvrdi((await kartica.count()) === 1 && await kartica.evaluate((el) => el.open), 'na početnoj je otvorena kartica „Danas“');
+        tvrdi((await kartica.locator('summary').innerText()).includes('urađeno'), 'gore: urađeno / otišlo');
+        tvrdi((await kartica.locator('tbody tr').count()) > 0, 'po artiklu (demo podaci)');
+        await kartica.screenshot({ path: p.izlaz + '/04-danas-' + (p.tema === 'dark' ? 'tamno' : 'svetlo') + '.png' });
+        await p.slika('04b-stanje-sa-danas');
+        // deo za osvežavanje (danas.js ga traži kad se aplikacija ponovo otvori)
+        const deo = await page.evaluate(() => fetch(document.querySelector('[data-danas]').getAttribute('data-osvezi'))
+            .then((r) => r.text().then((html) => ({ zaglavlje: r.headers.get('X-Farmerkop-Deo'), html }))));
+        tvrdi(deo.zaglavlje === 'danas' && deo.html.includes('data-danas'), 'deo za osvežavanje vraća karticu');
+        await page.context().grantPermissions(['notifications'], { origin: p.base });
+        await kartica.getByRole('link', { name: /Obaveštenje u 20h/ }).click();
+        await page.waitForURL('**/admin/obavestenja.php');
+        const status = page.locator('[data-push-status]');
+        await page.waitForFunction(() => !document.querySelector('[data-push-status]').textContent.includes('Proveravam'), null, { timeout: 20000 });
+        const t = await status.innerText();
+        tvrdi(t.length > 10, 'stanje ovog telefona: ' + t);
+        tvrdi((await page.locator('.cron-komanda').first().innerText()).includes('/cron.php?kljuc='), 'komanda za cPanel');
+        await p.slika('04c-obavestenja');
+    },
+
     async prikaz(page, p) {
         // Telefon u prikazu „za računare“ (Chrome: Verzija za računare) ne gleda oznaku viewport, pa je stranica
         // široka ~980 px na ekranu od 412 px → aplikacija pokaže uputstvo kako da se to isključi

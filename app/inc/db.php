@@ -69,3 +69,15 @@ function db_trans(callable $fn): mixed
         throw $e;
     }
 }
+
+/** Podešavanje iz tabele podesavanja (ili $podrazumevano kad ga nema). */
+function podesavanje(string $kljuc, ?string $podrazumevano = null): ?string
+{
+    $v = db_val('SELECT vrednost FROM podesavanja WHERE kljuc = ?', [$kljuc]);
+    return $v === null ? $podrazumevano : (string)$v;
+}
+
+function podesavanje_upisi(string $kljuc, string $vrednost): void
+{
+    db_run('REPLACE INTO podesavanja (kljuc, vrednost) VALUES (?, ?)', [$kljuc, $vrednost]);
+}

@@ -3,6 +3,7 @@
  * - Stranice (HTML) se NIKAD ne keširaju: podaci su uvek sveži i ništa osetljivo ne ostaje na telefonu.
  * - Statični fajlovi (stil, skripte, ikone) se keširaju da se aplikacija brže otvara.
  * - Bez internet veze prikazuje se stranica "Nema veze" (unosi se ne mogu sačuvati bez veze).
+ * - Obaveštenja (dnevni zbir u 20h): prikaz poruke i otvaranje aplikacije na dodir.
  */
 'use strict';
 
@@ -54,4 +55,30 @@ self.addEventListener('fetch', (e) => {
             })
         );
     }
+});
+
+// Obaveštenje sa servera (dnevni zbir): poruka je JSON {naslov, tekst, url, oznaka}.
+self.addEventListener('push', (e) => {
+    let p = {};
+    try { p = e.data ? e.data.json() : {}; } catch (g) { p = { tekst: e.data ? e.data.text() : '' }; }
+    e.waitUntil(self.registration.showNotification(p.naslov || 'Farmerkop', {
+        body: p.tekst || '',
+        icon: BAZA + 'assets/icons/icon-192.png',
+        tag: p.oznaka || 'farmerkop',
+        data: { url: new URL(p.url || '', self.registration.scope).href },
+    }));
+});
+
+// Dodir na obaveštenje: otvori aplikaciju na toj stranici (ili prebaci na već otvorenu).
+self.addEventListener('notificationclick', (e) => {
+    e.notification.close();
+    const cilj = (e.notification.data && e.notification.data.url) || self.registration.scope;
+    e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((prozori) => {
+        for (const p of prozori) {
+            if (p.url.startsWith(self.registration.scope) && 'focus' in p) {
+                return p.focus().then((f) => (f && 'navigate' in f ? f.navigate(cilj) : f));
+            }
+        }
+        return self.clients.openWindow(cilj);
+    }));
 });

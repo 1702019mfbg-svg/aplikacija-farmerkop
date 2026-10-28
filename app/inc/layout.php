@@ -124,6 +124,7 @@ function ui_start(string $naslov, array $o = []): void
                 <p class="glavni-meni-naslov"><?= ikona('kutija', 'ikona ikona-mala') ?> Rad</p>
                 <a href="<?= e(url('admin/proizvodnja.php')) ?>">Proizvodnja po radniku (palete)</a>
                 <a href="<?= e(url('admin/mesalice.php')) ?>">Mešalice (ko je koliko ofarbao)</a>
+                <a href="<?= e(url('admin/obavestenja.php')) ?>">🔔 Obaveštenja na telefon</a>
             </nav>
         </details>
         <?php endif; ?>

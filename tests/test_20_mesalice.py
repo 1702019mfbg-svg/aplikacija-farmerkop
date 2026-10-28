@@ -49,15 +49,15 @@ try:
     ids = pripremi_sajt(site)
 
     R.odeljak("Nadogradnja na verziju 11")
-    R.provera(verzija() == "11" and sql("SHOW TABLES LIKE 'mesalice'") == "mesalice", "nova instalacija: verzija 11, tabela mesalice")
+    R.provera(verzija() == "12" and sql("SHOW TABLES LIKE 'mesalice'") == "mesalice", "nova instalacija: verzija 12, tabela mesalice")
     sql("DROP TABLE mesalice")
     sql("UPDATE podesavanja SET vrednost='10' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "11" and sql("SHOW TABLES LIKE 'mesalice'") == "mesalice" and site.log().count("nadogradnja baze na verziju 11") == 1,
-              "sa verzije 10: napravljena je tabela mesalice, verzija 11")
+    R.provera(verzija() == "12" and sql("SHOW TABLES LIKE 'mesalice'") == "mesalice" and site.log().count("nadogradnja baze na verziju 11") == 1,
+              "sa verzije 10: napravljena je tabela mesalice (nadogradnja 11), verzija 12")
     sql("UPDATE podesavanja SET vrednost='10' WHERE kljuc='schema_verzija'")
     Client(site.base).get("/login.php")
-    R.provera(verzija() == "11" and site.log().count("nadogradnja baze na verziju 11") == 2, "ponovljena nadogradnja: bez greške")
+    R.provera(verzija() == "12" and site.log().count("nadogradnja baze na verziju 11") == 2, "ponovljena nadogradnja: bez greške")
 
     marko = prijavi_radnika(site, ids["Marko"], "1234")
     jelena = prijavi_radnika(site, ids["Jelena"], "4321")

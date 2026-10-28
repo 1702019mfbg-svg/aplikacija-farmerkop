@@ -22,10 +22,11 @@
  *             ne potroši (posle se isključi u Podešavanjima); palete, paketi i težina kao kod Humovita.
  * Verzija 11: mešalice – radnik upisuje koliko je mešalica malča ofarbao (po boji); samo za praćenje rada,
  *             stanje se ne menja (tabela mesalice).
+ * Verzija 12: obaveštenja na telefon (dnevni zbir u 20h) – tabela push_pretplate (telefoni administratora).
  */
 declare(strict_types=1);
 
-const SCHEMA_VERZIJA = 11;
+const SCHEMA_VERZIJA = 12;
 
 /** Artikal za Humovit u staroj ambalaži (verzija 10). */
 const HUMOVIT_STARA = 'Humovit S (stara ambalaža)';
@@ -439,17 +440,44 @@ function dodaj_humovit_staru_ambalazu_v10(): void
     }
 }
 
+/**
+ * Telefoni administratora prijavljeni za obaveštenja (Web Push): adresa kod servisa za obaveštenja i ključevi za
+ * šifrovanje poruke (inc/push.php). endpoint_hes = sha256 adrese (adresa je preduga za jedinstveni indeks).
+ */
+const DDL_PUSH_PRETPLATE = 'CREATE TABLE IF NOT EXISTS push_pretplate (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    korisnik_id INT UNSIGNED NOT NULL,
+    endpoint VARCHAR(1000) NOT NULL,
+    endpoint_hes CHAR(64) NOT NULL,
+    p256dh VARCHAR(120) NOT NULL,
+    auth VARCHAR(40) NOT NULL,
+    uredjaj VARCHAR(120) NULL DEFAULT NULL,
+    napravljen DATETIME NOT NULL,
+    poslednje_slanje DATETIME NULL DEFAULT NULL,
+    greska VARCHAR(255) NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_push_endpoint (endpoint_hes),
+    KEY idx_push_korisnik (korisnik_id),
+    CONSTRAINT fk_push_korisnik FOREIGN KEY (korisnik_id) REFERENCES korisnici (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
 /** Mešalice malča (samo nova tabela; postojeći podaci se ne diraju). */
 function migracija_11(): void
 {
     db()->exec(DDL_MESALICE);
 }
 
+/** Obaveštenja na telefon (samo nova tabela). */
+function migracija_12(): void
+{
+    db()->exec(DDL_PUSH_PRETPLATE);
+}
+
 /** Spisak nadogradnji po verzijama. */
 function migracije(): array
 {
     return [2 => 'migracija_2', 3 => 'migracija_3', 4 => 'migracija_4', 5 => 'migracija_5', 6 => 'migracija_6', 7 => 'migracija_7', 8 => 'migracija_8', 9 => 'migracija_9',
-            10 => 'migracija_10', 11 => 'migracija_11'];
+            10 => 'migracija_10', 11 => 'migracija_11', 12 => 'migracija_12'];
 }
 
 /** Izvršava nadogradnje koje još nisu urađene. Bezbedno za istovremene zahteve (zaključavanje). */

@@ -45,7 +45,7 @@ try:
         "UPDATE podesavanja SET vrednost='5' WHERE kljuc='schema_verzija'")
     R.provera(not sql("SHOW TABLES LIKE 'spisak_palete'"), "priprema: baza je kao verzija 5")
     Client(site.base).get("/login.php")
-    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "11", "posle prvog otvaranja: verzija 11")
+    R.provera(sql("SELECT vrednost FROM podesavanja WHERE kljuc='schema_verzija'") == "12", "posle prvog otvaranja: verzija 12")
     R.provera(sql("SHOW TABLES LIKE 'spisak_palete'") == "spisak_palete", "napravljena je tabela zbirnih paleta")
     kljucevi = sql("SELECT GROUP_CONCAT(DISTINCT index_name ORDER BY index_name) FROM information_schema.statistics WHERE table_schema='%s' AND table_name='spisak_stavke'" % DB_NAME)
     R.provera("uq_stavka_mesto" in kljucevi and "uq_stavka," not in kljucevi + "," and "uq_stavka_paleta" not in kljucevi and sql_int("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='%s' AND table_name='spisak_stavke' AND column_name IN ('paleta_id', 'mesto_id')" % DB_NAME) == 2,

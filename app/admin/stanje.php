@@ -3,9 +3,11 @@
  * Administrator – Stanje zaliha po artiklu, varijanti i pakovanju.
  * Stanje = proizvedeno − prodato − utovareno (± korekcije popisa). Crveno kad je ispod minimuma ili u minusu.
  * Rezervisano = na spiskovima koji čekaju utovar; slobodno = stanje − rezervisano.
+ * Gore je i kartica "Danas": po artiklu šta je danas urađeno i šta je otišlo (inc/danas.php).
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
+require __DIR__ . '/../inc/danas.php';
 
 zahtevaj_ulogu('admin');
 
@@ -79,7 +81,7 @@ foreach ($redovi as $r) {
     unset($a);
 }
 
-ui_start('Stanje', ['nav' => 'admin', 'aktivno' => 'stanje']);
+ui_start('Stanje', ['nav' => 'admin', 'aktivno' => 'stanje', 'js' => ['assets/js/danas.js']]);
 ?>
 <div class="stat-mreza tri">
     <div class="stat stat-uspeh">
@@ -95,6 +97,10 @@ ui_start('Stanje', ['nav' => 'admin', 'aktivno' => 'stanje']);
         <span class="opis">ispod minimuma<?= $samo_nisko ? ' ✓ filter' : '' ?></span>
     </a>
 </div>
+
+<?php if (!$samo_nisko): ?>
+    <?= danas_kartica_html(danas_zbir(), (int)podesavanje('obavestenje_sat', '20')) ?>
+<?php endif; ?>
 
 <?php if ($samo_nisko): ?>
     <p><a class="btn btn-mali" href="<?= e(url('admin/stanje.php')) ?>">← Prikaži sve artikle</a></p>

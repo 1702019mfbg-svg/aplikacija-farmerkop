@@ -121,6 +121,14 @@ try:
     a = prijavi_admina(site)
     o = a.get("/admin/stanje.php")
     R.provera(re.search(r'sku-stanje">540<', o.text) is not None, "administrator vidi stanje 540")
+    R.provera("urađeno 2 pal" in re.sub(r"<[^>]+>", "", o.text), "kartica „Danas“: urađeno 2 pal")
+
+    # zakazano slanje (cron.php): bez ključa zabranjeno, sa ključem sa stranice Obaveštenja radi
+    st, zag, telo = sirov(site.port, "/cron.php")
+    R.provera(st == 403, "cron.php bez ključa → 403", st)
+    m = re.search(r'wget -q -O /dev/null "[^"]*(/cron\.php\?kljuc=[0-9a-f]+)"', a.get("/admin/obavestenja.php").text)
+    st, zag, telo = sirov(site.port, m.group(1)) if m else (0, {}, "")
+    R.provera(st == 200 and ("Nijedan telefon" in telo or "Još nije" in telo), "cron.php sa ključem radi pod Apache-om", (st, telo[:200]))
 
     # iza HTTPS-a (proksi/AutoSSL): Secure kolačić i HSTS
     s = Client(site.base)

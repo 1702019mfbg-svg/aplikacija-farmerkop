@@ -150,6 +150,8 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 
 **Kako se računa stanje:** proizvedeno − prodato (uključujući kućnu prodaju) ± korekcije iz popisa. Sve se čuva u komadima; palete i paketi su samo način unosa.
 
+**Početna (Stanje) – kartica „Danas“:** odmah ispod brojeva gore, za svaki artikal koliko je danas **urađeno** (proizvodnja) i koliko je **otišlo** (utovar sa spiskova + prodaja + kućna prodaja, minus vraćeno) – u paletama (npr. *Humovit · 50 l – urađeno 3 pal, otišlo 2 pal*), a dole ukupno u paletama i komadima. Osvežava se sama (kad ponovo otvorite aplikaciju i na svaka 2 minuta). Dugmad ispod: **Ko je šta uradio** (proizvodnja po radniku), **Današnji unosi** (Istorija) i **🔔 Obaveštenje u 20h**.
+
 ### Spisak za utovar
 Jedan spisak je **jedan kamion**. Roba se upisuje **po mestima istovara** – kao zaokruženi brojevi na papiru (npr. 8, 9, 5, 4, 2), a svako mesto ima svoju robu.
 
@@ -210,6 +212,24 @@ Ključ stoji samo na serveru (nikad se ne vidi u telefonu) – ne šaljite ga ni
 
 ### Kupci po godini (ko je koliko uzeo)
 Meni **☰** → **Kupci po godini** (ili Istorija → **Kupci po godini**): za izabranu godinu, svaki kupac i koliko je robe uzeo – po artiklu, u komadima, litrima i kilogramima; kupci sa najviše robe su prvi. Računa se ručna prodaja + utovar sa spiskova (na kupca mesta) − povrat; otkazani utovari i obrisani unosi se ne računaju, a kućna prodaja i mesta bez kupca su pod „Bez kupca“. Dodir na kupca otvara spisak artikala; **Izvoz u Excel (CSV)** daje celu godinu u tabeli. Podaci se čuvaju zauvek (iz istorije unosa), pa se može izabrati i svaka ranija godina.
+
+### Obaveštenje na telefon svako veče (dnevni zbir u 20h)
+Svako veče u 20h na vaš telefon stigne obaveštenje: *„Danas urađeno 18 pal · otišlo 12 pal“* i ispod najveći artikli (npr. *Urađeno: Humovit · 50 l 3 pal, …*). Dodir na obaveštenje otvara početnu sa karticom „Danas“. Ako tog dana nije bilo ni proizvodnje ni robe koja je otišla, ne stiže ništa.
+
+**Uključivanje (jednom, na svom telefonu):**
+1. Otvorite aplikaciju na telefonu (najbolje dodatu na početni ekran) → meni **☰ → 🔔 Obaveštenja na telefon** (ili na kartici „Danas“ dugme **🔔 Obaveštenje u 20h**).
+2. Dodirnite **Uključi obaveštenja na ovom telefonu** i kad telefon pita – **Dozvoli**.
+3. Dodirnite **Pošalji probno obaveštenje** – za nekoliko sekundi stiže današnji zbir do sada. Ako ne stigne, proverite da obaveštenja za Chrome (ili za aplikaciju) nisu isključena u podešavanjima telefona.
+
+**iPhone:** obaveštenja rade samo kad je aplikacija dodata na početni ekran (Safari → Podeli → Dodaj na početni ekran), otvorena odatle, na iOS 16.4 ili novijem.
+
+**Zakazano slanje u cPanel-u (jednom):** da bi obaveštenje stizalo samo u 20h, server mora jednom na sat da „pogleda“ da li je vreme. Na stranici *Obaveštenja na telefon* piše tačna komanda – samo je nalepite:
+1. cPanel → **Cron Jobs** (deo „Advanced“).
+2. **Common Settings → Once Per Hour (0 * * * *)**.
+3. **Command:** nalepite red sa stranice, oblika `wget -q -O /dev/null "https://app.farmerkop.rs/cron.php?kljuc=…"` (ključ je vaš, tajni; ako hosting ne dozvoljava wget, druga komanda sa stranice: `php …/cron.php`).
+4. **Add New Cron Job.** Posle sat vremena na stranici piše **„✓ Zakazano slanje radi“**.
+
+Vreme se menja na istoj stranici (**Vreme dnevnog zbira**, od 12 do 23h). Telefon koji vam više ne treba uklonite sa spiska **Prijavljeni telefoni**.
 
 ### Proizvodnja po radniku (koliko je paleta čega napravio ko)
 Meni **☰** → **Proizvodnja po radniku (palete)** (ili **Radnici** → *Danas – palete po radniku*). Otvara se za **danas**; može i **Juče, Ova nedelja, Ovaj mesec, Prošli mesec** ili **Drugi period** (od–do).
@@ -294,6 +314,8 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
 
+**Novo – Danas na početnoj i obaveštenje u 20h (verzija baze 12):** na Stanju je gore kartica **Danas** (po artiklu urađeno i otišlo, u paletama). Obaveštenje na telefon svako veče: uključite ga na telefonu (☰ → 🔔 Obaveštenja na telefon) i **jednom podesite Cron Job u cPanel-u** (vidi *Obaveštenje na telefon svako veče*). Baza sama dobija novu tabelu za prijavljene telefone.
+
 **Novo – Proizvodnja po radniku:** meni ☰ → **Proizvodnja po radniku (palete)** – koliko je paleta čega napravio koji radnik danas (ili u drugom periodu). Baza se ne menja.
 
 **Novo – Mešalice i roba van kataloga u redovima (verzija baze 11):** pri prvom otvaranju posle ažuriranja aplikacija sama dodaje tabelu za mešalice (postojeći podaci se ne diraju).
@@ -337,6 +359,7 @@ Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikaci
 | **„Nema veze sa bazom“** | Proverite `DB_NAME`, `DB_USER`, `DB_PASS` u `config.php` (pun naziv sa prefiksom, bez razmaka). Proverite da je korisnik dodat bazi sa **ALL PRIVILEGES** |
 | **„Došlo je do greške“ / belina / greška 500** | Proverite PHP verziju (Korak 3). Privremeno u `config.php` dodajte red `define('DEBUG', true);` – stranica će ispisati razlog; zatim ga vratite na `false`. Greške se vide i u cPanel → **Errors** |
 | **Na telefonu izgleda kao na računaru** (uska kolona na sredini, sve sitno, gore žuto uputstvo) | U pregledaču je uključen prikaz za računare. **Chrome:** ⋮ (gore desno) → skinite kvačicu sa **„Verzija za računare“** (Desktop site). Ako se vraća: ⋮ → Podešavanja → Podešavanja sajtova → **Verzija za računare** → isključite (i obrišite izuzetak za app.farmerkop.rs). **Samsung Internet:** ☰ → **Verzija za mobilne**. **iPhone (Safari):** aA → **Zatraži mobilnu verziju**; trajno: Podešavanja → Safari → Zatraži verziju za računare → isključeno. Ako je aplikacija dodata na početni ekran dok je to bilo uključeno: isključite, pa je otvorite ponovo |
+| **Ne stiže obaveštenje uveče** | Na stranici ☰ → *Obaveštenja na telefon*: piše li **„Zakazano slanje radi“**? Ako ne – podesite Cron Job (tačna komanda je tu). Pošaljite **probno obaveštenje**: ako ni ono ne stigne, u podešavanjima telefona dozvolite obaveštenja za Chrome / aplikaciju i isključite štednju baterije za njih. Greška kod telefona na spisku kaže šta servis odgovara |
 | **Ne nudi „Instaliraj aplikaciju“** | Mora da bude otvoren **https** (zeleni katanac, Korak 2) i Chrome. Osvežite stranicu, probajte opet kroz ⋮ meni |
 | **Stranice se otvaraju bez izgleda / 404** | Fajlovi nisu u pravom folderu, ili `.htaccess` nije stigao (uključite *Show Hidden Files* i ponovite Korak 5) |
 | **Stalno traži prijavu** | Radnik: istek posle 60 min neaktivnosti. Može da se produži u `config.php`: `define('SESIJA_RADNIK_MIN', 120);` |

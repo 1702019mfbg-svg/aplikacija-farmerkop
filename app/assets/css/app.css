@@ -794,3 +794,13 @@ summary.zbirna-glava::-webkit-details-marker { display: none; }
 .boja-tacka[data-boja="bordo"] { background: #7b1e2b; }
 .boja-tacka[data-boja="oker"] { background: #c8902e; }
 .mesalice-boje { margin: 0 0 6px; font-weight: 700; }
+
+/* ── Kartica „Danas“ na početnoj (urađeno / otišlo po artiklu) ── */
+.danas-kartica { border-left: 4px solid var(--zelena); }
+.danas-naslov { font-size: 1.2rem; }
+.danas-zbir { font-weight: 600; }
+.danas-tabela th:first-child, .danas-tabela td:first-child { width: 52%; }
+.danas-tabela tfoot small { font-weight: 600; color: var(--tekst-bled); }
+.push-status { font-weight: 600; }
+.cron-komanda { display: block; margin: 6px 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--povrsina-2); border: 1px solid var(--granica);
+    font-size: .85rem; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
