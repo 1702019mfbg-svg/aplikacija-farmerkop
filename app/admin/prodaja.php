@@ -44,7 +44,7 @@ if (je_post()) {
                         [$kupac_id, date('Y-m-d')]
                     );
                     if ($spisak !== null) {
-                        flash_dodaj('upozorenje', 'Pažnja: ' . $kupac . ' danas ima spisak za utovar #' . (int)$spisak['id'] . ' (' . ($spisak['status'] === 'utovareno' ? 'utovaren' : 'čeka utovar')
+                        flash_dodaj('upozorenje', 'Pažnja: ' . $kupac . ' danas ima spisak za utovar (' . spisak_oznaka($spisak) . ', ' . ($spisak['status'] === 'utovareno' ? 'utovaren' : 'čeka utovar')
                             . '). Ako je ista roba na spisku, stanje bi se skinulo dvaput – tada obrišite ovu prodaju u Istoriji.');
                     }
                     $nazad = 'admin/prodaja.php?' . http_build_query(['kupac' => $kupac]);

@@ -113,6 +113,20 @@ const AKCIJE_DNEVNIKA = [
     'spisak'          => 'Spisak za utovar',
 ];
 
+/**
+ * Napomena unosa za prikaz: bez starog broja spiska ("Spisak #17 – mesto 8" → "Mesto 8", "Otkazan spisak #17" →
+ * "Otkazan spisak"), jer se spiskovi sada zovu Utovar 1, 2, 3 … (broj se vidi na dugmetu ka spisku).
+ */
+function napomena_prikaz(?string $napomena): string
+{
+    if ($napomena === null || $napomena === '') {
+        return '';
+    }
+    $s = (string)preg_replace('/^Spisak #\d+(?: – |$)/u', '', $napomena, 1, $skinuto);
+    $s = (string)preg_replace('/(spisak) #\d+/iu', '$1', $s);
+    return $skinuto > 0 && $s !== '' ? mb_strtoupper(mb_substr($s, 0, 1)) . mb_substr($s, 1) : $s;
+}
+
 /** Opis promene u obliku liste rečenica ("Količina: 100 → 120 kom"). */
 function dnevnik_promene(?string $detalji): array
 {

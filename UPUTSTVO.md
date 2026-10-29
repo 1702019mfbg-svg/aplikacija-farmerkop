@@ -154,6 +154,7 @@ Radnik se prijavljuje tako što **dodirne svoje ime** i ukuca **PIN**. Ne treba 
 
 ### Spisak za utovar
 Jedan spisak je **jedan kamion**. Roba se upisuje **po mestima istovara** – kao zaokruženi brojevi na papiru (npr. 8, 9, 5, 4, 2), a svako mesto ima svoju robu.
+Spiskovi su numerisani redom: **Utovar 1, Utovar 2, Utovar 3 …** (prvi napravljen je Utovar 1). Na listi je **najnoviji gore**. Kad neki obrišete, ostali se prenumerišu, pa brojevi uvek idu redom, bez preskakanja (broj na ranije odštampanom papiru tada može da se razlikuje od broja u aplikaciji).
 
 1. **Utovar → Novi spisak za utovar:** datum utovara, vozilo, vozač, napomena i **prvo mesto istovara** – broj mesta (kako ga pišete na papiru, npr. 8) i kupac (nije obavezan) → **Napravi spisak**.
 2. **Dodaj mesto** (dole na spisku): broj mesta (program predloži sledeći, vi upišite svoj), kupac i adresa/napomena nisu obavezni. Mesta dodajete koliko god treba. Na kartici mesta: **↑ ↓** menjaju redosled, kanta uklanja mesto sa svom robom, **Broj, kupac, adresa** menja podatke mesta.
@@ -168,7 +169,11 @@ Jedan spisak je **jedan kamion**. Roba se upisuje **po mestima istovara** – ka
 10. Za izmene: **Vrati u nacrt**, izmenite, pa ponovo pošaljite. **Otkaži spisak** ukida rezervaciju.
 11. **Utovar potvrđuje radnik** (kartica Utovar na njegovom telefonu) – ili vi, dugmetom **Potvrdi utovar** na spisku. Stanje se skida za stvarno utovarenu količinu, a roba se vodi na **kupca svog mesta**. Ako je utovareno više nego što program misli da ima, stanje ode u minus i Stanje to pokaže crveno („uradite popis“).
 12. **Utovaren spisak se više ne menja.** Ako je utovar bio greška: **Otkaži utovar (vrati robu na stanje)** – sve se vraća kao „povrat“. Ostale razlike ispravljate popisom.
-13. **Brisanje:** otkazan spisak koji vam više ne treba obrišite dugmetom **Obriši spisak** (dole na spisku, uz potvrdu). Ako je bio utovaren pa otkazan, njegov utovar i povrat se u Istoriji označe kao obrisani – stanje ostaje isto. Brisanje se upisuje u Dnevnik izmena i ne može da se vrati.
+13. **Brisanje – bilo koji spisak:** na listi spiskova svaka kartica ima **kantu** (dodir → potvrda → obrisano), a i na samom spisku je dole deo **Brisanje**. Nije potrebno prvo otkazati.
+    - **Nacrt, Za utovar, Otkazan:** stanje se ne menja (kod *Za utovar* se ukida rezervacija i radnici ga više ne vide). Ako je spisak bio utovaren pa otkazan, njegov utovar i povrat se u Istoriji označe kao obrisani – stanje ostaje isto.
+    - **Utovaren:** kanta otvara spisak gde birate: **Obriši i vrati robu na stanje** (kad je utovar bio greška ili proba – kao da ga nije bilo) ili **Obriši, roba je otišla** (stanje ostaje, unosi utovara ostaju u Istoriji i u *Kupcima po godini*).
+    - **Otkazano → Obriši sve otkazane (N):** jednim dugmetom briše sve otkazane spiskove.
+    - Ako se spisak u međuvremenu promenio (npr. radnik je baš tada potvrdio utovar), ništa se ne briše – pogledajte ga pa pokušajte ponovo. Brisanje se upisuje u Dnevnik izmena i ne može da se vrati.
 14. **Štampa / PDF / Podeli:** spisak za štampu po mestima (zaokružen broj, kupac, zbir mesta), artikli punim nazivom, i mesta za potpis. PDF: *Štampaj / PDF* → kao štampač izaberite **Sačuvaj kao PDF**. **Podeli** šalje tekst spiska u Viber, WhatsApp ili SMS (po mestima).
 
 Statusi: **Nacrt** (slobodno menjate, stanje se ne dira) → **Za utovar** (radnici vide, rezervisano) → **Utovareno** (tek tada se skida stanje) · **Otkazano**.
@@ -313,6 +318,8 @@ cPanel → **Backup** → **Download a MySQL Database Backup** → kliknite na i
 ### Ažuriranje aplikacije (kad dobijete novu verziju)
 Koristite **`farmerkop-azuriranje.zip`** (ne `farmerkop-aplikacija.zip`!). Otpremite ga u isti folder i uradite **Extract** (ako pita da li da prepiše fajlove – da). On **ne dira** vaš `config.php`, pa ostaju vaši podaci o bazi.
 Bazu **ne treba ručno menjati**: pri prvom otvaranju posle ažuriranja aplikacija sama dodaje nove kolone i tabele, a svi vaši unosi i stanje ostaju netaknuti. Savet: pre ažuriranja preuzmite rezervnu kopiju baze (gore).
+
+**Novo – Utovar 1, 2, 3 … i brisanje spiskova:** spiskovi se zovu **Utovar 1, 2, 3 …** redom, bez rupa, i **najnoviji je gore**. Svaki spisak (bilo kog statusa) briše se kantom na listi; za utovaren birate da li se roba vraća na stanje. Na listi *Otkazano* je dugme **Obriši sve otkazane**. Baza se ne menja.
 
 **Novo – redovi za robu se dodaju sami:** u **Dodaj robu za Mesto N** i **Zbirna paleta** forma počinje sa 2 reda, a čim pišete u poslednji, ispod se sam pojavi novi prazan – dugme „Još jedan artikal“ više ne postoji. Baza se ne menja.
 

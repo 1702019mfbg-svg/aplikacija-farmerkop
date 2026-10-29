@@ -830,7 +830,7 @@ module.exports = {
         rp.once('dialog', (d) => d.accept());
         await rp.locator('[data-potvrdi]').click();
         await rp.waitForSelector('.poruka-uspeh');
-        tvrdi((await rp.locator('.poruka-uspeh').innerText()).includes('Utovar je potvrđen: 3 mesta: 8, 5, 9'), 'potvrđeno: ' + await rp.locator('.poruka-uspeh').innerText());
+        tvrdi((await rp.locator('.poruka-uspeh').innerText()).includes('Utovar je potvrđen: Utovar 1, 3 mesta: 8, 5, 9'), 'potvrđeno: ' + await rp.locator('.poruka-uspeh').innerText());
         await r.ctx.close();
 
         await page.goto(adresa.replace('/admin/spisak.php', '/admin/spisak_stampa.php'));
@@ -995,10 +995,94 @@ module.exports = {
         await page.waitForSelector('.status-otkazano');
         let pitanje = '';
         page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
-        await page.getByRole('button', { name: 'Obriši spisak' }).click();
+        await page.getByRole('button', { name: 'Obriši Utovar 1' }).click();
+        await page.waitForURL('**/admin/utovar.php?f=otkazano');
+        tvrdi(pitanje.includes('Obrisati Utovar 1?') && pitanje.includes('Ovo ne može da se vrati'), 'pitanje pre brisanja: ' + pitanje);
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Obrisan je Utovar 1'), 'spisak obrisan');
+    },
+
+    async brisanje(page, p) {
+        // Utovar 1, 2, 3 …: najnoviji gore, brojevi redom; kanta na kartici; posle brisanja brojevi opet idu redom
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        for (const kupac of ['Agrocentar Novi Sad', 'Cvećara Žika', 'Vrt i bašta Kraljevo']) {
+            await page.goto(p.base + '/admin/utovar.php?novi=1');
+            await page.fill('#kupac', kupac);
+            await page.getByRole('button', { name: 'Napravi spisak' }).click();
+            await page.waitForURL('**/admin/spisak.php?id=*');
+        }
+        tvrdi((await page.title()).startsWith('Utovar 3'), 'naslov novog spiska: ' + await page.title());
+        await page.goto(p.base + '/admin/utovar.php');
+        const brojevi = async () => (await page.locator('.spisak-link strong').allInnerTexts()).join(',');
+        tvrdi((await brojevi()) === 'Utovar 3,Utovar 2,Utovar 1', 'najnoviji gore: ' + await brojevi());
+        tvrdi((await page.locator('.spisak-kartica').first().innerText()).includes('Vrt i bašta Kraljevo'), 'gore je poslednji napravljen');
+        await p.slika('73b-utovari-redom');
+        // dodir bilo gde na kartici (ne na kantu) otvara spisak
+        await page.locator('.spisak-kartica', { hasText: 'Cvećara Žika' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+        tvrdi((await page.title()).startsWith('Utovar 2'), 'dodir na karticu otvara Utovar 2');
+        await page.goBack();
         await page.waitForURL('**/admin/utovar.php');
-        tvrdi(pitanje.includes('Trajno obrisati'), 'pitanje pre brisanja: ' + pitanje);
-        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('obrisan otkazan spisak'), 'spisak obrisan');
+        // kanta: potvrda pa brisanje; odustajanje ne briše ništa
+        page.once('dialog', (d) => d.dismiss());
+        await page.getByRole('button', { name: 'Obriši Utovar 1' }).click();
+        await page.waitForTimeout(300);
+        tvrdi((await brojevi()) === 'Utovar 3,Utovar 2,Utovar 1' && page.url().endsWith('/admin/utovar.php'), 'odustajanje: ništa nije obrisano');
+        let pitanje = '';
+        page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.getByRole('button', { name: 'Obriši Utovar 2' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi(pitanje === 'Obrisati Utovar 2 (Cvećara Žika)? Ovo ne može da se vrati.', 'pitanje: ' + pitanje);
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Obrisan je Utovar 2 (Cvećara Žika)'), 'poruka o brisanju');
+        tvrdi((await brojevi()) === 'Utovar 2,Utovar 1', 'brojevi opet redom: ' + await brojevi());
+        tvrdi(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'lista nije šira od telefona');
+        await p.slika('73c-utovar-obrisan');
+
+        // utovaren spisak: pri brisanju se bira šta je sa robom
+        await page.locator('.spisak-kartica', { hasText: 'Vrt i bašta Kraljevo' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+        const adresa = page.url();
+        await biraj(page.locator('.mesto-dodaj [data-roba-red]').first(), 'humovit', 'Humovit · 10 l');
+        await page.locator('.mesto-dodaj [data-roba-red]').first().locator('[data-p="pal"]').fill('1');
+        await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        page.once('dialog', (d) => d.accept());
+        await page.getByRole('button', { name: 'Pošalji na utovar' }).click();
+        await page.waitForSelector('.status-za_utovar');
+        await page.getByRole('link', { name: /Potvrdi utovar/ }).click();
+        await page.waitForSelector('[data-utovar]');
+        await page.locator('.utovar-cek', { hasText: 'Humovit · 10 l' }).click();
+        page.once('dialog', (d) => d.accept());
+        await page.locator('[data-potvrdi]').click();
+        await page.waitForURL(adresa);
+        tvrdi((await page.locator('.status-utovareno').count()) === 1, 'spisak je utovaren');
+        await page.goto(p.base + '/admin/utovar.php?f=utovareno');
+        await page.getByRole('link', { name: 'Obriši Utovar 2' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*#brisanje');
+        tvrdi(await page.getByRole('button', { name: 'Obriši i vrati robu na stanje' }).isVisible() && await page.getByRole('button', { name: 'Obriši, roba je otišla' }).isVisible(),
+            'kanta na utovarenom vodi na izbor: vrati robu / roba je otišla');
+        await page.locator('#brisanje').scrollIntoViewIfNeeded();
+        await p.slika('73d-brisanje-utovarenog');
+        page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.getByRole('button', { name: 'Obriši i vrati robu na stanje' }).click();
+        await page.waitForURL('**/admin/utovar.php?f=utovareno');
+        tvrdi(pitanje.includes('vratiti svu utovarenu robu na stanje'), 'pitanje: ' + pitanje);
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Roba je vraćena na stanje'), 'roba vraćena');
+
+        // otkazani: jedno dugme briše sve
+        await page.goto(p.base + '/admin/utovar.php');
+        await page.locator('.spisak-kartica', { hasText: 'Agrocentar Novi Sad' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+        page.once('dialog', (d) => d.accept());
+        await page.getByRole('button', { name: 'Otkaži spisak' }).click();
+        await page.waitForSelector('.status-otkazano');
+        await page.goto(p.base + '/admin/utovar.php?f=otkazano');
+        await p.slika('73e-otkazani');
+        page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.getByRole('button', { name: /Obriši sve otkazane \(1\)/ }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi(pitanje.includes('Obrisati sve otkazane spiskove (1)?'), 'pitanje: ' + pitanje);
+        tvrdi((await page.locator('.poruka-uspeh').innerText()).includes('Obrisano otkazanih spiskova: 1.'), 'otkazani obrisani');
+        tvrdi((await page.locator('.spisak-kartica').count()) === 0, 'nema više otkazanih');
     },
 
     async mesalice(page, p) {

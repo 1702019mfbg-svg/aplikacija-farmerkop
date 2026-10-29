@@ -478,7 +478,15 @@ input[type="date"].polje, input[type="datetime-local"].polje { min-width: 0; -we
 .red-polja-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .red-polja-3 > * { min-width: 0; }
 .spiskovi { display: grid; gap: 10px; }
-.spisak-kartica { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--granica); border-left: 6px solid var(--granica); border-radius: 14px; background: var(--povrsina); color: var(--tekst); text-decoration: none; }
+.spisak-kartica { position: relative; display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--granica); border-left: 6px solid var(--granica); border-radius: 14px; background: var(--povrsina); color: var(--tekst); text-decoration: none; }
+/* cela kartica vodi na spisak (link se razvuče preko nje), a kanta je iznad linka */
+.spisak-link { color: inherit; text-decoration: none; }
+.spisak-link::after { content: ""; position: absolute; inset: 0; border-radius: 14px; }
+.spisak-link:focus-visible { outline: none; }
+.spisak-link:focus-visible::after { outline: 3px solid var(--zelena); outline-offset: 2px; }
+.spisak-ime { font-weight: 700; overflow-wrap: anywhere; }
+.spisak-dno { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.spisak-kanta { position: relative; z-index: 1; margin: 0; flex: none; }
 .spisak-kartica.spisak-za_utovar { border-left-color: var(--zelena); }
 .spisak-kartica.spisak-nacrt { border-left-color: var(--kraft-tamno); }
 .spisak-kartica.spisak-otkazano { opacity: .7; }

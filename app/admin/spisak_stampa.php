@@ -22,12 +22,13 @@ $z = spisak_zbir($stavke, $utovaren);
 $tekst = spisak_tekst_za_deljenje($sp, $stavke);
 $nazad = $korisnik['uloga'] === 'admin' ? 'admin/spisak.php?id=' . $id : 'radnik/utovar.php?id=' . $id;
 
-ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' => ['assets/js/stampa.js']]);
+$oznaka = spisak_oznaka($sp);
+ui_start($oznaka, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' => ['assets/js/stampa.js']]);
 ?>
 <div class="ne-stampa stampa-akcije">
     <a class="btn btn-mali" href="<?= e(url($nazad)) ?>"><?= ikona('nazad') ?> Nazad</a>
     <button type="button" class="btn btn-primary" data-stampaj><?= ikona('preuzmi') ?> Štampaj / PDF</button>
-    <button type="button" class="btn btn-braon" data-podeli data-naslov="<?= e('Spisak za utovar #' . $id) ?>">Podeli</button>
+    <button type="button" class="btn btn-braon" data-podeli data-naslov="<?= e('Farmerkop – ' . $oznaka) ?>">Podeli</button>
     <a class="btn btn-mali" href="https://wa.me/?text=<?= e(rawurlencode($tekst)) ?>" target="_blank" rel="noopener">WhatsApp</a>
     <a class="btn btn-mali" href="viber://forward?text=<?= e(rawurlencode($tekst)) ?>">Viber</a>
     <p class="pomoc bez-margine">PDF: dodirnite „Štampaj / PDF“ i kao štampač izaberite <strong>Sačuvaj kao PDF</strong>.</p>
@@ -38,8 +39,8 @@ ui_start('Spisak #' . $id, ['bez_zaglavlja' => true, 'telo' => 'stampa', 'js' =>
 <article class="stampa-list">
     <header class="stampa-glava">
         <div>
-            <div class="stampa-firma">Farmerkop d.o.o.</div>
-            <h1>Spisak za utovar #<?= $id ?></h1>
+            <div class="stampa-firma">Farmerkop d.o.o. – spisak za utovar</div>
+            <h1><?= e($oznaka) ?></h1>
         </div>
         <div class="stampa-status"><?= e(SPISAK_STATUSI[$sp['status']]) ?></div>
     </header>

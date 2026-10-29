@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Brisanje otkazanog spiska za utovar (i onog koji je bio utovaren pa otkazan – stanje se ne menja) i pregled
-"Kupci po godini": ko je koliko robe uzeo u godini (prodaja + utovar − povrat), sa izvozom u Excel."""
+"Kupci po godini": ko je koliko robe uzeo u godini (prodaja + utovar − povrat), sa izvozom u Excel.
+Brisanje ostalih statusa, brojevi Utovar 1, 2, 3 i „Obriši sve otkazane“: test_23_brisanje_utovara.py."""
 import html as htmllib
 import re
 import sys
@@ -87,14 +88,13 @@ try:
     R.odeljak("Brisanje otkazanog spiska")
     spB, mB = novi_spisak("Bašta Zemun")
     adm.post(SP, {"akcija": "dodaj", "id": spB, "mesto_id": mB, "paleta_id": "0", "sku_id": hum10, "kom": "3"})
-    o = adm.post(SP, {"akcija": "obrisi_spisak", "id": spB})
-    R.provera("samo otkazan spisak" in poruke(o) and sql_int("SELECT COUNT(*) FROM spiskovi WHERE id=%d" % spB) == 1, "nacrt ne može da se obriše (prvo se otkaže)", poruke(o))
-    R.provera("Obriši spisak" not in adm.get(SP + "?id=%d" % spB).text, "na nacrtu nema dugmeta „Obriši spisak“")
     adm.post(SP, {"akcija": "status", "id": spB, "ocekivan": "nacrt", "novi": "otkazano"})
     o = adm.get(SP + "?id=%d" % spB)
-    R.provera("Obriši spisak" in o.text and "Trajno obrisati" in o.text, "otkazan spisak ima dugme „Obriši spisak“ (uz potvrdu)")
-    o = adm.post(SP, {"akcija": "obrisi_spisak", "id": spB})
-    R.provera(o.url.endswith("/admin/utovar.php") and "obrisan otkazan spisak" in poruke(o)
+    oznaka = utovar(spB)
+    R.provera('id="brisanje"' in o.text and "Obriši %s" % oznaka in o.text and "Ovo ne može da se vrati" in o.text and 'name="ocekivan" value="otkazano"' in o.text,
+              "otkazan spisak ima dugme „Obriši %s“ (uz potvrdu)" % oznaka)
+    o = adm.post(SP, {"akcija": "obrisi_spisak", "id": spB, "ocekivan": "otkazano"})
+    R.provera(o.url.endswith("/admin/utovar.php?f=otkazano") and "Obrisan je %s (Bašta Zemun)." % oznaka in poruke(o)
               and sql("SELECT CONCAT((SELECT COUNT(*) FROM spiskovi WHERE id=%d), (SELECT COUNT(*) FROM spisak_mesta WHERE spisak_id=%d), (SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id=%d))" % (spB, spB, spB)) == "000",
               "obrisan sa mestima i stavkama; nazad na listu spiskova", poruke(o))
     R.provera(sql_int("SELECT COUNT(*) FROM dnevnik WHERE detalji LIKE 'Spisak #%d: obrisan otkazan spisak%%'" % spB) == 1, "brisanje je u dnevniku")
@@ -107,9 +107,12 @@ try:
     posle_otkaza = (stanje(hum50), stanje(obl))
     R.provera("Cvećara Flora" not in adm.get("/admin/kupci.php").text, "otkazan utovar se ne računa kupcu")
     o = adm.post(SP, {"akcija": "obrisi_spisak", "id": spA})
-    R.provera("utovar i povrat (4 unosa) označeni kao obrisani" in poruke(o) and sql_int("SELECT COUNT(*) FROM spiskovi WHERE id=%d" % spA) == 0, "obrisan; utovar i povrat označeni kao obrisani", poruke(o))
+    R.provera("utovar i povrat su označeni kao obrisani (stanje se ne menja)" in poruke(o) and sql_int("SELECT COUNT(*) FROM spiskovi WHERE id=%d" % spA) == 0
+              and sql_int("SELECT COUNT(*) FROM dnevnik WHERE detalji LIKE 'Spisak #%d: obrisan otkazan spisak (%%utovar i povrat (4 unosa) označeni kao obrisani%%'" % spA) == 1,
+              "obrisan; utovar i povrat označeni kao obrisani", poruke(o))
     R.provera((stanje(hum50), stanje(obl)) == posle_otkaza, "stanje je isto kao posle otkazivanja")
-    R.provera(sql("SELECT GROUP_CONCAT(DISTINCT CONCAT(obrisan, '|', IFNULL(spisak_id, 'NULL'))) FROM unosi WHERE napomena LIKE '%%obrisan otkazan spisak #%d'" % spA) == "1|NULL",
+    R.provera(sql("SELECT GROUP_CONCAT(DISTINCT CONCAT(obrisan, '|', IFNULL(spisak_id, 'NULL'))) FROM unosi WHERE napomena LIKE '%%obrisan otkazan spisak (Cvećara Flora, utovar %%'") == "1|NULL"
+              and sql_int("SELECT COUNT(*) FROM unosi WHERE napomena LIKE '%%obrisan otkazan spisak (Cvećara Flora, utovar %%'") == 4,
               "unosi ostaju u istoriji kao obrisani (sa napomenom), bez veze na obrisan spisak")
     R.provera("Agrocentar" in adm.get("/admin/kupci.php").text, "ostali kupci ostaju u pregledu")
     o = adm.get("/admin/stanje.php")

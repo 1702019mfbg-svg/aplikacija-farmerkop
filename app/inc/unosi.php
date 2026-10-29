@@ -130,7 +130,7 @@ function unos_obrisi(int $unos_id, int $korisnik_id, string $akcija = 'brisanje'
             return ['ok' => false, 'greska' => 'Unos ne postoji ili je već obrisan.'];
         }
         if ($u['spisak_id'] !== null) {
-            return ['ok' => false, 'greska' => 'Ovaj unos pripada spisku za utovar #' . (int)$u['spisak_id'] . ' – ispravlja se otkazivanjem spiska ili popisom.'];
+            return ['ok' => false, 'greska' => 'Ovaj unos pripada spisku ' . spisak_oznaka(['id' => $u['spisak_id']]) . ' – ispravlja se otkazivanjem ili brisanjem spiska, ili popisom.'];
         }
         $sku_id = (int)$u['sku_id'];
         sku_zakljucaj($sku_id);
@@ -197,7 +197,7 @@ function unos_izmeni(int $id, array $nova, int $korisnik_id): array
             return ['ok' => false, 'greska' => 'Unos ne postoji ili je obrisan.'];
         }
         if ($stari['spisak_id'] !== null) {
-            return ['ok' => false, 'greska' => 'Ovaj unos pripada spisku za utovar #' . (int)$stari['spisak_id'] . ' – ispravlja se otkazivanjem spiska ili popisom.'];
+            return ['ok' => false, 'greska' => 'Ovaj unos pripada spisku ' . spisak_oznaka(['id' => $stari['spisak_id']]) . ' – ispravlja se otkazivanjem ili brisanjem spiska, ili popisom.'];
         }
         $tip = (string)$stari['tip'];
         $stari_sku = (int)$stari['sku_id'];
@@ -292,4 +292,39 @@ function popis_postavi(int $sku_id, int $prebrojano, string $napomena, int $kori
         );
         return ['ok' => true, 'promena' => true, 'bilo' => $bilo, 'razlika' => $razlika];
     });
+}
+
+/*
+ * Spiskovi za utovar se zovu „Utovar 1, 2, 3 …“: redni broj je koliko je spiskova napravljeno do tog, uključujući
+ * i njega. Kad se neki obriše, ostali se prenumerišu – brojevi idu uvek redom, bez rupa. (Ovde, a ne u
+ * spiskovi.php, jer se broj prikazuje i u Istoriji, dnevniku i porukama o unosima.)
+ */
+function spisak_redni(int $id): int
+{
+    return (int)db_val('SELECT COUNT(*) FROM spiskovi WHERE id <= ?', [$id]);
+}
+
+/** Redni brojevi za više spiskova odjednom: [id => redni]; obrisanih spiskova nema u rezultatu. */
+function spiskovi_redni(array $ids): array
+{
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    if (!$ids) {
+        return [];
+    }
+    $rez = [];
+    $redovi = db_all(
+        'SELECT sp.id, (SELECT COUNT(*) FROM spiskovi s2 WHERE s2.id <= sp.id) AS redni FROM spiskovi sp WHERE sp.id IN ('
+        . implode(',', array_fill(0, count($ids), '?')) . ')',
+        $ids
+    );
+    foreach ($redovi as $r) {
+        $rez[(int)$r['id']] = (int)$r['redni'];
+    }
+    return $rez;
+}
+
+/** "Utovar 12" – ime spiska u aplikaciji, na štampi i u porukama ($sp['redni'] iz SPISAK_POLJA, inače se izračuna). */
+function spisak_oznaka(array $sp): string
+{
+    return 'Utovar ' . (int)($sp['redni'] ?? spisak_redni((int)$sp['id']));
 }

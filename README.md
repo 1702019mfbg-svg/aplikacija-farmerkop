@@ -47,7 +47,10 @@ dist/                 gotovi ZIP paketi
 - **Spisak za utovar** (`inc/spiskovi.php`): `spiskovi` (jedan kamion), `spisak_mesta` (mesta istovara: broj koji upisuje vlasnik,
   kupac nije obavezan, redosled), `spisak_stavke` (`mesto_id`; artikal ili „ostalo“; `paleta_id` > 0 = stavka zbirne palete,
   količina = na jednoj paleti × `spisak_palete.broj`), `spisak_palete` (`mesto_id`). Stanje se skida tek potvrdom utovara
-  (`spisak_potvrdi_utovar`), na kupca mesta.
+  (`spisak_potvrdi_utovar`), na kupca mesta. U aplikaciji se spisak zove „Utovar N“ (`spisak_oznaka()`): N = broj spiskova
+  sa `id` ≤ njegovog (`spisak_redni()`, u `SPISAK_POLJA` kao `redni`), pa posle brisanja brojevi idu redom bez rupa; `id`
+  ostaje samo u adresama i dnevniku. `spisak_obrisi()` briše spisak bilo kog statusa uz proveru statusa koji je korisnik
+  video; utovaren: `vrati` (unosi utovara se označe kao obrisani) ili `ostaje` (unosi ostaju, bez veze na spisak).
 - **Izbor artikla kucanjem** (`inc/katalog.php`): `sku_pronadji()` – svaka otkucana reč mora biti u nazivu (bilo kojim redom,
   početak reči, koren od 4 slova, milimetri „40-60“ = 4-6 cm), ocena bira najbolje; `sku_iz_unosa()` uzima izabrani id ili
   jedino najbolje poklapanje; tekst kog nema u katalogu je `nepoznat` (na spisku = ostalo). Isto računa `assets/js/spisak.js`,
@@ -118,6 +121,7 @@ python3 tests/test_19_humovit_stara_ambalaza.py  # v10: Humovit S (stara ambala�
 python3 tests/test_20_mesalice.py          # v11: mešalice po boji (radnik), brisanje u roku, pregled, CSV, pristup
 python3 tests/test_21_proizvodnja_po_radniku.py  # palete po radniku i artiklu (danas, juče, od–do), obrisano/prodaja ne, CSV
 python3 tests/test_22_danas_obavestenja.py # v12: kartica Danas; Web Push sa lažnim servisom – poruka se dešifruje u Pythonu, VAPID potpis, cron
+python3 tests/test_23_brisanje_utovara.py  # Utovar 1, 2, 3 bez rupa, najnoviji gore, brisanje svakog statusa, vrati robu / roba je otišla, obriši sve otkazane
 sh tools/napravi_zip.sh && python3 tests/test_06_apache.py   # ZIP pod pravim Apache serverom (.htaccess)
 python3 tests/ekrani.py IZLAZ              # tokovi u pravom pregledaču + snimci (svetli/tamni režim), PWA provera
 ```

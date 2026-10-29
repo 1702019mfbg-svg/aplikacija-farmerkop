@@ -5,7 +5,8 @@
  * "humovit", pa se dodirne pakovanje 5 / 10 / 25 / 50 l; više artikala se čuva odjednom), "ostalo" (roba koje
  * nema u katalogu, npr. kora – samo naziv i komadi, u istim redovima) i zbirne palete (sve odjednom, npr.
  * 1/2 rizle + 1/2 oblutka). Ceo spisak sa papira: admin/spisak_papir.php.
- * Zbir paleta i težine, upozorenja kad nema dovoljno slobodne robe i promena statusa.
+ * Zbir paleta i težine, upozorenja kad nema dovoljno slobodne robe, promena statusa i brisanje (bilo kog statusa;
+ * kod utovarenog se bira da li se roba vraća na stanje).
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
@@ -402,10 +403,10 @@ if (je_post()) {
             return $izmene > 0 ? 'sačuvane izmene (' . $izmene . ')' : '';
         });
     } elseif ($akcija === 'obrisi_spisak') {
-        $rez = spisak_obrisi($id, (int)$admin['id']);
+        $rez = spisak_obrisi($id, (int)$admin['id'], post_str('ocekivan', 12), post_str('nacin', 10));
         if ($rez['ok']) {
-            flash_dodaj('uspeh', 'Spisak #' . $id . ' je ' . $rez['opis'] . '.');
-            preusmeri('admin/utovar.php');
+            flash_dodaj('uspeh', (string)$rez['poruka']);
+            preusmeri('admin/utovar.php' . (in_array($sp['status'], ['utovareno', 'otkazano'], true) ? '?f=' . $sp['status'] : ''));
         }
         flash_dodaj('greska', (string)$rez['greska']);
     } elseif ($akcija === 'status') {
@@ -452,7 +453,7 @@ $kupci = $nacrt ? db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS
 $nedavni = array_slice(array_column($kupci, 'naziv'), 0, 6);
 $kupci_tekst = spisak_kupci($sp);
 
-ui_start('Spisak #' . $id, ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/spisak.js', 'assets/js/prodaja.js']]);
+ui_start(spisak_oznaka($sp), ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/spisak.js', 'assets/js/prodaja.js']]);
 ?>
 <p><a class="btn btn-mali" href="<?= e(url('admin/utovar.php')) ?>"><?= ikona('nazad') ?> Svi spiskovi</a></p>
 
@@ -829,7 +830,7 @@ foreach ($po_mestima as $mid => $grupa):
         if ($sp['utovareno_u'] === null) {
             $dugmad[] = ['nacrt', 'Vrati u nacrt', '', 'Ponovo otvoriti otkazan spisak kao nacrt?'];
         }
-        $opis = 'Otkazan spisak ništa ne rezerviše i ne menja stanje. Ako vam više ne treba, možete ga obrisati.';
+        $opis = 'Otkazan spisak ništa ne rezerviše i ne menja stanje. Ako vam više ne treba, obrišite ga (dole).';
     } else {
         $dugmad[] = ['otkazano', 'Otkaži utovar (vrati robu na stanje)', 'btn-opasno', 'Otkazati utovaren spisak? Sva utovarena roba se vraća na stanje (upisuje se kao povrat).'];
         $opis = 'Utovareno: stanje je skinuto i spisak se više ne menja. Ako je utovar greška, otkažite ga – roba se vraća na stanje.';
@@ -851,15 +852,37 @@ foreach ($po_mestima as $mid => $grupa):
     <?php if ($sp['status'] === 'za_utovar'): ?>
         <p class="razmak-gore"><a class="btn btn-braon btn-blok" href="<?= e(url('radnik/utovar.php?id=' . $id)) ?>"><?= ikona('kamion') ?> Potvrdi utovar (štikliranje stavki)</a></p>
     <?php endif; ?>
-    <?php if ($sp['status'] === 'otkazano'): ?>
-        <form method="post" class="razmak-gore" action="<?= e(url('admin/spisak.php')) ?>"
-              data-potvrda="Trajno obrisati ovaj otkazan spisak? <?= $sp['utovareno_u'] !== null ? 'Njegov utovar i povrat biće označeni kao obrisani (stanje se ne menja). ' : '' ?>Ovo ne može da se vrati.">
-            <?= csrf_polje() ?>
-            <input type="hidden" name="akcija" value="obrisi_spisak">
-            <input type="hidden" name="id" value="<?= $id ?>">
-            <button class="btn btn-opasno btn-blok" type="submit"><?= ikona('kanta') ?> Obriši spisak</button>
-        </form>
-    <?php endif; ?>
+</section>
+
+<section class="kartica" id="brisanje" aria-labelledby="brisanje-naslov">
+    <div class="kartica-naslov"><h2 id="brisanje-naslov"><?= ikona('kanta') ?> Brisanje</h2></div>
+    <?php
+    $oznaka = spisak_oznaka($sp);
+    $brisanje = $sp['status'] === 'utovareno'
+        ? [
+            ['vrati', 'Obriši i vrati robu na stanje', 'Obrisati ' . $oznaka . ' i vratiti svu utovarenu robu na stanje (kao da utovara nije bilo)? Ovo ne može da se vrati.'],
+            ['ostaje', 'Obriši, roba je otišla', 'Obrisati ' . $oznaka . '? Roba ostaje skinuta sa stanja, a unosi utovara ostaju u Istoriji. Ovo ne može da se vrati.'],
+        ]
+        : [['', 'Obriši ' . $oznaka, 'Obrisati ' . $oznaka . '? '
+            . ($sp['status'] === 'za_utovar' ? 'Radnici ga više neće videti, a rezervacija se ukida. ' : '')
+            . ($sp['status'] === 'otkazano' && $sp['utovareno_u'] !== null ? 'Njegov utovar i povrat biće označeni kao obrisani (stanje se ne menja). ' : '')
+            . 'Ovo ne može da se vrati.']];
+    ?>
+    <p class="pomoc"><?= e($sp['status'] === 'utovareno'
+        ? 'Utovaren spisak: izaberite šta je sa robom. „Vrati robu na stanje“ – kad je utovar bio greška ili proba. „Roba je otišla“ – kad je roba stvarno otišla, a spisak vam više ne treba.'
+        : 'Brisanje uklanja ceo spisak sa svim mestima i robom; stanje se ne menja. Utovari posle njega dobijaju broj manje – brojevi idu redom, bez rupa.') ?></p>
+    <div class="grupa-dugmica">
+        <?php foreach ($brisanje as [$nacin, $tekst, $potvrda]): ?>
+            <form method="post" class="forma-u-liniji" action="<?= e(url('admin/spisak.php')) ?>" data-potvrda="<?= e($potvrda) ?>">
+                <?= csrf_polje() ?>
+                <input type="hidden" name="akcija" value="obrisi_spisak">
+                <input type="hidden" name="id" value="<?= $id ?>">
+                <input type="hidden" name="ocekivan" value="<?= e($sp['status']) ?>">
+                <input type="hidden" name="nacin" value="<?= e($nacin) ?>">
+                <button class="btn btn-opasno" type="submit"><?= ikona('kanta') ?> <?= e($tekst) ?></button>
+            </form>
+        <?php endforeach; ?>
+    </div>
 </section>
 <?php
 ui_end();

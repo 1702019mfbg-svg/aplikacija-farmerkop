@@ -140,7 +140,7 @@ $primer = "8 Agrocentar\n2 pal humovit 50\nhumovit 10 - 30\n3 pak idea 5\n1/2 ri
 
 ui_start('Spisak sa papira', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/spisak.js', 'assets/js/slika_spiska.js']]);
 ?>
-<p><a class="btn btn-mali" href="<?= e(url($nazad)) ?>"><?= ikona('nazad') ?> Spisak #<?= $id ?></a></p>
+<p><a class="btn btn-mali" href="<?= e(url($nazad)) ?>"><?= ikona('nazad') ?> <?= e(spisak_oznaka($sp)) ?></a></p>
 
 <?php if ($uredi_tekst): ?>
     <?php if (slika_ukljucena()): /* samo kad je u config.php upisan ključ – inače se slika ne čita i ništa ne košta */ ?>

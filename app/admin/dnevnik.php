@@ -13,6 +13,8 @@ $redovi = db_all(
      WHERE d.objekat IN ('unos', 'podesavanje', 'korisnik', 'spisak', 'mesalica') ORDER BY d.id DESC LIMIT 100"
 );
 
+$redni = spiskovi_redni(array_column(array_filter($redovi, static fn(array $d): bool => $d['objekat'] === 'spisak'), 'objekat_id'));
+
 ui_start('Dnevnik izmena', ['nav' => 'admin', 'aktivno' => 'istorija']);
 ?>
 <p><a class="btn btn-mali" href="<?= e(url('admin/istorija.php')) ?>"><?= ikona('nazad') ?> Istorija</a></p>
@@ -28,9 +30,9 @@ ui_start('Dnevnik izmena', ['nav' => 'admin', 'aktivno' => 'istorija']);
                     <strong><?= e(AKCIJE_DNEVNIKA[$d['akcija']] ?? $d['akcija']) ?></strong>
                     – <?= e($d['ime'] ?? 'nepoznat') ?>, <?= e(datum_vreme_srp((string)$d['vreme'])) ?>
                     <?php if ($d['objekat'] === 'unos'): ?>· <a href="<?= e(url('admin/unos.php?id=' . (int)$d['objekat_id'])) ?>">unos #<?= (int)$d['objekat_id'] ?></a><?php endif; ?>
-                    <?php if ($d['objekat'] === 'spisak'): ?>· <a href="<?= e(url('admin/spisak.php?id=' . (int)$d['objekat_id'])) ?>">spisak #<?= (int)$d['objekat_id'] ?></a><?php endif; ?>
+                    <?php if ($d['objekat'] === 'spisak'): ?>· <?php if (isset($redni[(int)$d['objekat_id']])): ?><a href="<?= e(url('admin/spisak.php?id=' . (int)$d['objekat_id'])) ?>">Utovar <?= $redni[(int)$d['objekat_id']] ?></a><?php else: ?>obrisan spisak<?php endif; ?><?php endif; ?>
                     <?php if ($d['objekat'] === 'mesalica'): ?>· <a href="<?= e(url('admin/mesalice.php')) ?>">mešalice</a><?php endif; ?>
-                    <?php $promene = dnevnik_promene($d['detalji']); ?>
+                    <?php $promene = dnevnik_promene($d['objekat'] === 'spisak' ? preg_replace('/^Spisak #\d+: /u', '', (string)$d['detalji']) : $d['detalji']); ?>
                     <?php if ($promene): ?>
                         <ul class="promene"><?php foreach ($promene as $p): ?><li><?= e($p) ?></li><?php endforeach; ?></ul>
                     <?php endif; ?>

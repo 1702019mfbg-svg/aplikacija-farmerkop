@@ -22,7 +22,7 @@ if ($u === null) {
     stranica_greske(404, 'Unos ne postoji', 'Traženi unos nije pronađen.', 'admin/istorija.php', 'Nazad na istoriju');
 }
 if ($u['spisak_id'] !== null) {
-    flash_dodaj('info', 'Ovaj unos pripada spisku za utovar #' . (int)$u['spisak_id'] . '. Ispravlja se otkazivanjem spiska (roba se vraća na stanje) ili popisom.');
+    flash_dodaj('info', 'Ovaj unos pripada spisku ' . spisak_oznaka(['id' => $u['spisak_id']]) . '. Ispravlja se otkazivanjem ili brisanjem spiska (roba se vraća na stanje) ili popisom.');
     preusmeri('admin/spisak.php?id=' . (int)$u['spisak_id']);
 }
 $tip = (string)$u['tip'];

@@ -24,9 +24,11 @@ const SPISAK_STATUSI = [
 
 /**
  * "kupac" = kupci sa mesta, redom ("Agrocentar, Cvećara Flora"; null ako nijedno mesto nema kupca),
- * "mesta" = brojevi mesta redom ("8, 9, 5"), broj_mesta = koliko mesta ima utovar.
+ * "mesta" = brojevi mesta redom ("8, 9, 5"), broj_mesta = koliko mesta ima utovar,
+ * "redni" = broj utovara (Utovar 1, 2, 3 … – vidi spisak_redni()).
  */
 const SPISAK_POLJA = 'sp.*, '
+    . '(SELECT COUNT(*) FROM spiskovi s2 WHERE s2.id <= sp.id) AS redni, '
     . "(SELECT GROUP_CONCAT(km.naziv ORDER BY m.redosled, m.id SEPARATOR ', ') FROM spisak_mesta m JOIN kupci km ON km.id = m.kupac_id WHERE m.spisak_id = sp.id) AS kupac, "
     . "(SELECT GROUP_CONCAT(m.broj ORDER BY m.redosled, m.id SEPARATOR ', ') FROM spisak_mesta m WHERE m.spisak_id = sp.id) AS mesta, "
     . '(SELECT COUNT(*) FROM spisak_mesta m WHERE m.spisak_id = sp.id) AS broj_mesta, '
@@ -84,7 +86,7 @@ function spisak_naslov(array $sp): string
 {
     $n = (int)($sp['broj_mesta'] ?? 0);
     if ($n === 0) {
-        return 'Spisak #' . (int)$sp['id'] . ' (bez mesta)';
+        return 'Bez mesta istovara';
     }
     if ($n === 1) {
         return !empty($sp['kupac']) ? (string)$sp['kupac'] : 'Mesto ' . $sp['mesta'];
@@ -550,56 +552,115 @@ function spisak_vrati_robu(array $sp, int $korisnik_id): void
         db_run(
             "INSERT INTO unosi (tip, sku_id, kolicina, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
              VALUES ('povrat', ?, ?, ?, ?, ?, ?, ?, ?)",
-            [(int)$r['sku_id'], (int)$r['kom'], $korisnik_id, $r['kupac_id'] === null ? null : (int)$r['kupac_id'], (int)$sp['id'], 'Otkazan spisak #' . (int)$sp['id'], $sad, $sad]
+            [(int)$r['sku_id'], (int)$r['kom'], $korisnik_id, $r['kupac_id'] === null ? null : (int)$r['kupac_id'], (int)$sp['id'], 'Otkazan spisak', $sad, $sad]
         );
     }
 }
 
 /**
- * Brisanje otkazanog spiska (sa mestima, stavkama i zbirnim paletama). Ako je spisak bio utovaren pa otkazan,
- * njegov utovar i povrat (koji se poništavaju) označe se kao obrisani – stanje se ne menja. Upis u dnevnik.
- * Vraća ['ok' => true, 'opis' => tekst] ili ['ok' => false, 'greska' => tekst].
+ * Brisanje spiska bilo kog statusa (sa mestima, stavkama i zbirnim paletama). $ocekivan je status koji je korisnik
+ * video: ako se u međuvremenu promenio (npr. radnik je upravo potvrdio utovar), ništa se ne briše ('' = bez provere,
+ * stara forma; utovaren spisak i tada traži izbor šta je sa robom).
+ *  - nacrt, za utovar: stanje se ne menja (rezervacija prestaje);
+ *  - otkazan: ako je bio utovaren pa otkazan, njegov utovar i povrat (koji se poništavaju) označe se kao obrisani;
+ *  - utovaren: $nacin 'vrati' – utovar se označi kao obrisan, roba se vraća na stanje (kao da utovara nije bilo);
+ *    'ostaje' – roba je otišla: unosi utovara ostaju u Istoriji (bez spiska), stanje se ne menja.
+ * Ostali spiskovi se time prenumerišu (Utovar 1, 2, 3 … bez rupa). Upis u dnevnik.
+ * Vraća ['ok' => true, 'opis' => za dnevnik, 'poruka' => za korisnika] ili ['ok' => false, 'greska' => tekst].
  */
-function spisak_obrisi(int $id, int $korisnik_id): array
+function spisak_obrisi(int $id, int $korisnik_id, string $ocekivan, string $nacin = ''): array
 {
     try {
-        return db_trans(static function () use ($id, $korisnik_id): array {
-            $sp = spisak_zakljucaj($id);
-            if ($sp === null) {
-                return ['ok' => false, 'greska' => 'Spisak ne postoji.'];
+        return db_trans(static function () use ($id, $korisnik_id, $ocekivan, $nacin): array {
+            $zak = spisak_zakljucaj($id);
+            if ($zak === null) {
+                return ['ok' => false, 'greska' => 'Spisak ne postoji (možda je već obrisan).'];
             }
-            if ($sp['status'] !== 'otkazano') {
-                return ['ok' => false, 'greska' => 'Brisati se može samo otkazan spisak. Prvo ga otkažite.'];
+            $status = (string)$zak['status'];
+            if ($ocekivan !== '' && $status !== $ocekivan) {
+                return ['ok' => false, 'greska' => 'Spisak nije obrisan: u međuvremenu je promenio status (sada: ' . SPISAK_STATUSI[$status]
+                    . '). Pogledajte ga, pa pokušajte ponovo.'];
             }
-            $razlika = db_val(
-                "SELECT COUNT(*) FROM (SELECT sku_id, SUM(CASE WHEN tip = 'povrat' THEN -kolicina ELSE kolicina END) AS n
-                 FROM unosi WHERE spisak_id = ? AND obrisan = 0 GROUP BY sku_id HAVING n <> 0) x",
-                [$id]
-            );
-            if ((int)$razlika > 0) {
-                return ['ok' => false, 'greska' => 'Spisak ne može da se obriše: utovar i povrat robe sa ovog spiska se ne poništavaju (vidi Istoriju).'];
+            if ($status === 'utovareno' && !in_array($nacin, ['vrati', 'ostaje'], true)) {
+                return ['ok' => false, 'greska' => 'Spisak je utovaren: izaberite da li se roba vraća na stanje ili je otišla.'];
             }
-            $unosa = (int)db_val('SELECT COUNT(*) FROM unosi WHERE spisak_id = ?', [$id]);
+            $sp = spisak_ucitaj($id);
+            $oznaka = spisak_oznaka($sp);
+            $naslov = spisak_naslov($sp) . ', utovar ' . datum_srp((string)$sp['datum']);
+            $unosa = (int)db_val('SELECT COUNT(*) FROM unosi WHERE spisak_id = ? AND obrisan = 0', [$id]);
             $sad = sada();
-            db_run(
-                "UPDATE unosi SET obrisan = 1, obrisan_u = COALESCE(obrisan_u, ?), obrisao_id = COALESCE(obrisao_id, ?), spisak_id = NULL,
-                 napomena = LEFT(CONCAT(COALESCE(CONCAT(napomena, ' · '), ''), 'obrisan otkazan spisak #', ?), 255) WHERE spisak_id = ?",
-                [$sad, $korisnik_id, $id, $id]
-            );
+            $dopisi = "napomena = LEFT(CONCAT(COALESCE(CONCAT(napomena, ' · '), ''), ?), 255)";   // šta je bilo sa spiskom
+            if ($status === 'utovareno' && $nacin === 'ostaje') {
+                db_run('UPDATE unosi SET spisak_id = NULL, ' . $dopisi . ' WHERE spisak_id = ?', ['spisak obrisan (' . $naslov . ') – roba je otišla', $id]);
+            } else {
+                if ($status !== 'utovareno') {
+                    // otkazan utovaren spisak: utovar i povrat moraju da se poništavaju (inače bi se brisanjem promenilo stanje)
+                    $razlika = db_val(
+                        "SELECT COUNT(*) FROM (SELECT sku_id, SUM(CASE WHEN tip = 'povrat' THEN -kolicina ELSE kolicina END) AS n
+                         FROM unosi WHERE spisak_id = ? AND obrisan = 0 GROUP BY sku_id HAVING n <> 0) x",
+                        [$id]
+                    );
+                    if ((int)$razlika > 0) {
+                        return ['ok' => false, 'greska' => 'Spisak ne može da se obriše: utovar i povrat robe sa ovog spiska se ne poništavaju (vidi Istoriju).'];
+                    }
+                }
+                db_run(
+                    'UPDATE unosi SET obrisan = 1, obrisan_u = COALESCE(obrisan_u, ?), obrisao_id = COALESCE(obrisao_id, ?), spisak_id = NULL, '
+                    . $dopisi . ' WHERE spisak_id = ?',
+                    [$sad, $korisnik_id, $status === 'utovareno' ? 'obrisan spisak (' . $naslov . ') – roba vraćena na stanje' : 'obrisan otkazan spisak (' . $naslov . ')', $id]
+                );
+            }
             $stavki = (int)db_val('SELECT COUNT(*) FROM spisak_stavke WHERE spisak_id = ?', [$id]);
             db_run('DELETE FROM spisak_stavke WHERE spisak_id = ?', [$id]);
             db_run('DELETE FROM spisak_palete WHERE spisak_id = ?', [$id]);
             db_run('DELETE FROM spisak_mesta WHERE spisak_id = ?', [$id]);
             db_run('DELETE FROM spiskovi WHERE id = ?', [$id]);
-            $opis = 'obrisan otkazan spisak (' . spisak_naslov($sp) . ', ' . stavki_tekst($stavki) . ')'
-                . ($unosa > 0 ? '; utovar i povrat (' . $unosa . ' unosa) označeni kao obrisani, stanje se ne menja' : '');
+            $vrsta = ['nacrt' => 'nacrt', 'za_utovar' => 'spisak za utovar', 'otkazano' => 'otkazan spisak', 'utovareno' => 'utovaren spisak'][$status];
+            $opis = 'obrisan ' . $vrsta . ' (' . $oznaka . ', ' . spisak_naslov($sp) . ', ' . stavki_tekst($stavki) . ')' . match (true) {
+                $status === 'za_utovar' => '; rezervacija ukinuta',
+                $status === 'utovareno' && $nacin === 'vrati' => '; roba vraćena na stanje (' . $unosa . ' unosa utovara označeno kao obrisano)',
+                $status === 'utovareno' => '; roba je otišla – stanje se ne menja, unosi utovara (' . $unosa . ') ostaju u Istoriji',
+                $unosa > 0 => '; utovar i povrat (' . $unosa . ' unosa) označeni kao obrisani, stanje se ne menja',
+                default => '',
+            };
             spisak_dnevnik($id, $opis);
-            return ['ok' => true, 'opis' => $opis];
+            $posle = (int)db_val('SELECT COUNT(*) FROM spiskovi WHERE id > ?', [$id]);
+            $poruka = 'Obrisan je ' . $oznaka . ' (' . spisak_naslov($sp) . ').' . match (true) {
+                $status === 'za_utovar' => ' Rezervacija je ukinuta, radnici ga više ne vide.',
+                $status === 'utovareno' && $nacin === 'vrati' => ' Roba je vraćena na stanje.',
+                $status === 'utovareno' => ' Stanje se ne menja (roba je otišla); unosi utovara ostaju u Istoriji.',
+                $unosa > 0 => ' Njegov utovar i povrat su označeni kao obrisani (stanje se ne menja).',
+                default => '',
+            } . ($posle > 0 ? ' Utovari posle njega dobili su broj manje (brojevi idu redom, bez rupa).' : '');
+            return ['ok' => true, 'opis' => $opis, 'poruka' => $poruka];
         });
     } catch (PDOException $e) {
         error_log('[Farmerkop] brisanje spiska #' . $id . ': ' . $e->getMessage());
         return ['ok' => false, 'greska' => 'Spisak nije obrisan (greška u bazi). Pokušajte ponovo.'];
     }
+}
+
+/** Briše sve otkazane spiskove, svaki posebno (kao spisak_obrisi). Vraća ['obrisano' => n, 'greske' => [tekst …]]. */
+function spiskovi_obrisi_otkazane(int $korisnik_id): array
+{
+    $obrisano = 0;
+    $neuspeli = [];
+    foreach (db_all("SELECT id FROM spiskovi WHERE status = 'otkazano' ORDER BY id DESC") as $r) {
+        $rez = spisak_obrisi((int)$r['id'], $korisnik_id, 'otkazano');
+        if ($rez['ok']) {
+            $obrisano++;
+        } elseif (spisak_ucitaj((int)$r['id']) !== null) {
+            $neuspeli[(int)$r['id']] = (string)$rez['greska'];
+        }
+    }
+    $greske = [];
+    foreach ($neuspeli as $sid => $greska) {      // brojevi posle brisanja (ostali su se prenumerisali)
+        $sp = spisak_ucitaj($sid);
+        if ($sp !== null) {
+            $greske[] = spisak_oznaka($sp) . ' (' . spisak_naslov($sp) . '): ' . $greska;
+        }
+    }
+    return ['obrisano' => $obrisano, 'greske' => $greske];
 }
 
 /**
@@ -706,8 +767,8 @@ function spisak_potvrdi_utovar(int $id, array $kolicine, int $korisnik_id): arra
                 "INSERT INTO unosi (tip, sku_id, kolicina, palete, paketi, korisnik_id, kupac_id, spisak_id, napomena, nastalo, uneto)
                  VALUES ('utovar', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(int)$st['sku_id'], $k['kolicina'], $k['palete'], $k['paketi'], $korisnik_id, $kupac_id, $id,
-                 'Spisak #' . $id . ($st['mesto_broj'] !== null ? ' – mesto ' . (int)$st['mesto_broj'] : '')
-                 . ((int)$st['paleta_id'] > 0 ? ' – ' . $st['paleta_naziv'] : ''), $sad, $sad]
+                 implode(' – ', array_filter([$st['mesto_broj'] !== null ? 'Mesto ' . (int)$st['mesto_broj'] : '', (int)$st['paleta_id'] > 0 ? (string)$st['paleta_naziv'] : ''])) ?: null,
+                 $sad, $sad]
             );
         }
         db_run("UPDATE spiskovi SET status = 'utovareno', utovario_id = ?, utovareno_u = ?, izmenjen = ? WHERE id = ?", [$korisnik_id, $sad, $sad, $id]);
@@ -724,7 +785,7 @@ function spisak_tekst_za_deljenje(array $sp, array $stavke): string
     $utovaren = $sp['status'] === 'utovareno';
     $z = spisak_zbir($stavke, $utovaren);
     $l = [];
-    $l[] = 'Farmerkop – spisak za utovar #' . (int)$sp['id'] . ($utovaren ? ' (utovareno)' : '');
+    $l[] = 'Farmerkop – ' . spisak_oznaka($sp) . ', spisak za utovar' . ($utovaren ? ' (utovareno)' : '');
     $l[] = 'Utovar: ' . dan_u_nedelji((string)$sp['datum']) . ', ' . datum_srp((string)$sp['datum']);
     if ($sp['vozilo']) {
         $l[] = 'Vozilo: ' . $sp['vozilo'];

@@ -105,7 +105,7 @@ try:
     o = adm.post("/admin/utovar.php", {"kupac": "", "datum": danas_bg(), "vozilo": "NS 100-AA", "vozac": "Pera", "mesto_broj": "8"})
     sp = sql_int("SELECT MAX(id) FROM spiskovi")
     m8 = mesto_id(sp, 8)
-    R.provera("Spisak #%d je napravljen sa mestom „Mesto 8“" % sp in poruke(o) and mesta(sp) == "8||", "utovar je napravljen sa prvim mestom: Mesto 8, bez kupca", poruke(o))
+    R.provera("%s je napravljen sa mestom „Mesto 8“" % utovar(sp) in poruke(o) and mesta(sp) == "8||", "utovar je napravljen sa prvim mestom: Mesto 8, bez kupca", poruke(o))
     R.provera(sql("SELECT kupac_id IS NULL FROM spiskovi WHERE id=%d" % sp) == "1", "kupac se vodi na mestu, ne na spisku")
     R.provera(re.search(r'id="dodaj-%d" open' % m8, o.text) is not None, "prazno mesto ima otvorenu formu za robu")
     R.provera('value="9"' in o.text.split('id="novo_broj"')[1][:200], "Dodaj mesto: predložen je sledeći broj (9)")
@@ -256,17 +256,17 @@ try:
     for stid in sql("SELECT id FROM spisak_stavke WHERE spisak_id=%d" % sp).split("\n"):
         f["ok[%s]" % stid] = "1"
     o = jelena.post("/radnik/utovar.php", f)
-    R.provera("Utovar je potvrđen: 3 mesta: 8, 9, 4, spisak #%d" % sp in poruke(o), "utovar je potvrđen", poruke(o))
+    R.provera("Utovar je potvrđen: %s, 3 mesta: 8, 9, 4." % utovar(sp) in poruke(o), "utovar je potvrđen", poruke(o))
     unosi = sql("SELECT u.sku_id, COALESCE(k.naziv, '-'), u.kolicina, u.napomena FROM unosi u LEFT JOIN kupci k ON k.id = u.kupac_id "
                 "WHERE u.spisak_id=%d AND u.tip='utovar'" % sp).split("\n")
     ocekivano = [
-        (hum50, "Cvećara Flora", 40, "Spisak #%d – mesto 8" % sp),
-        (rizla, "Cvećara Flora", 25, "Spisak #%d – mesto 8 – Zbirna paleta 1" % sp),
-        (oblutak, "Cvećara Flora", 25, "Spisak #%d – mesto 8 – Zbirna paleta 1" % sp),
-        (hum10, "Agrocentar <b>NS</b>", 270, "Spisak #%d – mesto 9" % sp),
-        (hum50, "Agrocentar <b>NS</b>", 2, "Spisak #%d – mesto 9" % sp),
-        (hum10, "-", 18, "Spisak #%d – mesto 4" % sp),
-        (hum50, "-", 2, "Spisak #%d – mesto 4" % sp),
+        (hum50, "Cvećara Flora", 40, "Mesto 8"),
+        (rizla, "Cvećara Flora", 25, "Mesto 8 – Zbirna paleta 1"),
+        (oblutak, "Cvećara Flora", 25, "Mesto 8 – Zbirna paleta 1"),
+        (hum10, "Agrocentar <b>NS</b>", 270, "Mesto 9"),
+        (hum50, "Agrocentar <b>NS</b>", 2, "Mesto 9"),
+        (hum10, "-", 18, "Mesto 4"),
+        (hum50, "-", 2, "Mesto 4"),
     ]
     R.provera(sorted(unosi) == sorted("%d\t%s\t%d\t%s" % r for r in ocekivano), "svaki artikal je skinut na kupca svog mesta (mesto 4 bez kupca)", unosi)
     R.provera(sql_int("SELECT COUNT(*) FROM kupci WHERE naziv IN ('Cvećara Flora', 'Agrocentar <b>NS</b>') AND poslednja_prodaja IS NOT NULL") == 2, "oba kupca su zapamćena kao skorašnja")
@@ -278,7 +278,7 @@ try:
     R.odeljak("Ručna prodaja kupcu sa mesta današnjeg utovara")
     adm.get("/admin/prodaja.php")
     o = adm.post("/admin/prodaja.php", {"kupac": "Agrocentar <b>NS</b>", "sku_id": hum10, "kolicina": "5", "nacin": "komadi", "kljuc": nov_kljuc()})
-    R.provera("Prodaja sačuvana" in poruke(o) and "danas ima spisak za utovar #%d" % sp in poruke(o), "upozorenje: kupac je na mestu današnjeg utovara", poruke(o))
+    R.provera("Prodaja sačuvana" in poruke(o) and "danas ima spisak za utovar (%s, utovaren)" % utovar(sp) in poruke(o), "upozorenje: kupac je na mestu današnjeg utovara", poruke(o))
 
     R.odeljak("Štampa i deljenje po mestima")
     o = adm.get("/admin/spisak_stampa.php?id=%d" % sp)

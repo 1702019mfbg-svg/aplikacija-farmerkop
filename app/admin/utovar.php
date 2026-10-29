@@ -1,16 +1,39 @@
 <?php
 /**
- * Administrator – Utovar: spiskovi za utovar (filter po statusu) i pravljenje novog spiska.
+ * Administrator – Utovar: spiskovi za utovar (filter po statusu, najnoviji gore), pravljenje novog spiska i brisanje.
  * Spisak je jedan kamion; roba je po mestima istovara (Mesto 1, 2, 3 … – broj upisuje vlasnik, kupac nije obavezan).
+ * Spiskovi se zovu Utovar 1, 2, 3 … redom, bez rupa (vidi spisak_redni()).
  */
 declare(strict_types=1);
 require __DIR__ . '/../inc/bootstrap.php';
 require __DIR__ . '/../inc/spiskovi.php';
 
 $admin = zahtevaj_ulogu('admin');
+$filteri = ['aktivni' => 'Aktivni', 'utovareno' => 'Utovareno', 'otkazano' => 'Otkazano', 'svi' => 'Svi'];
 
 if (je_post()) {
     csrf_proveri();
+    $akcija = post_str('akcija', 20);
+    $f = post_str('f', 12);
+    $lista = 'admin/utovar.php' . (isset($filteri[$f]) && $f !== 'aktivni' ? '?f=' . $f : '');
+    if ($akcija === 'obrisi') {
+        // kanta na kartici; utovaren spisak se briše na svojoj stranici (bira se šta je sa robom)
+        $rez = spisak_obrisi(post_int('id'), (int)$admin['id'], post_str('ocekivan', 12));
+        flash_dodaj($rez['ok'] ? 'uspeh' : 'greska', $rez['ok'] ? (string)$rez['poruka'] : (string)$rez['greska']);
+        preusmeri($lista);
+    }
+    if ($akcija === 'obrisi_otkazane') {
+        $rez = spiskovi_obrisi_otkazane((int)$admin['id']);
+        if ($rez['obrisano'] > 0) {
+            flash_dodaj('uspeh', 'Obrisano otkazanih spiskova: ' . $rez['obrisano'] . '. Brojevi utovara i dalje idu redom, bez rupa.');
+        } elseif (!$rez['greske']) {
+            flash_dodaj('info', 'Nema otkazanih spiskova.');
+        }
+        foreach ($rez['greske'] as $g) {
+            flash_dodaj('greska', $g);
+        }
+        preusmeri($lista);
+    }
     [$p, $greska] = spisak_zaglavlje_iz_posta();
     $broj_t = post_str('mesto_broj', 4);
     $broj_t = $broj_t === '' ? '1' : $broj_t;
@@ -38,11 +61,10 @@ if (je_post()) {
     });
     $mesto = mesto_naslov((int)$broj_t, $p['kupac']);
     spisak_dnevnik($id, 'napravljen (utovar ' . datum_srp($p['datum']) . ', ' . $mesto . ')');
-    flash_dodaj('uspeh', 'Spisak #' . $id . ' je napravljen sa mestom „' . $mesto . '“. Dodajte robu za to mesto, pa sledeća mesta (Dodaj mesto).');
+    flash_dodaj('uspeh', spisak_oznaka(['id' => $id]) . ' je napravljen sa mestom „' . $mesto . '“. Dodajte robu za to mesto, pa sledeća mesta (Dodaj mesto).');
     preusmeri('admin/spisak.php?id=' . $id);
 }
 
-$filteri = ['aktivni' => 'Aktivni', 'utovareno' => 'Utovareno', 'otkazano' => 'Otkazano', 'svi' => 'Svi'];
 $filter = get_str('f', 12);
 $filter = isset($filteri[$filter]) ? $filter : 'aktivni';
 $uslov = [
@@ -51,9 +73,8 @@ $uslov = [
     'otkazano'  => "sp.status = 'otkazano'",
     'svi'       => '1 = 1',
 ][$filter];
-$redosled = $filter === 'aktivni' ? 'sp.datum ASC, sp.id ASC' : 'sp.datum DESC, sp.id DESC';
-
-$spiskovi = db_all('SELECT ' . SPISAK_POLJA . ' ' . SPISAK_IZ . ' WHERE ' . $uslov . ' ORDER BY ' . $redosled . ' LIMIT 100');
+// najnoviji gore: redom kako su pravljeni (Utovar 12, 11, 10 …)
+$spiskovi = db_all('SELECT ' . SPISAK_POLJA . ' ' . SPISAK_IZ . ' WHERE ' . $uslov . ' ORDER BY sp.id DESC LIMIT 100');
 $brojevi = [];
 foreach (db_all("SELECT status, COUNT(*) AS n FROM spiskovi GROUP BY status") as $r) {
     $brojevi[$r['status']] = (int)$r['n'];
@@ -128,29 +149,60 @@ ui_start('Utovar', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js
     <?php endforeach; ?>
 </div>
 
+<?php if ($filter === 'otkazano' && ($brojevi['otkazano'] ?? 0) > 0): ?>
+    <form method="post" class="razmak-dole" action="<?= e(url('admin/utovar.php')) ?>"
+          data-potvrda="Obrisati sve otkazane spiskove (<?= (int)$brojevi['otkazano'] ?>)? Ovo ne može da se vrati.">
+        <?= csrf_polje() ?>
+        <input type="hidden" name="akcija" value="obrisi_otkazane">
+        <input type="hidden" name="f" value="otkazano">
+        <button class="btn btn-opasno btn-blok" type="submit"><?= ikona('kanta') ?> Obriši sve otkazane (<?= (int)$brojevi['otkazano'] ?>)</button>
+    </form>
+<?php endif; ?>
+
 <?php if (!$spiskovi): ?>
     <div class="kartica"><p class="bez-margine pomoc">Nema spiskova<?= $filter === 'aktivni' ? ' koji čekaju utovar' : '' ?>.</p></div>
 <?php else: ?>
     <div class="spiskovi">
         <?php foreach ($spiskovi as $sp):
-            $stavke = spisak_stavke((int)$sp['id']);
-            $z = spisak_zbir($stavke, $sp['status'] === 'utovareno'); ?>
-            <a class="spisak-kartica spisak-<?= e($sp['status']) ?>" href="<?= e(url('admin/spisak.php?id=' . (int)$sp['id'])) ?>">
+            $sid = (int)$sp['id'];
+            $z = spisak_zbir(spisak_stavke($sid), $sp['status'] === 'utovareno');
+            $oznaka = spisak_oznaka($sp);
+            $naslov = spisak_naslov($sp);
+            $potvrda = 'Obrisati ' . $oznaka . ' (' . $naslov . ')? '
+                . ($sp['status'] === 'za_utovar' ? 'Radnici ga više neće videti, a rezervacija se ukida. ' : '')
+                . ($sp['status'] === 'otkazano' && $sp['utovareno_u'] !== null ? 'Njegov utovar i povrat biće označeni kao obrisani (stanje se ne menja). ' : '')
+                . 'Ovo ne može da se vrati.'; ?>
+            <div class="spisak-kartica spisak-<?= e($sp['status']) ?>">
                 <span class="spisak-glava">
-                    <strong><?= e(spisak_naslov($sp)) ?></strong>
+                    <a class="spisak-link" href="<?= e(url('admin/spisak.php?id=' . $sid)) ?>"><strong><?= e($oznaka) ?></strong><span class="skriven-vizuelno"> – <?= e($naslov) ?></span></a>
                     <span class="znacka status-<?= e($sp['status']) ?>"><?= e(SPISAK_STATUSI[$sp['status']]) ?></span>
                 </span>
+                <span class="spisak-ime"><?= e($naslov) ?></span>
                 <?php if (spisak_kupci($sp) !== ''): ?><span class="spisak-pod"><?= e(spisak_kupci($sp)) ?></span><?php endif; ?>
                 <span class="spisak-pod">
-                    #<?= (int)$sp['id'] ?> · <?= e(dan_u_nedelji((string)$sp['datum'])) ?> <?= e(datum_srp((string)$sp['datum'])) ?>
+                    <?= e(dan_u_nedelji((string)$sp['datum'])) ?> <?= e(datum_srp((string)$sp['datum'])) ?>
                     <?= $sp['vozilo'] ? ' · ' . e($sp['vozilo']) : '' ?><?= $sp['vozac'] ? ' · ' . e($sp['vozac']) : '' ?>
                 </span>
-                <span class="spisak-zbir">
-                    <?= e(stavki_tekst((int)$z['stavki'])) ?>
-                    <?php if ($z['palete'] > 0): ?> · <?= e(palete_zbir_tekst($z['palete'])) ?><?php endif; ?>
-                    <?php if ($z['kg'] > 0): ?> · <?= e(kg_tekst($z['kg'])) ?><?php endif; ?>
+                <span class="spisak-dno">
+                    <span class="spisak-zbir">
+                        <?= e(stavki_tekst((int)$z['stavki'])) ?>
+                        <?php if ($z['palete'] > 0): ?> · <?= e(palete_zbir_tekst($z['palete'])) ?><?php endif; ?>
+                        <?php if ($z['kg'] > 0): ?> · <?= e(kg_tekst($z['kg'])) ?><?php endif; ?>
+                    </span>
+                    <?php if ($sp['status'] === 'utovareno'): ?>
+                        <a class="btn btn-mali btn-opasno spisak-kanta" href="<?= e(url('admin/spisak.php?id=' . $sid . '#brisanje')) ?>" aria-label="Obriši <?= e($oznaka) ?>" title="Obriši"><?= ikona('kanta') ?></a>
+                    <?php else: ?>
+                        <form method="post" class="spisak-kanta" action="<?= e(url('admin/utovar.php')) ?>" data-potvrda="<?= e($potvrda) ?>">
+                            <?= csrf_polje() ?>
+                            <input type="hidden" name="akcija" value="obrisi">
+                            <input type="hidden" name="id" value="<?= $sid ?>">
+                            <input type="hidden" name="ocekivan" value="<?= e($sp['status']) ?>">
+                            <input type="hidden" name="f" value="<?= e($filter) ?>">
+                            <button class="btn btn-mali btn-opasno" type="submit" aria-label="Obriši <?= e($oznaka) ?>" title="Obriši"><?= ikona('kanta') ?></button>
+                        </form>
+                    <?php endif; ?>
                 </span>
-            </a>
+            </div>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>

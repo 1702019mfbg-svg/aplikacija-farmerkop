@@ -37,6 +37,7 @@ $redovi = db_all(
     $parametri
 );
 $zbir = istorija_zbirovi($f);
+$redni = spiskovi_redni(array_filter(array_column($redovi, 'spisak_id')));    // Utovar N na dugmetu ka spisku
 
 $radnici = db_all("SELECT id, ime, uloga FROM korisnici ORDER BY uloga, ime");
 $artikli = db_all('SELECT id, naziv, aktivan FROM artikli ORDER BY naziv');
@@ -128,6 +129,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
                 $kom = (int)$u['kolicina'];
                 $predznak = in_array($u['tip'], TIPOVI_MINUS, true) ? '−' : '+';
                 $prikaz_kom = $u['tip'] === 'korekcija' ? ($kom >= 0 ? '+' : '−') . broj(abs($kom)) : $predznak . broj($kom);
+                $napomena = napomena_prikaz($u['napomena']);
                 ?>
                 <li<?= $u['obrisan'] ? ' class="unos-obrisan"' : '' ?>>
                     <div class="unos-red">
@@ -137,7 +139,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
                             <?= e(datum_kratko((string)$u['nastalo'])) ?>
                             <span class="znacka znacka-<?= e($u['tip']) ?>"><?= e(TIPOVI_UNOSA[$u['tip']]) ?></span>
                             <?= e($u['radnik']) ?><?= $u['kupac'] ? ' → <strong>' . e($u['kupac']) . '</strong>' : '' ?>
-                            <?= $u['napomena'] ? ' · ' . e($u['napomena']) : '' ?>
+                            <?= $napomena !== '' ? ' · ' . e($napomena) : '' ?>
                         </span>
                         <span class="kol-pod"><?= e(nacin_unosa_tekst($u)) ?></span>
                         <div class="akcije">
@@ -151,7 +153,7 @@ ui_start('Istorija', ['nav' => 'admin', 'aktivno' => 'istorija']);
                                     <button class="btn btn-mali" type="submit">Vrati unos</button>
                                 </form>
                             <?php elseif ($u['spisak_id'] !== null): ?>
-                                <a class="btn btn-mali" href="<?= e(url('admin/spisak.php?id=' . (int)$u['spisak_id'])) ?>"><?= ikona('kamion') ?> Spisak #<?= (int)$u['spisak_id'] ?></a>
+                                <a class="btn btn-mali" href="<?= e(url('admin/spisak.php?id=' . (int)$u['spisak_id'])) ?>"><?= ikona('kamion') ?> Utovar <?= (int)($redni[(int)$u['spisak_id']] ?? 0) ?></a>
                             <?php else: ?>
                                 <a class="btn btn-mali" href="<?= e(url('admin/unos.php?id=' . (int)$u['id'] . '&nazad=' . rawurlencode($osnovni . '&strana=' . $strana))) ?>"><?= ikona('olovka') ?> Ispravi</a>
                                 <form method="post" class="forma-u-liniji" action="<?= e(url('admin/istorija.php')) ?>"

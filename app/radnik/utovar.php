@@ -68,7 +68,7 @@ if (je_post()) {
     unset($_SESSION['utovar_forma'][$id]);
     if ($rez['ok']) {
         spisak_dnevnik($id, 'utovareno (potvrdio ' . $korisnik['ime'] . ')' . ($rez['razlike'] ? '; drugačije od plana: ' . implode('; ', $rez['razlike']) : ''));
-        flash_dodaj('uspeh', 'Utovar je potvrđen: ' . spisak_naslov($sp) . ', spisak #' . $id . '. Stanje je skinuto.'
+        flash_dodaj('uspeh', 'Utovar je potvrđen: ' . spisak_oznaka($sp) . ', ' . spisak_naslov($sp) . '. Stanje je skinuto.'
             . ($rez['razlike'] ? ' Drugačije od plana: ' . implode('; ', $rez['razlike']) . '.' : ''));
         preusmeri($je_admin ? 'admin/spisak.php?id=' . $id : 'radnik/utovar.php');
     }
@@ -92,7 +92,7 @@ if ($id > 0) {
     unset($_SESSION['utovar_forma'][$id]);
     $f = static fn(string $k, int $sid): ?string => is_array($forma[$k] ?? null) && is_string($forma[$k][$sid] ?? null) ? $forma[$k][$sid] : null;
 
-    ui_start('Utovar #' . $id, $nav + ['js' => ['assets/js/spisak.js', 'assets/js/utovar.js']]);
+    ui_start(spisak_oznaka($sp), $nav + ['js' => ['assets/js/spisak.js', 'assets/js/utovar.js']]);
     ?>
     <p><a class="btn btn-mali" href="<?= e(url('radnik/utovar.php')) ?>"><?= ikona('nazad') ?> Svi spiskovi</a></p>
     <section class="kartica">
@@ -228,8 +228,8 @@ if ($id > 0) {
     exit;
 }
 
-// ── Spiskovi koji čekaju utovar ──
-$spiskovi = db_all('SELECT ' . SPISAK_POLJA . ' ' . SPISAK_IZ . " WHERE sp.status = 'za_utovar' ORDER BY sp.datum, sp.id");
+// ── Spiskovi koji čekaju utovar (najnoviji gore, kao kod administratora) ──
+$spiskovi = db_all('SELECT ' . SPISAK_POLJA . ' ' . SPISAK_IZ . " WHERE sp.status = 'za_utovar' ORDER BY sp.id DESC");
 $danas = db_all('SELECT ' . SPISAK_POLJA . ' ' . SPISAK_IZ . " WHERE sp.status = 'utovareno' AND sp.utovareno_u >= ? ORDER BY sp.utovareno_u DESC", [danas_od()]);
 
 ui_start('Utovar', $nav);
@@ -241,9 +241,10 @@ ui_start('Utovar', $nav);
         <?php foreach ($spiskovi as $sp):
             $z = spisak_zbir(spisak_stavke((int)$sp['id'])); ?>
             <a class="spisak-kartica spisak-za_utovar" href="<?= e(url('radnik/utovar.php?id=' . (int)$sp['id'])) ?>">
-                <span class="spisak-glava"><strong><?= e(spisak_naslov($sp)) ?></strong><span class="znacka status-za_utovar">Za utovar</span></span>
+                <span class="spisak-glava"><strong><?= e(spisak_oznaka($sp)) ?></strong><span class="znacka status-za_utovar">Za utovar</span></span>
+                <span class="spisak-ime"><?= e(spisak_naslov($sp)) ?></span>
                 <?php if (spisak_kupci($sp) !== ''): ?><span class="spisak-pod"><?= e(spisak_kupci($sp)) ?></span><?php endif; ?>
-                <span class="spisak-pod">#<?= (int)$sp['id'] ?> · <?= e(dan_u_nedelji((string)$sp['datum'])) ?> <?= e(datum_srp((string)$sp['datum'])) ?><?= $sp['vozilo'] ? ' · ' . e($sp['vozilo']) : '' ?></span>
+                <span class="spisak-pod"><?= e(dan_u_nedelji((string)$sp['datum'])) ?> <?= e(datum_srp((string)$sp['datum'])) ?><?= $sp['vozilo'] ? ' · ' . e($sp['vozilo']) : '' ?></span>
                 <span class="spisak-zbir"><?= e(stavki_tekst((int)$z['stavki'])) ?><?= $z['palete'] > 0 ? ' · ' . e(palete_zbir_tekst($z['palete'])) : '' ?> · ≈ <?= e(kg_tekst($z['kg'])) ?></span>
             </a>
         <?php endforeach; ?>
@@ -255,8 +256,9 @@ ui_start('Utovar', $nav);
     <div class="spiskovi">
         <?php foreach ($danas as $sp): ?>
             <a class="spisak-kartica spisak-utovareno" href="<?= e(url('radnik/utovar.php?id=' . (int)$sp['id'])) ?>">
-                <span class="spisak-glava"><strong><?= e(spisak_naslov($sp)) ?></strong><span class="znacka status-utovareno">Utovareno</span></span>
-                <span class="spisak-pod">#<?= (int)$sp['id'] ?> · <?= e(vreme_srp((string)$sp['utovareno_u'])) ?> · <?= e($sp['utovario'] ?? '') ?></span>
+                <span class="spisak-glava"><strong><?= e(spisak_oznaka($sp)) ?></strong><span class="znacka status-utovareno">Utovareno</span></span>
+                <span class="spisak-ime"><?= e(spisak_naslov($sp)) ?></span>
+                <span class="spisak-pod"><?= e(vreme_srp((string)$sp['utovareno_u'])) ?> · <?= e($sp['utovario'] ?? '') ?></span>
             </a>
         <?php endforeach; ?>
     </div>

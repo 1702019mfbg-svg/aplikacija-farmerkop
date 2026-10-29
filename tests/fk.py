@@ -326,6 +326,11 @@ def prijavi_admina(site):
     return c
 
 
+def utovar(sp):
+    """Kako se spisak zove u aplikaciji: "Utovar N", N = koliko spiskova ima do njega (redom, bez rupa)."""
+    return "Utovar %d" % sql_int("SELECT COUNT(*) FROM spiskovi WHERE id <= %d" % sp)
+
+
 def nov_kljuc():
     import secrets
     return secrets.token_hex(16)
