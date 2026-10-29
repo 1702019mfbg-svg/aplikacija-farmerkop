@@ -113,7 +113,7 @@ if (je_post()) {
             if ($pl === null) {
                 return ['greska' => 'Zbirna paleta ne postoji.'];
             }
-            $posle = $stranica . '#mesto-' . (int)$pl['mesto_id'];
+            $posle = $stranica . '&o=' . (int)$pl['mesto_id'] . '#mesto-' . (int)$pl['mesto_id'];
             $gde = mesto_opis((int)$pl['mesto_id']);
             db_run('DELETE FROM spisak_stavke WHERE spisak_id = ? AND paleta_id = ?', [$id, $ukloni_paletu]);
             db_run('DELETE FROM spisak_palete WHERE id = ?', [$ukloni_paletu]);
@@ -125,7 +125,7 @@ if (je_post()) {
             if ($st === null) {
                 return ['greska' => 'Stavka ne postoji.'];
             }
-            $posle = $stranica . '#mesto-' . (int)$st['mesto_id'];
+            $posle = $stranica . '&o=' . (int)$st['mesto_id'] . '#mesto-' . (int)$st['mesto_id'];
             $naziv = $st['sku_id'] !== null ? sku_naziv((array)sku_podaci((int)$st['sku_id'])) : (string)$st['naziv'];
             $gde = array_filter([
                 mesto_opis((int)$st['mesto_id']),
@@ -287,34 +287,32 @@ if (je_post()) {
         if (!$ok) {
             zapamti_formu($id, 'dodaj', $mesto_id, ['r_tekst' => [$naziv], 'r_id' => [''], 'r_pal' => [''], 'r_pak' => [''], 'r_kom' => [$kol], 'paleta_id' => 0]);
         }
+    } elseif ($akcija === 'mesta') {
+        // broj, kupac i adresa jednog mesta – i dok spisak čeka utovar (stanje i rezervacija se ne menjaju)
+        $mesto_id = post_int('mesto_id');
+        $posle = $stranica . '&o=' . $mesto_id . '#mesto-' . $mesto_id;
+        u_spisku($id, ['nacrt', 'za_utovar'], static function () use ($id) {
+            $niz = static fn(string $k): array => is_array($_POST[$k] ?? null) ? $_POST[$k] : [];
+            $rez = mesta_sacuvaj($id, $niz('m_broj'), $niz('m_kupac'), $niz('m_adresa'));
+            if (isset($rez['greska'])) {
+                return $rez;
+            }
+            return $rez['izmene'] > 0 ? 'izmenjeno mesto' . ($rez['zamene'] ? ' (zamenjeni brojevi: ' . implode('; ', $rez['zamene']) . ')' : '') : '';
+        });
     } elseif ($akcija === 'stavke') {
-        u_nacrtu($id, static function () use ($id) {
+        $dirnuta = [];                                       // mesta sa izmenama: posle čuvanja ostaju otvorena
+        u_nacrtu($id, static function () use ($id, &$dirnuta) {
             $niz = static fn(string $k): array => is_array($_POST[$k] ?? null) ? $_POST[$k] : [];
             [$p_pal, $p_pak, $p_kom, $p_okol] = [$niz('pal'), $niz('pak'), $niz('kom'), $niz('o_kol')];
             [$p_pnaziv, $p_pbroj] = [$niz('pl_naziv'), $niz('pl_broj')];
-            [$p_mbroj, $p_mkupac, $p_madresa] = [$niz('m_broj'), $niz('m_kupac'), $niz('m_adresa')];
-            $izmene = 0;
 
-            // mesta: broj, kupac i adresa (dva mesta ne mogu imati isti broj)
-            $brojevi = [];
-            foreach (spisak_mesta($id) as $m) {
-                $mid = (int)$m['id'];
-                [$broj, $greska] = is_string($p_mbroj[$mid] ?? null) ? mesto_broj_iz($p_mbroj[$mid]) : [(int)$m['broj'], null];
-                if ($greska !== null) {
-                    return ['greska' => mesto_naslov((int)$m['broj'], $m['kupac']) . ': ' . lcfirst($greska)];
-                }
-                if (isset($brojevi[$broj])) {
-                    return ['greska' => 'Dva mesta ne mogu imati isti broj (' . $broj . ').'];
-                }
-                $brojevi[$broj] = true;
-                $kupac = is_string($p_mkupac[$mid] ?? null) ? ulaz_str($p_mkupac, (string)$mid, 120) : (string)$m['kupac'];
-                $adresa = is_string($p_madresa[$mid] ?? null) ? ulaz_str($p_madresa, (string)$mid, 255) : (string)$m['adresa'];
-                $kupac_id = $kupac === '' ? null : kupac_id_za($kupac);
-                if ($broj !== (int)$m['broj'] || $kupac_id !== ($m['kupac_id'] === null ? null : (int)$m['kupac_id']) || $adresa !== (string)$m['adresa']) {
-                    db_run('UPDATE spisak_mesta SET broj = ?, kupac_id = ?, adresa = ? WHERE id = ?', [$broj, $kupac_id, $adresa !== '' ? $adresa : null, $mid]);
-                    $izmene++;
-                }
+            // mesta: broj, kupac i adresa (zauzet broj = zamena brojeva)
+            $rez = mesta_sacuvaj($id, $niz('m_broj'), $niz('m_kupac'), $niz('m_adresa'));
+            if (isset($rez['greska'])) {
+                return $rez;
             }
+            $izmene = $rez['izmene'];
+            $dirnuta = $rez['mesta'];
 
             // zbirne palete: naziv i broj ovakvih paleta
             $palete = [];
@@ -332,6 +330,7 @@ if (je_post()) {
                 if ($naziv !== $pl['naziv'] || (int)$broj_t !== (int)$pl['broj']) {
                     db_run('UPDATE spisak_palete SET naziv = ?, broj = ? WHERE id = ?', [$naziv, (int)$broj_t, $pid]);
                     $izmene++;
+                    $dirnuta[] = (int)$pl['mesto_id'];
                 }
             }
 
@@ -349,6 +348,7 @@ if (je_post()) {
                     if ((int)$kol !== (int)$st['kolicina']) {
                         db_run('UPDATE spisak_stavke SET kolicina = ? WHERE id = ?', [(int)$kol, $sid]);
                         $izmene++;
+                        $dirnuta[] = (int)$st['mesto_id'];
                     }
                     continue;
                 }
@@ -379,6 +379,7 @@ if (je_post()) {
                     if ($nova !== (int)$st['kolicina'] || $pak !== (int)$st['u_paketi'] || $kom !== (int)$st['u_komadi']) {
                         db_run('UPDATE spisak_stavke SET kolicina = ?, palete = 0, paketi = ?, komadi = ? WHERE id = ?', [$nova, $pak, $kom, $sid]);
                         $izmene++;
+                        $dirnuta[] = (int)$st['mesto_id'];
                     }
                     continue;
                 }
@@ -398,10 +399,15 @@ if (je_post()) {
                 if ($r['komadi'] !== (int)$st['kolicina'] || $pal !== (int)$st['u_palete'] || $pak !== (int)$st['u_paketi'] || $kom !== (int)$st['u_komadi']) {
                     db_run('UPDATE spisak_stavke SET kolicina = ?, palete = ?, paketi = ?, komadi = ? WHERE id = ?', [$r['komadi'], $pal, $pak, $kom, $sid]);
                     $izmene++;
+                    $dirnuta[] = (int)$st['mesto_id'];
                 }
             }
-            return $izmene > 0 ? 'sačuvane izmene (' . $izmene . ')' : '';
+            return $izmene > 0 ? 'sačuvane izmene (' . $izmene . ')' . ($rez['zamene'] ? '; zamenjeni brojevi: ' . implode('; ', $rez['zamene']) : '') : '';
         });
+        $dirnuta = array_values(array_unique($dirnuta));
+        if (count($dirnuta) === 1) {
+            $posle = $stranica . '&o=' . $dirnuta[0] . '#mesto-' . $dirnuta[0];
+        }
     } elseif ($akcija === 'obrisi_spisak') {
         $rez = spisak_obrisi($id, (int)$admin['id'], post_str('ocekivan', 12), post_str('nacin', 10));
         if ($rez['ok']) {
@@ -449,7 +455,8 @@ $sku_unos = $nacrt && $mesta ? sku_za_unos(true) : [];   // za izbor artikla kuc
 $forma = $_SESSION['spisak_forma'][$id] ?? null;          // upisano u formu koja nije uspela
 unset($_SESSION['spisak_forma'][$id]);
 $otvori_zbirnu = get_int('z') === 1;
-$kupci = $nacrt ? db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), poslednja_prodaja DESC, naziv LIMIT 300') : [];
+$menja_mesta = in_array($sp['status'], ['nacrt', 'za_utovar'], true);   // broj, kupac i adresa mesta
+$kupci = $menja_mesta ? db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), poslednja_prodaja DESC, naziv LIMIT 300') : [];
 $nedavni = array_slice(array_column($kupci, 'naziv'), 0, 6);
 $kupci_tekst = spisak_kupci($sp);
 
@@ -599,6 +606,13 @@ $redovi_forme = static function (array $redovi, int $polja, int $najvise): array
     return array_pad($redovi, max(2, min(count($redovi) + 1, $najvise)), array_fill(0, $polja, null));
 };
 $redni = 0;
+/*
+ * Mesto se skuplja u jedan red (broj, kupac, zbir); dodir na broj ili ime ga otvara. U nacrtu je otvoreno mesto na
+ * kom se radi (upravo dodato, sačuvano ili ispravljeno – ?m=, ?o=; bez toga najnovije) i prazno mesto, a ostala
+ * ("završena") su skupljena. Poslat, utovaren i otkazan spisak: sva skupljena, osim kad je jedno mesto.
+ */
+$otvori_mesto = get_int('o');
+$najnovije = $mesta ? max(array_map(static fn(array $mm): int => (int)$mm['id'], $mesta)) : 0;
 foreach ($po_mestima as $mid => $grupa):
     $m = $grupa['mesto'];
     $mst = $grupa['stavke'];
@@ -611,11 +625,15 @@ foreach ($po_mestima as $mid => $grupa):
     if ($m !== null) {
         $redni++;
     }
+    $otvoreno = $m === null || (!$mst && !$mpalete) || in_array((int)$mid, [$aktivno_mesto, $otvori_mesto], true)
+        || ($forma !== null && $forma['mesto'] === (int)$mid)
+        || ($nacrt ? $aktivno_mesto === 0 && $otvori_mesto === 0 && (int)$mid === $najnovije : $broj_mesta === 1);
+    $telo = 'mesto-' . (int)$mid . '-telo';
     ?>
     <section class="kartica mesto-kartica" id="mesto-<?= (int)$mid ?>" aria-labelledby="mesto-<?= (int)$mid ?>-naslov">
         <div class="mesto-glava">
-            <?php if ($m !== null): ?><span class="mesto-krug" aria-hidden="true"><?= (int)$m['broj'] ?></span><?php endif; ?>
-            <div class="mesto-ime">
+            <?php if ($m !== null): ?><button type="button" class="mesto-krug" data-mesto-prekidac="<?= $telo ?>" aria-controls="<?= $telo ?>" aria-expanded="<?= $otvoreno ? 'true' : 'false' ?>" aria-label="<?= e($naslov) ?> – prikaži ili sakrij robu"><?= (int)$m['broj'] ?></button><?php endif; ?>
+            <div class="mesto-ime"<?= $m !== null ? ' data-mesto-prekidac="' . $telo . '"' : '' ?>>
                 <h2 id="mesto-<?= (int)$mid ?>-naslov"><?= $m !== null ? 'Mesto ' . (int)$m['broj'] : 'Bez mesta' ?></h2>
                 <?php if ($m !== null && $m['kupac'] !== null): ?><span class="mesto-kupac"><?= e($m['kupac']) ?></span><?php endif; ?>
                 <?php if ($m !== null && $m['adresa'] !== null): ?><span class="mesto-adresa"><?= e($m['adresa']) ?></span><?php endif; ?>
@@ -630,24 +648,44 @@ foreach ($po_mestima as $mid => $grupa):
             <?php endif; ?>
         </div>
         <div data-poruke></div>
-        <?php if ($menja): ?>
+        <details class="mesto-telo" id="<?= $telo ?>"<?= $otvoreno ? ' open' : '' ?>>
+        <summary class="mesto-sazetak">
+            <span class="mesto-sazetak-tekst"><?php if ($mst): ?><?= e(stavki_tekst(count($mst))) ?><?php if (round($mz['palete'], 1) > 0): ?> · <?= e(palete_zbir_tekst($mz['palete'])) ?><?php endif; ?><?php if ($mz['kg'] > 0): ?> · ≈ <?= e(kg_tekst($mz['kg'])) ?><?php endif; ?><?php else: ?>Za ovo mesto još nema robe.<?php endif; ?></span>
+            <span class="mesto-sazetak-dugme" aria-hidden="true"><span class="kad-zatvoreno">Prikaži robu ▾</span><span class="kad-otvoreno">Sakrij ▴</span></span>
+        </summary>
+        <?php if ($menja_mesta && $m !== null):
+            // nacrt: polja idu uz ostale izmene (forma "izmene"); dok spisak čeka utovar: posebna forma samo za ovo mesto
+            $uz = $nacrt ? ' form="izmene"' : ''; ?>
             <details class="mesto-izmena">
                 <summary><?= ikona('olovka', 'ikona ikona-mala') ?> Broj, kupac, adresa</summary>
+                <?php if (!$nacrt): ?>
+                <form method="post" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+                    <?= csrf_polje() ?>
+                    <input type="hidden" name="akcija" value="mesta">
+                    <input type="hidden" name="id" value="<?= $id ?>">
+                    <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
+                <?php endif; ?>
+                <p class="pomoc bez-margine">Upišite broj koji god hoćete; ako ga već ima drugo mesto, ta dva mesta zamene brojeve.<?= $nacrt ? '' : ' Menja se i dok spisak čeka utovar – roba i rezervacija ostaju iste.' ?></p>
                 <div class="mesto-polja red-polja">
                     <div class="mesto-broj-polje">
                         <label for="m_broj_<?= (int)$mid ?>">Broj mesta</label>
-                        <input class="polje" id="m_broj_<?= (int)$mid ?>" name="m_broj[<?= (int)$mid ?>]" form="izmene" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= (int)$m['broj'] ?>">
+                        <input class="polje" id="m_broj_<?= (int)$mid ?>" name="m_broj[<?= (int)$mid ?>]"<?= $uz ?> type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<?= (int)$m['broj'] ?>">
                     </div>
                     <div class="mesto-kupac-polje">
                         <label for="m_kupac_<?= (int)$mid ?>">Kupac (nije obavezno)</label>
-                        <input class="polje" id="m_kupac_<?= (int)$mid ?>" name="m_kupac[<?= (int)$mid ?>]" form="izmene" type="text" maxlength="120" list="lista-kupaca" value="<?= e($m['kupac'] ?? '') ?>">
+                        <input class="polje" id="m_kupac_<?= (int)$mid ?>" name="m_kupac[<?= (int)$mid ?>]"<?= $uz ?> type="text" maxlength="120" list="lista-kupaca" value="<?= e($m['kupac'] ?? '') ?>">
                     </div>
                 </div>
                 <div class="red-polja">
                     <label for="m_adresa_<?= (int)$mid ?>">Adresa ili napomena (nije obavezno)</label>
-                    <input class="polje" id="m_adresa_<?= (int)$mid ?>" name="m_adresa[<?= (int)$mid ?>]" form="izmene" type="text" maxlength="255" value="<?= e($m['adresa'] ?? '') ?>">
+                    <input class="polje" id="m_adresa_<?= (int)$mid ?>" name="m_adresa[<?= (int)$mid ?>]"<?= $uz ?> type="text" maxlength="255" value="<?= e($m['adresa'] ?? '') ?>">
                 </div>
-                <button class="btn btn-braon btn-blok" type="submit" form="izmene" name="akcija" value="stavke">Sačuvaj</button>
+                <?php if ($nacrt): ?>
+                    <button class="btn btn-braon btn-blok" type="submit" form="izmene" name="akcija" value="stavke">Sačuvaj</button>
+                <?php else: ?>
+                    <button class="btn btn-braon btn-blok" type="submit">Sačuvaj</button>
+                </form>
+                <?php endif; ?>
             </details>
         <?php endif; ?>
 
@@ -681,16 +719,6 @@ foreach ($po_mestima as $mid => $grupa):
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
-
-        <?php if (!$mst && !$mpalete): ?>
-            <p class="pomoc mesto-prazno">Za ovo mesto još nema robe.</p>
-        <?php elseif ($mst): ?>
-            <p class="mesto-zbir">
-                <?= e(stavki_tekst(count($mst))) ?>
-                <?php if (round($mz['palete'], 1) > 0): ?> · <?= e(palete_zbir_tekst($mz['palete'])) ?><?php endif; ?>
-                <?php if ($mz['kg'] > 0): ?> · ≈ <?= e(kg_tekst($mz['kg'])) ?><?php endif; ?>
-            </p>
-        <?php endif; ?>
 
         <?php if ($menja):
             $f = $forma !== null && $forma['mesto'] === (int)$mid ? $forma : ['vrsta' => '', 'polja' => []];
@@ -770,8 +798,12 @@ foreach ($po_mestima as $mid => $grupa):
                 </form>
             </details>
         <?php endif; ?>
+        </details>
     </section>
 <?php endforeach; ?>
+<?php if ($menja_mesta && !$nacrt): ?>
+    <datalist id="lista-kupaca"><?php foreach ($kupci as $k): ?><option value="<?= e($k['naziv']) ?>"><?php endforeach; ?></datalist>
+<?php endif; ?>
 
 <?php if ($nacrt && $mesta): ?>
     <p class="mesta-sacuvaj"><button class="btn btn-braon btn-blok" type="submit" form="izmene" name="akcija" value="stavke">Sačuvaj izmene</button></p>

@@ -17,11 +17,19 @@ final class GreskaNacrta extends RuntimeException
  */
 function u_nacrtu(int $id, callable $fn): bool
 {
+    return u_spisku($id, ['nacrt'], $fn);
+}
+
+/** Kao u_nacrtu(), za izmene koje su dozvoljene i u drugim statusima (mesta: i dok spisak čeka utovar). */
+function u_spisku(int $id, array $statusi, callable $fn): bool
+{
     try {
-        $rez = db_trans(static function () use ($id, $fn): string {
+        $rez = db_trans(static function () use ($id, $statusi, $fn): string {
             $sp = spisak_zakljucaj($id);
-            if ($sp === null || $sp['status'] !== 'nacrt') {
-                throw new GreskaNacrta('Spisak se može menjati samo dok je nacrt. Ako je poslat na utovar, prvo ga vratite u nacrt.');
+            if ($sp === null || !in_array($sp['status'], $statusi, true)) {
+                throw new GreskaNacrta($statusi === ['nacrt']
+                    ? 'Spisak se može menjati samo dok je nacrt. Ako je poslat na utovar, prvo ga vratite u nacrt.'
+                    : 'Mesta mogu da se menjaju dok spisak nije utovaren (ni otkazan).');
             }
             $r = $fn($sp);
             if (is_array($r)) {
@@ -43,6 +51,59 @@ function u_nacrtu(int $id, callable $fn): bool
     spisak_dnevnik($id, $rez);
     flash_dodaj('uspeh', ucfirst($rez) . '.');
     return true;
+}
+
+/**
+ * Broj, kupac i adresa mesta iz forme (m_broj[id], m_kupac[id], m_adresa[id]; mesto koga nema u formi se ne dira).
+ * Broj se menja kako god korisnik hoće: ako je novi broj već zauzet, ta dva mesta zamene brojeve (forma šalje
+ * polja svih mesta, pa se menja samo ono što se razlikuje od upisanog u bazi). Vraća ['izmene' => broj
+ * izmenjenih mesta, 'zamene' => [opis …], 'mesta' => [id izmenjenih]] ili ['greska' => tekst].
+ */
+function mesta_sacuvaj(int $id, array $p_broj, array $p_kupac, array $p_adresa): array
+{
+    $mesta = spisak_mesta($id);
+    $radni = [];                                     // id mesta => broj, posle zamena
+    foreach ($mesta as $m) {
+        $radni[(int)$m['id']] = (int)$m['broj'];
+    }
+    $zamenjen = [];                                  // mesta koja su broj dobila zamenom
+    foreach ($mesta as $m) {
+        $mid = (int)$m['id'];
+        if (!is_string($p_broj[$mid] ?? null)) {
+            continue;
+        }
+        [$broj, $greska] = mesto_broj_iz($p_broj[$mid]);
+        if ($greska !== null) {
+            return ['greska' => mesto_naslov((int)$m['broj'], $m['kupac']) . ': ' . lcfirst($greska)];
+        }
+        if ($broj === (int)$m['broj'] || $broj === $radni[$mid]) {
+            continue;                                // nije menjan (ili je već dobio taj broj zamenom)
+        }
+        $drugi = array_search($broj, $radni, true);
+        if ($drugi !== false) {
+            $radni[$drugi] = $radni[$mid];
+            $zamenjen[$drugi] = true;
+        }
+        $radni[$mid] = $broj;
+    }
+    $izmene = 0;
+    $zamene = [];
+    $izmenjena = [];
+    foreach ($mesta as $m) {
+        $mid = (int)$m['id'];
+        $kupac = is_string($p_kupac[$mid] ?? null) ? ulaz_str($p_kupac, (string)$mid, 120) : (string)$m['kupac'];
+        $adresa = is_string($p_adresa[$mid] ?? null) ? ulaz_str($p_adresa, (string)$mid, 255) : (string)$m['adresa'];
+        $kupac_id = $kupac === '' ? null : kupac_id_za($kupac);
+        if ($radni[$mid] !== (int)$m['broj'] || $kupac_id !== ($m['kupac_id'] === null ? null : (int)$m['kupac_id']) || $adresa !== (string)$m['adresa']) {
+            db_run('UPDATE spisak_mesta SET broj = ?, kupac_id = ?, adresa = ? WHERE id = ?', [$radni[$mid], $kupac_id, $adresa !== '' ? $adresa : null, $mid]);
+            $izmene++;
+            $izmenjena[] = $mid;
+            if (isset($zamenjen[$mid]) && $radni[$mid] !== (int)$m['broj']) {
+                $zamene[] = mesto_naslov((int)$m['broj'], $m['kupac']) . ' je sada Mesto ' . $radni[$mid];
+            }
+        }
+    }
+    return ['izmene' => $izmene, 'zamene' => $zamene, 'mesta' => $izmenjena];
 }
 
 /** Težina iz forme ("12,5") ili null. Vraća [vrednost, greška]. */
@@ -127,7 +188,19 @@ function roba_red(int $sku_id, string $tekst, string $pal, string $pak, string $
 {
     [$sku, $greska, $nepoznat] = sku_iz_unosa($sku_id, $tekst);
     if ($sku === null) {
-        return $nepoznat ? roba_ostalo($tekst, $pal, $pak, $kom, $u_paleti) : ['greska' => (string)$greska];
+        if (!$nepoznat) {
+            return ['greska' => (string)$greska];
+        }
+        // van kataloga, a polja za količinu prazna: količina može da piše i u nazivu ("5 komada kesa", "kese 5")
+        $k = $pal === '' && $pak === '' && $kom === '' ? kolicina_iz_naziva($tekst) : null;
+        if ($k === null) {
+            return roba_ostalo($tekst, $pal, $pak, $kom, $u_paleti);
+        }
+        if (!sku_iz_unosa(0, $k['naziv'])[2]) {
+            // ostatak je artikal iz kataloga ("humovit 50 5") – ne pogađa se da li su palete, paketi ili komadi
+            return ['greska' => '„' . $tekst . '“ – dodirnite pakovanje, pa količinu upišite u polja ispod (palete, paketi, komadi).'];
+        }
+        return roba_ostalo($k['naziv'], '', '', (string)$k['kom'], $u_paleti);
     }
     if ($u_paleti && (int)$pal > 0) {
         return ['greska' => 'u zbirnu paletu upišite pakete i/ili komade (koliko ide na jednu paletu), ne cele palete.'];
@@ -159,6 +232,28 @@ function roba_ostalo(string $tekst, string $pal, string $pak, string $kom, bool 
         return ['greska' => 'upišite broj komada za „' . $naziv . '“ (nije u katalogu – ide na spisak kao ostalo).'];
     }
     return ['sku' => null, 'naziv' => $naziv, 'komadi' => (int)$kom, 'pal' => 0, 'pak' => 0, 'kom' => 0];   // kao staro ostalo: samo količina
+}
+
+/**
+ * Broj komada upisan u naziv robe van kataloga: "5 komada kesa", "5 kom kese", "5 kesa", "kese 5 kom", "kese 5",
+ * "kese - 5". Vraća ['naziv' => naziv bez količine, 'kom' => broj] ili null (npr. "saksije 30 cm", "2 pal kese").
+ * Isto prepoznaje assets/js/spisak.js (kolicinaIzNaziva).
+ */
+function kolicina_iz_naziva(string $tekst): ?array
+{
+    $t = trim((string)preg_replace('/\s+/u', ' ', $tekst));
+    $kom = '(?:kom(?:ad[ai]?)?|kpl)\.?';
+    if (preg_match('/^(\d{1,6})\s*(?:x\s*)?(?:' . $kom . ')?\s+(\S.*)$/iu', $t, $m)
+        && preg_match('/^(?:pal|plt|pak)/iu', $m[2]) !== 1) {
+        $naziv = $m[2];
+        $broj = $m[1];
+    } elseif (preg_match('/^(.*?\S)(?:\s*[-=:*]|\s+[x×])?\s*(\d{1,6})\s*(?:' . $kom . ')?$/iu', $t, $m)) {
+        $naziv = $m[1];
+        $broj = $m[2];
+    } else {
+        return null;
+    }
+    return (int)$broj > 0 && preg_match('/\p{L}{2}/u', $naziv) === 1 ? ['naziv' => $naziv, 'kom' => (int)$broj] : null;
 }
 
 /** Naziv robe van kataloga kako se upisuje: "kora" → "Kora". */

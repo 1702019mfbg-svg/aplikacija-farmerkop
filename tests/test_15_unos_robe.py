@@ -213,6 +213,22 @@ try:
     R.provera('<strong class="stavka-naziv">Kora</strong>' in o.text and o.text.count("ostalo – ne vodi se na stanju") == 2, "na spisku: Kora i Saksije, označeni kao ostalo")
     R.provera("bez težine" not in tekst(o.text), "ostalo bez težine se ne broji kao „bez težine“", re.findall(r".{60}bez težine.{20}", tekst(o.text)))
     R.provera("Kora" not in adm.get("/admin/stanje.php").text and stanje(hum5) == stanje_pre, "ostalo ne ulazi u Stanje")
+    # količina može da piše i u nazivu, kad su polja za količinu prazna
+    o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0",
+                      "r_tekst[]": ["5 komada kesa", "folija 2 kom", "10 saksija", "trake - 4", ""], "r_id[]": [""] * 5, "r_pal[]": [""] * 5, "r_pak[]": [""] * 5, "r_kom[]": [""] * 5})
+    R.provera(ostalo(sp) == "Kora|kom|30|-,Saksije 30 cm|kom|40|-,Kesa|kom|5|-,Folija|kom|2|-,Saksija|kom|10|-,Trake|kom|4|-"
+              and "Kesa (ostalo) – 5 kom" in poruke(o), "količina u nazivu: „5 komada kesa“ → Kesa 5 kom (i „folija 2 kom“, „10 saksija“, „trake - 4“)", (ostalo(sp), poruke(o)))
+    o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0", "r_tekst[]": ["kese"], "r_id[]": [""], "r_pal[]": [""], "r_pak[]": [""], "r_kom[]": ["7"]})
+    R.provera(ostalo(sp).endswith(",Kese|kom|7|-"), "i kao do sada: „kese“, pa komadi u polju ispod", ostalo(sp))
+    pre_ost = ostalo(sp)
+    for redovi, poruka, opis in [
+        ({"r_tekst[]": ["idea 10 7"], "r_kom[]": [""]}, "dodirnite pakovanje, pa količinu upišite u polja", "„idea 10 7“ je artikal iz kataloga – količina ide u polja (ne pogađa se)"),
+        ({"r_tekst[]": ["humovit 50 5"], "r_kom[]": [""]}, "izaberite pakovanje", "„humovit 50 5“: nejasno (5 l ili 50 l)"),
+        ({"r_tekst[]": ["saksije 30 cm"], "r_kom[]": [""]}, "upišite broj komada za „Saksije 30 cm“", "„30 cm“ je deo naziva, nije količina"),
+        ({"r_tekst[]": ["2 pal kese"], "r_kom[]": [""]}, "upišite broj komada", "palete robe van kataloga se ne pogađaju"),
+    ]:
+        o = adm.post(SP, dict({"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0"}, **redovi))
+        R.provera(poruka in poruke(o) and ostalo(sp) == pre_ost, "odbijeno: " + opis, poruke(o))
 
     R.odeljak("Zbirna paleta: izbor artikla u redovima")
     o = adm.post(SP, {"akcija": "nova_paleta", "id": sp, "mesto_id": m8, "p_broj": "1", "p_naziv": "",

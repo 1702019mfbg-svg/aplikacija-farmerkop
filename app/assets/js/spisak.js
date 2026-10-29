@@ -137,6 +137,19 @@
         d.status.classList.toggle('tekst-crveno', vrsta === 'greska');
         d.status.classList.toggle('biraj-napomena', vrsta === 'ostalo');
     }
+    /* Broj komada upisan u naziv robe van kataloga ("5 komada kesa", "kese 5") – kao kolicina_iz_naziva() u PHP-u. */
+    var KOM = '(?:kom(?:ad[ai]?)?|kpl)\\.?';
+    var KOL_NA_POCETKU = new RegExp('^(\\d{1,6})\\s*(?:x\\s*)?(?:' + KOM + ')?\\s+(\\S.*)$', 'i');
+    var KOL_NA_KRAJU = new RegExp('^(.*?\\S)(?:\\s*[-=:*]|\\s+[x×])?\\s*(\\d{1,6})\\s*(?:' + KOM + ')?$', 'i');
+    function kolicinaIzNaziva(tekst) {
+        var t = tekst.replace(/\s+/g, ' ').trim();
+        var m = KOL_NA_POCETKU.exec(t);
+        var naziv, br;
+        if (m && !/^(?:pal|plt|pak)/i.test(m[2])) { naziv = m[2]; br = m[1]; }
+        else if ((m = KOL_NA_KRAJU.exec(t))) { naziv = m[1]; br = m[2]; }
+        else { return null; }
+        return parseInt(br, 10) > 0 && /[A-Z]{2}/.test(ascii(naziv)) ? { naziv: naziv, kom: parseInt(br, 10) } : null;
+    }
     /* Polje u redu robe (data-biraj-ostalo), naziv sa slovom, a takvog artikla nema – ide kao ostalo. */
     function vanKataloga(okvir, t, nadjeni) {
         return okvir.hasAttribute('data-biraj-ostalo') && !nadjeni.length && artikli.length > 0 && t.length >= 2 && /[A-Z]/.test(ascii(t));
@@ -165,9 +178,10 @@
             d.id.value = jedan ? String(jedan.id) : '';
             van = vanKataloga(okvir, t, nadjeni);
             if (van) {
-                // "humovit 15": nema ga, ali ponudi Humovit (možda je greška u kucanju)
+                // "humovit 15": nema ga, ali ponudi Humovit (možda je greška u kucanju); "5 komada kesa": traži se "kesa"
                 var w = reci(t);
-                var slicni = w.length > 1 ? pronadji(w[0]) : [];
+                var k = kolicinaIzNaziva(t);
+                var slicni = k ? pronadji(k.naziv) : (w.length > 1 ? pronadji(w[0]) : []);
                 nacrtajPonudu(d, slicni, null);
                 postaviStatus(d, 'Nema u katalogu – ide na spisak kao ostalo (samo komadi, bez stanja).'
                     + (slicni.length ? ' Ako ste mislili na artikal iz kataloga, dodirnite ga:' : ''), 'ostalo');
@@ -261,7 +275,12 @@
         var pak = vrednost(red.querySelector('[data-p="pak"]'));
         var kom = vrednost(red.querySelector('[data-p="kom"]'));
         var ukupno = pal * po + pak * pp + kom;
-        if (!ukupno) { zbir.textContent = ''; return; }
+        if (!ukupno) {
+            zbir.textContent = '';
+            zbir.className = 'popis-zbir';
+            ostaloIzNaziva(red, zbir);
+            return;
+        }
         var tekst;
         if (paleta > 1) {
             tekst = '= ' + broj(ukupno) + ' kom na paleti × ' + paleta + ' = ' + broj(ukupno * paleta) + ' kom';
@@ -274,6 +293,22 @@
         if (saStanjem) { tekst += ' · na stanju ' + broj(sada); }
         zbir.textContent = tekst;
         zbir.className = 'popis-zbir' + (saStanjem && ukupno > sada ? ' tekst-crveno' : '');
+    }
+    /* Roba van kataloga, polja za količinu prazna, a broj je u nazivu: "= 5 kom · ostalo „Kesa“" (tako se i čuva). */
+    function ostaloIzNaziva(red, zbir) {
+        var okvir = red.querySelector('[data-biraj]');
+        var polje = red.querySelector('[data-biraj-tekst]');
+        if (!okvir || !polje || !okvir.classList.contains('biraj-van')) { return; }
+        var kol = red.querySelectorAll('[data-p]');
+        for (var i = 0; i < kol.length; i++) { if (kol[i].value.trim() !== '') { return; } }
+        var k = kolicinaIzNaziva(polje.value);
+        if (!k) { return; }
+        if (pronadji(k.naziv).length) {
+            zbir.textContent = 'Dodirnite pakovanje gore, pa upišite količinu u polja.';
+            zbir.className = 'popis-zbir tekst-crveno';
+            return;
+        }
+        zbir.textContent = '= ' + broj(k.kom) + ' kom · ostalo „' + k.naziv.charAt(0).toUpperCase() + k.naziv.slice(1) + '“';
     }
     /* Red robe (ili forma radnika): izabran artikal određuje polja (palete / paketi / komadi) i zbir. */
     function popisZa(okvir) {
@@ -356,7 +391,12 @@
         if (!t.closest) { return; }
         var redForme = t.closest('[data-roba-red], [data-zbirna-red]');
         if (redForme) { dodajPrazanRed(redForme); }
-        if (t.hasAttribute('data-biraj-tekst')) { osveziBiraj(t.closest('[data-biraj]')); return; }
+        if (t.hasAttribute('data-biraj-tekst')) {
+            osveziBiraj(t.closest('[data-biraj]'));
+            var rr = t.closest('[data-roba-red]');
+            if (rr && rr.hasAttribute('data-popis')) { preracunaj(rr); }     // i "5 komada kesa" dok se kuca
+            return;
+        }
         var zr = t.closest('[data-zbirna-red]');
         if (zr) { osveziZbirniRed(zr); return; }
         var red = t.closest('[data-popis]');
@@ -418,8 +458,24 @@
         if (roba) { osveziRed(novi); }
     }
 
+    /* Mesto se skuplja i otvara dodirom na broj ili ime (roba je u <details class="mesto-telo">). */
+    document.addEventListener('click', function (e) {
+        var p = e.target.closest ? e.target.closest('[data-mesto-prekidac]') : null;
+        if (!p) { return; }
+        var telo = document.getElementById(p.getAttribute('data-mesto-prekidac'));
+        if (telo) { telo.open = !telo.open; }
+    });
+    document.addEventListener('toggle', function (e) {
+        var telo = e.target;
+        if (!telo.classList || !telo.classList.contains('mesto-telo')) { return; }
+        var krug = document.querySelector('.mesto-krug[aria-controls="' + telo.id + '"]');
+        if (krug) { krug.setAttribute('aria-expanded', telo.open ? 'true' : 'false'); }
+    }, true);
+
     /* Posle dodavanja stranica se otvara kod forme (#dodaj-12, #mesto-12): poruka ide tamo, da se vidi. */
     var cilj = window.location.hash ? document.getElementById(window.location.hash.slice(1)) : null;
+    var teloCilja = cilj && cilj.closest ? cilj.closest('.mesto-telo') : null;
+    if (teloCilja) { teloCilja.open = true; }
     var mestoPoruke = cilj ? cilj.querySelector('[data-poruke]') : null;
     var glavni = document.querySelector('main');
     if (mestoPoruke && glavni) {

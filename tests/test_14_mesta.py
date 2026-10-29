@@ -161,7 +161,7 @@ try:
     o = adm.get(SP + "?id=%d" % sp)
     t = tekst(o.text)
     poz = [o.text.index('id="mesto-%d"' % m) for m in (m8, m9, m5)]
-    R.provera(poz == sorted(poz) and re.findall(r'class="mesto-krug" aria-hidden="true">(\d+)<', o.text) == ["8", "9", "5"], "kartice mesta redom: 8, 9, 5 (broj u krugu)")
+    R.provera(poz == sorted(poz) and re.findall(r'class="mesto-krug"[^>]*>(\d+)<', o.text) == ["8", "9", "5"], "kartice mesta redom: 8, 9, 5 (broj u krugu)")
     R.provera(o.text.count('class="mesto-dodaj"') == 3 and o.text.count('name="mesto_id" value="%d"' % m9) == 2, "svako mesto ima svoje forme (roba i ostalo, zbirna paleta)")
     R.provera('id="paleta_id_%d"' % m8 in o.text and 'id="paleta_id_%d"' % m9 not in o.text, "„Gde ide“ postoji samo kod mesta koje ima zbirnu paletu")
     R.provera("3 mesta: 8, 9, 5" in t and re.search(r'<span class="broj">3</span><span class="opis">mesta istovara', o.text), "naslov: 3 mesta: 8, 9, 5; zbir: 3 mesta istovara")
@@ -193,8 +193,14 @@ try:
                       "m_broj[%d]" % m8: "8", "m_broj[%d]" % m9: "9", "m_kupac[%d]" % m9: "Agrocentar <b>NS</b>"})
     R.provera("Sačuvane izmene (3)" in poruke(o) and mesta(sp) == "8|Cvećara Flora|\n9|Agrocentar <b>NS</b>|\n4||", "Mesto 5 → 4, Mesto 8 dobija kupca, Mestu 9 obrisana adresa", (poruke(o), mesta(sp)))
     n_kupaca = sql_int("SELECT COUNT(*) FROM kupci")
-    o = adm.post(SP, {"akcija": "stavke", "id": sp, "m_broj[%d]" % m8: "9", "m_kupac[%d]" % m8: "Neko Treći", "kom[%d]" % s5: "7"})
-    R.provera("Dva mesta ne mogu imati isti broj (9)" in poruke(o) and mesta(sp) == "8|Cvećara Flora|\n9|Agrocentar <b>NS</b>|\n4||", "dva mesta sa brojem 9: odbijeno", poruke(o))
+    # forma šalje brojeve svih mesta: Mestu 8 je upisan broj 9, a Mesto 9 je poslato nepromenjeno
+    o = adm.post(SP, {"akcija": "stavke", "id": sp, "m_broj[%d]" % m8: "9", "m_broj[%d]" % m9: "9", "m_broj[%d]" % m5: "4"})
+    R.provera("zamenjeni brojevi: Mesto 9 · Agrocentar <b>NS</b> je sada Mesto 8" in poruke(o) and mesta(sp) == "9|Cvećara Flora|\n8|Agrocentar <b>NS</b>|\n4||",
+              "broj koji već ima drugo mesto: ta dva mesta zamene brojeve", (poruke(o), mesta(sp)))
+    adm.post(SP, {"akcija": "stavke", "id": sp, "m_broj[%d]" % m8: "8", "m_broj[%d]" % m9: "8"})
+    R.provera(mesta(sp) == "8|Cvećara Flora|\n9|Agrocentar <b>NS</b>|\n4||", "i nazad: Mesto 8 opet 8, Mesto 9 opet 9", mesta(sp))
+    o = adm.post(SP, {"akcija": "stavke", "id": sp, "m_kupac[%d]" % m8: "Neko Treći", "kom[%d]" % s5: "7", "m_broj[%d]" % m9: "0"})
+    R.provera("broj mesta mora biti od 1 do 999" in poruke(o) and mesta(sp) == "8|Cvećara Flora|\n9|Agrocentar <b>NS</b>|\n4||", "broj 0: odbijeno", poruke(o))
     R.provera(sql_int("SELECT COUNT(*) FROM kupci") == n_kupaca and sql_int("SELECT kolicina FROM spisak_stavke WHERE id=%d" % s5) == 18,
               "greška poništava celu izmenu (ni novi kupac ni količina nisu upisani)")
     o = adm.post(SP, {"akcija": "stavke", "id": sp, "m_kupac[%d]" % m5: "Neko Treći", "pl_broj[%d]" % pid: "0"})

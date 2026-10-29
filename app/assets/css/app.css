@@ -599,6 +599,14 @@ body.stampa { background: var(--bg); }
 .mesto-adresa { color: var(--tekst-bled); font-size: .9rem; overflow-wrap: anywhere; }
 .mesto-akcije { display: flex; gap: 6px; margin-left: auto; }
 .mesto-akcije .btn { min-width: 40px; padding: 0 8px; font-size: 1.15rem; font-weight: 800; }
+/* mesto se skuplja: dodir na broj, ime ili red sa zbirom otvara/zatvara robu */
+button.mesto-krug { cursor: pointer; font-family: inherit; }
+button.mesto-krug:focus-visible { outline: 3px solid var(--zelena); outline-offset: 2px; }
+.mesto-ime[data-mesto-prekidac] { cursor: pointer; }
+.mesto-telo > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: var(--povrsina-2); color: var(--tekst-bled); font-size: .92rem; font-weight: 600; cursor: pointer; }
+.mesto-telo > summary::-webkit-details-marker { display: none; }
+.mesto-sazetak-dugme { flex: none; color: var(--tekst); font-weight: 700; }
+.mesto-telo[open] .kad-zatvoreno, .mesto-telo:not([open]) .kad-otvoreno { display: none; }
 .mesto-izmena { margin-top: 6px; }
 .mesto-izmena > summary { display: inline-flex; gap: 6px; align-items: center; padding: 6px 0; color: var(--tekst-bled); font-size: .92rem; cursor: pointer; }
 .mesto-izmena[open] > summary { margin-bottom: 8px; }
@@ -606,8 +614,6 @@ body.stampa { background: var(--bg); }
 .mesto-polja > * { min-width: 0; }
 .mesto-broj-polje label { white-space: nowrap; }
 .mesto-broj-polje .polje { width: 6.5rem; text-align: center; font-weight: 800; font-size: 1.25rem; }
-.mesto-zbir { margin: 8px 0 0; font-size: .9rem; color: var(--tekst-bled); font-weight: 600; }
-.mesto-prazno { margin: 10px 0 0; }
 .mesto-dodaj { margin-top: 12px; }
 .mesto-dodaj > summary { list-style: none; }
 .mesto-dodaj > summary::-webkit-details-marker { display: none; }

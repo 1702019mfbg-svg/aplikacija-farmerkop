@@ -784,8 +784,13 @@ module.exports = {
         await page.waitForSelector('.poruka-uspeh');
         tvrdi((await krugovi()) === '8,5,9', 'posle pomeranja: 8, 5, 9 (' + await krugovi() + ')');
 
+        // Mesto 9 je završeno, pa je skupljeno: dodir na broj ga otvara
+        const k9 = page.locator('.mesto-kartica', { hasText: 'Mesto 9' });
+        tvrdi(!(await k9.locator('.mesto-telo').evaluate((d) => d.open)), 'završeno Mesto 9 je skupljeno');
+        await k9.locator('.mesto-krug').click();
+        tvrdi(await k9.locator('.mesto-telo').evaluate((d) => d.open), 'dodir na broj 9 otvara Mesto 9');
         // nesačuvana izmena količine: pregledač pita pre napuštanja stranice
-        const red = page.locator('.mesto-kartica', { hasText: 'Mesto 9' }).locator('.stavka', { hasText: 'Humovit · 10 l' });
+        const red = k9.locator('.stavka', { hasText: 'Humovit · 10 l' });
         await red.locator('summary').click();
         await red.locator('[data-p="pak"]').click();
         await page.keyboard.type('3');
@@ -836,6 +841,68 @@ module.exports = {
         await page.goto(adresa.replace('/admin/spisak.php', '/admin/spisak_stampa.php'));
         tvrdi((await page.locator('.stampa-mesto').count()) === 3, 'štampa: tri mesta istovara');
         await p.slika('84-mesta-stampa');
+    },
+
+    async skupljanje(page, p) {
+        // Završeno mesto se skuplja (dodir na broj ga otvara); roba van kataloga sa količinom u nazivu; broj mesta i posle slanja
+        await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
+        await page.goto(p.base + '/admin/utovar.php');
+        await page.fill('#kupac', 'Agrocentar Novi Sad');
+        await page.getByRole('button', { name: 'Napravi spisak' }).click();
+        await page.waitForURL('**/admin/spisak.php?id=*');
+        const redovi = page.locator('.mesto-dodaj [data-roba-red]');
+        await biraj(redovi.nth(0), 'humovit', 'Humovit · 10 l');
+        await redovi.nth(0).locator('[data-p="pal"]').fill('1');
+        await redovi.nth(1).locator('[data-biraj-tekst]').fill('5 komada kesa');
+        const zbir = redovi.nth(1).locator('[data-zbir]');
+        tvrdi((await zbir.innerText()) === '= 5 kom · ostalo „Kesa“', 'količina iz naziva: ' + await zbir.innerText());
+        tvrdi((await redovi.nth(1).locator('[data-biraj-ponuda] button').count()) === 0, 'za „5 komada kesa“ se ne nude artikli sa 5 u nazivu');
+        await p.slika('88-ostalo-u-nazivu');
+        await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.poruka-uspeh').first().innerText()).includes('Kesa (ostalo) – 5 kom'), 'sačuvano: Kesa 5 kom');
+
+        // novo mesto: prethodno (završeno) se skupi
+        await page.fill('#novo_broj', '2');
+        await page.fill('#novo-mesto [name="novo_kupac"]', 'Cvećara Žika');
+        await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        const k1 = page.locator('.mesto-kartica', { hasText: 'Agrocentar Novi Sad' });
+        const k2 = page.locator('.mesto-kartica', { hasText: 'Cvećara Žika' });
+        const otvoreno = (k) => k.locator('.mesto-telo').evaluate((d) => d.open);
+        tvrdi(!(await otvoreno(k1)) && await otvoreno(k2), 'Mesto 1 se skupilo, novo Mesto 2 je otvoreno');
+        tvrdi((await k1.locator('.mesto-sazetak').innerText()).includes('2 stavke') && !(await k1.locator('.stavka').first().isVisible()),
+            'skupljeno: vidi se zbir (2 stavke), roba se ne vidi');
+        await k2.locator('[data-roba-red]').first().locator('[data-biraj-tekst]').fill('kese');
+        await k2.locator('[data-roba-red]').first().locator('[data-p="kom"]').fill('7');
+        await k2.getByRole('button', { name: 'Sačuvaj robu za Mesto 2' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        await p.slika('89-mesto-skupljeno');
+        await k1.locator('.mesto-krug').click();
+        tvrdi(await otvoreno(k1) && (await k1.locator('.mesto-krug').getAttribute('aria-expanded')) === 'true' && await k1.locator('.stavka').first().isVisible(),
+            'dodir na broj 1: vidi se sva roba');
+        await k1.locator('.mesto-krug').click();
+        tvrdi(!(await otvoreno(k1)) && (await k1.locator('.mesto-krug').getAttribute('aria-expanded')) === 'false', 'ponovni dodir: skupljeno');
+        await k1.locator('.mesto-ime').click();
+        tvrdi(await otvoreno(k1), 'i dodir na ime mesta ga otvara');
+
+        // poslat na utovar: sva mesta skupljena; broj mesta može da se promeni (zauzet broj = zamena)
+        page.once('dialog', (d) => d.accept());
+        await page.getByRole('button', { name: 'Pošalji na utovar' }).click();
+        await page.waitForSelector('.status-za_utovar');
+        tvrdi(!(await otvoreno(k1)) && !(await otvoreno(k2)), 'Za utovar: oba mesta skupljena');
+        await p.slika('90-za-utovar-skupljeno');
+        await k2.locator('.mesto-krug').click();
+        await k2.locator('.mesto-izmena > summary').click();
+        await k2.locator('[name^="m_broj"]').fill('1');
+        await k2.locator('.mesto-izmena').getByRole('button', { name: 'Sačuvaj' }).click();
+        await page.waitForSelector('.poruka-uspeh');
+        const por = await page.locator('.poruka-uspeh').first().innerText();
+        tvrdi(por.includes('Mesto 1 · Agrocentar Novi Sad je sada Mesto 2'), 'zamena: ' + por);
+        tvrdi((await page.locator('.mesto-kartica .mesto-krug').allInnerTexts()).join(',') === '2,1', 'brojevi zamenjeni (redosled tovarenja isti): 2, 1');
+        tvrdi((await page.locator('.status-za_utovar').count()) >= 1, 'spisak i dalje čeka utovar');
+        tvrdi(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'stranica nije šira od telefona');
+        await p.slika('91-broj-mesta-zamena');
     },
 
     async papir(page, p) {
