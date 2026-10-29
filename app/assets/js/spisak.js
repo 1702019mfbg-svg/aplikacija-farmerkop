@@ -459,17 +459,20 @@
     }
 
     /* Mesto se skuplja i otvara dodirom na broj ili ime (roba je u <details class="mesto-telo">). */
+    function oznaciMesto(telo) {
+        var krug = document.querySelector('.mesto-krug[aria-controls="' + telo.id + '"]');
+        if (krug) { krug.setAttribute('aria-expanded', telo.open ? 'true' : 'false'); }
+    }
     document.addEventListener('click', function (e) {
         var p = e.target.closest ? e.target.closest('[data-mesto-prekidac]') : null;
         if (!p) { return; }
         var telo = document.getElementById(p.getAttribute('data-mesto-prekidac'));
-        if (telo) { telo.open = !telo.open; }
+        if (!telo) { return; }
+        telo.open = !telo.open;
+        oznaciMesto(telo);                                   // odmah (događaj "toggle" stiže kasnije)
     });
-    document.addEventListener('toggle', function (e) {
-        var telo = e.target;
-        if (!telo.classList || !telo.classList.contains('mesto-telo')) { return; }
-        var krug = document.querySelector('.mesto-krug[aria-controls="' + telo.id + '"]');
-        if (krug) { krug.setAttribute('aria-expanded', telo.open ? 'true' : 'false'); }
+    document.addEventListener('toggle', function (e) {      // otvaranje dodirom na red sa zbirom
+        if (e.target.classList && e.target.classList.contains('mesto-telo')) { oznaciMesto(e.target); }
     }, true);
 
     /* Posle dodavanja stranica se otvara kod forme (#dodaj-12, #mesto-12): poruka ide tamo, da se vidi. */
