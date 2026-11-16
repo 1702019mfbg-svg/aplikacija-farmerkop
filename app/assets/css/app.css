@@ -623,7 +623,20 @@ button.mesto-krug:focus-visible { outline: 3px solid var(--zelena); outline-offs
 .mesto-zbirna > summary { list-style: none; }
 .mesto-zbirna > summary::-webkit-details-marker { display: none; }
 .mesto-zbirna[open] > summary { margin-bottom: 10px; }
-.mesta-pomoc { margin: 0 0 10px; }
+.pomoc-skupljena { margin-bottom: 8px; }
+.novi-sa-podacima > summary { color: var(--tekst-bled); font-size: .92rem; cursor: pointer; padding: 2px 0 6px; }
+.novi-sa-podacima[open] { padding: 12px 14px; border: 1px solid var(--granica); border-radius: 14px; background: var(--povrsina); }
+.pomoc-skupljena > summary { color: var(--tekst-bled); font-size: .9rem; cursor: pointer; padding: 4px 0; }
+.novo-mesto { margin: 0 0 16px; scroll-margin-top: 88px; }
+.novo-mesto-vise > summary { color: var(--tekst-bled); font-size: .92rem; cursor: pointer; padding: 10px 0 4px; }
+.novo-mesto-vise[open] > summary { margin-bottom: 8px; }
+.vise { margin-top: 20px; }
+.vise > summary { cursor: pointer; list-style: none; }
+.vise > summary::-webkit-details-marker { display: none; }
+.vise > summary h2 { margin: 0; }
+.vise[open] > summary { margin-bottom: 10px; }
+.vise-deo { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--granica); scroll-margin-top: 88px; }
+.vise-deo h3 { margin: 0; font-size: 1.05rem; }
 .mesta-sacuvaj { margin: 0 0 16px; }
 [data-poruke] > .poruka { margin: 10px 0 0; }
 .utovar-mesto { margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--granica); scroll-margin-top: 88px; }

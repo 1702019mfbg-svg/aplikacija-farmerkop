@@ -100,7 +100,7 @@ try:
 
     R.odeljak("Izbor artikla: pun naziv, kucanjem")
     o = adm.get(SP + "?id=%d" % sp)
-    forma = o.text.split('id="dodaj-%d"' % m8)[1].split("</details>")[0]
+    forma = o.text.split('id="dodaj-%d"' % m8)[1].split('id="zbirna-%d"' % m8)[0]
     R.provera(forma.count('name="r_tekst[]"') == 2 and forma.count('name="r_id[]"') == 2 and forma.count("data-biraj-ponuda") == 2,
               "forma „Dodaj robu“ počinje sa 2 reda, svaki sa izborom artikla (tekst + izabrano pakovanje)")
     R.provera('value="dodaj_vise"' in forma and "Još jedan artikal" not in forma and "data-roba-jos" not in forma and "Sačuvaj robu za Mesto 8" in forma
@@ -148,12 +148,12 @@ try:
               "greška u redu 2: ništa se ne upisuje (ni red 1)", poruke(o))
     R.provera('value="kora"' in o.text and 'value="humovit 5"' in o.text and re.search(r'name="r_pal\[\]"[^>]*value="2"', o.text)
               and re.search(r'id="dodaj-%d" open' % m8, o.text), "upisano ostaje u formi, forma je otvorena")
-    forma = o.text.split('id="dodaj-%d"' % m8)[1].split("</details>")[0]
+    forma = o.text.split('id="dodaj-%d"' % m8)[1].split('id="zbirna-%d"' % m8)[0]
     R.provera(forma.count('name="r_tekst[]"') == 3 and re.findall(r'name="r_tekst\[\]"[^>]*value="([^"]*)"', forma) == ["humovit 5", "kora", ""],
               "posle greške: dva upisana reda i jedan prazan ispod", re.findall(r'name="r_tekst\[\]"[^>]*value="([^"]*)"', forma))
     o = adm.post(SP, {"akcija": "dodaj_vise", "id": sp, "mesto_id": m8, "paleta_id": "0",
                       "r_tekst[]": ["kora"] + ["idea 5"] * 29, "r_pal[]": ["2"] + [""] * 29, "r_kom[]": [""] + ["1"] * 29})
-    forma = o.text.split('id="dodaj-%d"' % m8)[1].split("</details>")[0]
+    forma = o.text.split('id="dodaj-%d"' % m8)[1].split('id="zbirna-%d"' % m8)[0]
     R.provera("Red 1:" in poruke(o) and stavke(sp) == pre and forma.count('name="r_tekst[]"') == 30,
               "posle greške u punih 30 redova: 30 redova, bez praznog preko granice", forma.count('name="r_tekst[]"'))
     o = adm.get(SP + "?id=%d" % sp)

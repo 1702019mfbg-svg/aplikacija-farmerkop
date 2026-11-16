@@ -477,8 +477,9 @@
 
     /* Posle dodavanja stranica se otvara kod forme (#dodaj-12, #mesto-12): poruka ide tamo, da se vidi. */
     var cilj = window.location.hash ? document.getElementById(window.location.hash.slice(1)) : null;
-    var teloCilja = cilj && cilj.closest ? cilj.closest('.mesto-telo') : null;
-    if (teloCilja) { teloCilja.open = true; }
+    for (var roditelj = cilj; roditelj; roditelj = roditelj.parentElement) {     // #brisanje je pod "Više", roba u mestu
+        if (roditelj.tagName === 'DETAILS') { roditelj.open = true; }
+    }
     var mestoPoruke = cilj ? cilj.querySelector('[data-poruke]') : null;
     var glavni = document.querySelector('main');
     if (mestoPoruke && glavni) {
@@ -500,8 +501,12 @@
         return !!forma && (forma === izmene || (forma.matches && forma.matches('form[data-dodavanje], form[data-zbirna], form[data-papir]')));
     }
     var promenjeno = false;
+    /* "Sačuvaj izmene" se vidi tek kad ima šta da se sačuva (promenjena količina, broj mesta, paleta). */
+    var sacuvaj = document.querySelector('.mesta-sacuvaj');
+    if (sacuvaj) { sacuvaj.hidden = true; }
     document.addEventListener('input', function (e) {
         if (prati(e.target.form)) { promenjeno = true; }
+        if (sacuvaj && e.target.form === izmene) { sacuvaj.hidden = false; }
     });
     window.addEventListener('submit', function (e) {
         if (prati(e.target) && !e.defaultPrevented) { promenjeno = false; }

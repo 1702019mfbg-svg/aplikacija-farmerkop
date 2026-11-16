@@ -34,6 +34,11 @@ if (je_post()) {
         }
         preusmeri($lista);
     }
+    if ($akcija === 'brzo') {
+        // "Novi utovar" jednim dodirom: današnji datum i Mesto 1, bez forme (sve ostalo se dopiše na spisku ako treba)
+        $_POST['datum'] = date('Y-m-d');
+        $_POST['mesto_broj'] = '1';
+    }
     [$p, $greska] = spisak_zaglavlje_iz_posta();
     $broj_t = post_str('mesto_broj', 4);
     $broj_t = $broj_t === '' ? '1' : $broj_t;
@@ -61,7 +66,9 @@ if (je_post()) {
     });
     $mesto = mesto_naslov((int)$broj_t, $p['kupac']);
     spisak_dnevnik($id, 'napravljen (utovar ' . datum_srp($p['datum']) . ', ' . $mesto . ')');
-    flash_dodaj('uspeh', spisak_oznaka(['id' => $id]) . ' je napravljen sa mestom „' . $mesto . '“. Dodajte robu za to mesto, pa sledeća mesta (Dodaj mesto).');
+    flash_dodaj('uspeh', $akcija === 'brzo'
+        ? spisak_oznaka(['id' => $id]) . ' je napravljen – upišite robu za Mesto 1.'
+        : spisak_oznaka(['id' => $id]) . ' je napravljen sa mestom „' . $mesto . '“. Dodajte robu za to mesto, pa sledeća mesta (Dodaj mesto).');
     preusmeri('admin/spisak.php?id=' . $id);
 }
 
@@ -80,7 +87,7 @@ foreach (db_all("SELECT status, COUNT(*) AS n FROM spiskovi GROUP BY status") as
     $brojevi[$r['status']] = (int)$r['n'];
 }
 
-$novi_otvoren = get_int('novi') === 1 || !$spiskovi;
+$novi_otvoren = get_int('novi') === 1;
 $kupci = db_all('SELECT naziv FROM kupci ORDER BY (poslednja_prodaja IS NULL), poslednja_prodaja DESC, naziv LIMIT 300');
 $nedavni = array_slice(array_column($kupci, 'naziv'), 0, 6);
 $unapred = [
@@ -90,8 +97,13 @@ $unapred = [
 
 ui_start('Utovar', ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => ['assets/js/prodaja.js']]);
 ?>
-<details class="kartica" <?= $novi_otvoren ? 'open' : '' ?>>
-    <summary class="kartica-naslov"><h2><?= ikona('plus') ?> Novi spisak za utovar</h2></summary>
+<form method="post" class="razmak-dole" action="<?= e(url('admin/utovar.php')) ?>">
+    <?= csrf_polje() ?>
+    <input type="hidden" name="akcija" value="brzo">
+    <button class="btn btn-primary btn-veliko btn-blok" type="submit"><?= ikona('plus') ?> Novi utovar</button>
+</form>
+<details class="novi-sa-podacima razmak-dole" <?= $novi_otvoren ? 'open' : '' ?>>
+    <summary>Novi utovar sa drugim datumom, kupcem ili vozilom</summary>
     <form method="post" autocomplete="off" action="<?= e(url('admin/utovar.php')) ?>">
         <?= csrf_polje() ?>
         <p class="pomoc">Jedan spisak = jedan kamion. Roba se upisuje po <strong>mestima istovara</strong> (Mesto 1, 2, 3 … – broj upisujete vi), a mesta dodajete na spisku koliko god treba.</p>

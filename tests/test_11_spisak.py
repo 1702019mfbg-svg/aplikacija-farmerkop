@@ -57,7 +57,8 @@ try:
     nav = o.text[o.text.index('<nav class="donja-nav"'):]
     R.provera("admin/utovar.php" in nav and "<span>Utovar</span>" in nav and "admin/prodaja.php" not in nav, "u donjoj traci je Utovar (umesto Prodaja)")
     o = adm.get("/admin/utovar.php")
-    R.provera("Novi spisak za utovar" in o.text and "<details class=\"kartica\" open" in o.text, "prazan Utovar: forma za novi spisak je otvorena")
+    R.provera('name="akcija" value="brzo"' in o.text and "Novi utovar</button>" in o.text and '<details class="novi-sa-podacima razmak-dole" >' in o.text,
+              "Utovar: dugme „Novi utovar“ (jedan dodir); forma sa datumom, kupcem i vozilom je skupljena")
     R.provera("admin/prodaja.php" in o.text and "Ručna prodaja" in o.text, "ručna prodaja (izuzetak) je dostupna sa stranice Utovar")
     o = jelena.get("/admin/utovar.php")
     R.provera("/radnik/" in o.url, "radnik ne vidi spiskove administratora")

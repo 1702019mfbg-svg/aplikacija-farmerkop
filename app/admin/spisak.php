@@ -475,7 +475,6 @@ ui_start(spisak_oznaka($sp), ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
         <?php if ($sp['vozilo']): ?><div><dt>Vozilo</dt><dd><?= e($sp['vozilo']) ?></dd></div><?php endif; ?>
         <?php if ($sp['vozac']): ?><div><dt>Vozač</dt><dd><?= e($sp['vozac']) ?></dd></div><?php endif; ?>
         <?php if ($sp['napomena']): ?><div><dt>Napomena</dt><dd><?= e($sp['napomena']) ?></dd></div><?php endif; ?>
-        <div><dt>Napravio</dt><dd><?= e($sp['napravio']) ?>, <?= e(datum_vreme_srp((string)$sp['napravljen'])) ?></dd></div>
         <?php if ($sp['utovareno_u']): ?><div><dt>Utovario</dt><dd><?= e($sp['utovario'] ?? '—') ?>, <?= e(datum_vreme_srp((string)$sp['utovareno_u'])) ?></dd></div><?php endif; ?>
         <?php if ($sp['otkazano_u']): ?><div><dt>Otkazao</dt><dd><?= e($sp['otkazao'] ?? '—') ?>, <?= e(datum_vreme_srp((string)$sp['otkazano_u'])) ?></dd></div><?php endif; ?>
     </dl>
@@ -488,32 +487,8 @@ ui_start(spisak_oznaka($sp), ['nav' => 'admin', 'aktivno' => 'utovar', 'js' => [
 
     <p class="grupa-dugmica razmak-gore">
         <a class="btn btn-mali" href="<?= e(url('admin/spisak_stampa.php?id=' . $id)) ?>"><?= ikona('preuzmi') ?> Štampa / PDF / Podeli</a>
-        <?php if ($nacrt): ?><a class="btn btn-mali" href="<?= e(url('admin/spisak_papir.php?id=' . $id)) ?>"><?= ikona('olovka') ?> Spisak sa papira</a><?php endif; ?>
     </p>
 
-    <?php if ($nacrt): ?>
-        <details class="razmak-gore">
-            <summary class="btn btn-mali"><?= ikona('olovka') ?> Izmeni datum, vozilo, vozača</summary>
-            <form method="post" autocomplete="off" class="razmak-gore" action="<?= e(url('admin/spisak.php')) ?>">
-                <?= csrf_polje() ?>
-                <input type="hidden" name="akcija" value="zaglavlje">
-                <input type="hidden" name="id" value="<?= $id ?>">
-                <div class="red-polja">
-                    <label for="datum">Datum utovara</label>
-                    <input class="polje" id="datum" name="datum" type="date" required value="<?= e((string)$sp['datum']) ?>">
-                </div>
-                <div class="red-polja-2 red-polja">
-                    <div><label for="vozilo">Vozilo</label><input class="polje" id="vozilo" name="vozilo" type="text" maxlength="60" value="<?= e($sp['vozilo'] ?? '') ?>"></div>
-                    <div><label for="vozac">Vozač</label><input class="polje" id="vozac" name="vozac" type="text" maxlength="60" value="<?= e($sp['vozac'] ?? '') ?>"></div>
-                </div>
-                <div class="red-polja">
-                    <label for="napomena">Napomena</label>
-                    <input class="polje" id="napomena" name="napomena" type="text" maxlength="255" value="<?= e($sp['napomena'] ?? '') ?>">
-                </div>
-                <button class="btn btn-primary btn-blok" type="submit">Sačuvaj podatke</button>
-            </form>
-        </details>
-    <?php endif; ?>
 </section>
 
 <?php if ($manjak): ?>
@@ -584,9 +559,6 @@ $prikazi_stavku = static function (array $st) use ($nacrt, $utovaren, $manjak, $
 };
 ?>
 
-<?php if ($nacrt && $stavke): ?>
-    <p class="pomoc mesta-pomoc">Dodirnite stavku da promenite količinu ili je uklonite, pa <strong>Sačuvaj izmene</strong>.</p>
-<?php endif; ?>
 <?php if (!$po_mestima): ?>
     <div class="kartica">
         <p class="pomoc<?= $nacrt ? '' : ' bez-margine' ?>">Spisak još nema nijedno mesto istovara<?= $nacrt ? ' – dodajte prvo mesto ispod (Dodaj mesto) ili prepišite ceo spisak sa papira' : '' ?>.</p>
@@ -753,7 +725,10 @@ foreach ($po_mestima as $mid => $grupa):
                     <?php else: ?>
                         <input type="hidden" name="paleta_id" value="0">
                     <?php endif; ?>
-                    <p class="pomoc">Kucajte naziv (npr. <strong>humovit</strong>), dodirnite pakovanje i upišite količinu. Robu koje nema u katalogu (npr. <strong>kora</strong>) samo upišite sa brojem komada – ide na spisak kao <strong>ostalo</strong>, bez stanja. Čim počnete da pišete u poslednji red, ispod se sam pojavi novi – sve se čuva odjednom.</p>
+                    <details class="pomoc-skupljena">
+                        <summary>Kako se upisuje?</summary>
+                        <p class="pomoc">Kucajte naziv (npr. <strong>humovit</strong>), dodirnite pakovanje i upišite količinu. Robu koje nema u katalogu (npr. <strong>kora</strong>) samo upišite sa brojem komada – ide na spisak kao <strong>ostalo</strong>, bez stanja. Čim počnete da pišete u poslednji red, ispod se sam pojavi novi – sve se čuva odjednom.</p>
+                    </details>
                     <div class="roba-redovi" data-roba-redovi>
                         <?php foreach ($rr as $i => [$r_t, $r_id, $r_pal, $r_pak, $r_kom]): ?>
                             <div class="roba-red" data-roba-red data-popis data-po="0" data-pp="0" data-sada="0">
@@ -810,13 +785,22 @@ foreach ($po_mestima as $mid => $grupa):
 <?php endif; ?>
 
 <?php if ($nacrt): ?>
-    <form method="post" class="kartica" id="novo-mesto" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+    <div class="novo-mesto" id="novo-mesto">
+    <div data-poruke></div>
+    <?php /* jedan dodir: sledeći broj, bez kupca (broj i kupac se menjaju na mestu: Broj, kupac, adresa) */ ?>
+    <form method="post" action="<?= e(url('admin/spisak.php')) ?>">
         <?= csrf_polje() ?>
         <input type="hidden" name="akcija" value="dodaj_mesto">
         <input type="hidden" name="id" value="<?= $id ?>">
-        <div class="kartica-naslov"><h2><?= ikona('plus') ?> Dodaj mesto</h2></div>
-        <div data-poruke></div>
-        <p class="pomoc">Svako mesto istovara ima svoj broj (kao zaokružen broj na papiru) i svoju robu. Mesta dodajete koliko god treba; kupac nije obavezan.</p>
+        <input type="hidden" name="novo_broj" value="<?= mesto_sledeci_broj($id) ?>">
+        <button class="btn btn-blok" type="submit"><?= ikona('plus') ?> Dodaj mesto <?= mesto_sledeci_broj($id) ?></button>
+    </form>
+    <details class="novo-mesto-vise">
+    <summary>Mesto sa kupcem ili drugim brojem</summary>
+    <form method="post" class="kartica" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+        <?= csrf_polje() ?>
+        <input type="hidden" name="akcija" value="dodaj_mesto">
+        <input type="hidden" name="id" value="<?= $id ?>">
         <div class="mesto-polja red-polja">
             <div class="mesto-broj-polje">
                 <label for="novo_broj">Broj mesta</label>
@@ -840,24 +824,26 @@ foreach ($po_mestima as $mid => $grupa):
         </div>
         <button class="btn btn-primary btn-blok" type="submit"><?= ikona('plus') ?> Dodaj mesto</button>
     </form>
+    </details>
+    </div>
     <datalist id="lista-kupaca"><?php foreach ($kupci as $k): ?><option value="<?= e($k['naziv']) ?>"><?php endforeach; ?></datalist>
     <?php if ($sku_unos): ?>
         <script type="application/json" id="sku-podaci"><?= sku_podaci_json($sku_unos) ?></script>
     <?php endif; ?>
 <?php endif; ?>
 
-<section class="kartica" aria-labelledby="akcije-naslov">
-    <div class="kartica-naslov"><h2 id="akcije-naslov">Status spiska</h2></div>
-    <?php
+<?php
+// Glavna radnja je uvek vidljiva (Pošalji na utovar / Potvrdi utovar); sve ostalo je pod "Više".
+$glavna = [];
     $dugmad = [];
     if ($sp['status'] === 'nacrt') {
-        $dugmad[] = ['za_utovar', 'Pošalji na utovar', 'btn-primary btn-veliko', 'Poslati spisak na utovar? Radnici će ga videti, a količine će biti rezervisane.' . ($manjak ? ' Pažnja: za neke stavke nema dovoljno slobodne robe.' : '')];
+        $glavna[] = ['za_utovar', 'Pošalji na utovar', 'btn-primary btn-veliko btn-blok', 'Poslati spisak na utovar? Radnici će ga videti, a količine će biti rezervisane.' . ($manjak ? ' Pažnja: za neke stavke nema dovoljno slobodne robe.' : '')];
         $dugmad[] = ['otkazano', 'Otkaži spisak', 'btn-opasno', 'Otkazati ovaj spisak?'];
         $opis = 'Nacrt: menjajte slobodno. Stanje se ne dira, radnici ga ne vide.';
     } elseif ($sp['status'] === 'za_utovar') {
-        $dugmad[] = ['nacrt', 'Vrati u nacrt (za izmene)', '', 'Vratiti spisak u nacrt? Radnici ga neće videti dok ga ponovo ne pošaljete.'];
+        $glavna[] = ['nacrt', 'Vrati u nacrt (za izmene robe)', 'btn-blok', 'Vratiti spisak u nacrt? Radnici ga neće videti dok ga ponovo ne pošaljete.'];
         $dugmad[] = ['otkazano', 'Otkaži spisak', 'btn-opasno', 'Otkazati ovaj spisak? Rezervacija se ukida.'];
-        $opis = 'Čeka utovar: radnici ga vide, količine su rezervisane. Stanje se skida tek kad se potvrdi utovar (radnik, ili vi dugmetom ispod).';
+        $opis = 'Čeka utovar: radnici ga vide, količine su rezervisane. Stanje se skida tek kad se potvrdi utovar (radnik, ili vi dugmetom Potvrdi utovar).';
     } elseif ($sp['status'] === 'otkazano') {
         if ($sp['utovareno_u'] === null) {
             $dugmad[] = ['nacrt', 'Vrati u nacrt', '', 'Ponovo otvoriti otkazan spisak kao nacrt?'];
@@ -867,27 +853,58 @@ foreach ($po_mestima as $mid => $grupa):
         $dugmad[] = ['otkazano', 'Otkaži utovar (vrati robu na stanje)', 'btn-opasno', 'Otkazati utovaren spisak? Sva utovarena roba se vraća na stanje (upisuje se kao povrat).'];
         $opis = 'Utovareno: stanje je skinuto i spisak se više ne menja. Ako je utovar greška, otkažite ga – roba se vraća na stanje.';
     }
-    ?>
-    <p class="pomoc"><?= e($opis) ?></p>
-    <div class="grupa-dugmica">
-        <?php foreach ($dugmad as [$novi, $tekst, $klasa, $potvrda]): ?>
-            <form method="post" class="forma-u-liniji" action="<?= e(url('admin/spisak.php')) ?>" data-potvrda="<?= e($potvrda) ?>">
-                <?= csrf_polje() ?>
-                <input type="hidden" name="akcija" value="status">
-                <input type="hidden" name="id" value="<?= $id ?>">
-                <input type="hidden" name="ocekivan" value="<?= e($sp['status']) ?>">
-                <input type="hidden" name="novi" value="<?= e($novi) ?>">
-                <button class="btn <?= e($klasa) ?>" type="submit"><?= e($tekst) ?></button>
-            </form>
-        <?php endforeach; ?>
-    </div>
-    <?php if ($sp['status'] === 'za_utovar'): ?>
-        <p class="razmak-gore"><a class="btn btn-braon btn-blok" href="<?= e(url('radnik/utovar.php?id=' . $id)) ?>"><?= ikona('kamion') ?> Potvrdi utovar (štikliranje stavki)</a></p>
-    <?php endif; ?>
-</section>
+$dugme_statusa = static function (array $d) use ($id, $sp): void {
+    [$novi, $tekst, $klasa, $potvrda] = $d; ?>
+    <form method="post" class="<?= str_contains($klasa, 'btn-blok') ? 'razmak-gore' : 'forma-u-liniji' ?>" action="<?= e(url('admin/spisak.php')) ?>" data-potvrda="<?= e($potvrda) ?>">
+        <?= csrf_polje() ?>
+        <input type="hidden" name="akcija" value="status">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <input type="hidden" name="ocekivan" value="<?= e($sp['status']) ?>">
+        <input type="hidden" name="novi" value="<?= e($novi) ?>">
+        <button class="btn <?= e($klasa) ?>" type="submit"><?= e($tekst) ?></button>
+    </form>
+    <?php
+};
+?>
+<?php if ($sp['status'] === 'za_utovar'): ?>
+    <p><a class="btn btn-primary btn-veliko btn-blok" href="<?= e(url('radnik/utovar.php?id=' . $id)) ?>"><?= ikona('kamion') ?> Potvrdi utovar (štikliranje stavki)</a></p>
+<?php endif; ?>
+<?php foreach ($glavna as $d) { $dugme_statusa($d); } ?>
 
-<section class="kartica" id="brisanje" aria-labelledby="brisanje-naslov">
-    <div class="kartica-naslov"><h2 id="brisanje-naslov"><?= ikona('kanta') ?> Brisanje</h2></div>
+<details class="kartica vise" id="vise">
+    <summary class="kartica-naslov"><h2>Više</h2><span class="pomoc"><?= $nacrt ? 'datum, spisak sa papira, otkazivanje, brisanje' : 'otkazivanje, brisanje' ?></span></summary>
+    <p class="pomoc"><?= e($opis) ?> Napravio: <?= e($sp['napravio']) ?>, <?= e(datum_vreme_srp((string)$sp['napravljen'])) ?>.</p>
+    <?php if ($nacrt): ?>
+        <p><a class="btn btn-mali" href="<?= e(url('admin/spisak_papir.php?id=' . $id)) ?>"><?= ikona('olovka') ?> Spisak sa papira</a></p>
+    <?php endif; ?>
+    <?php if ($nacrt): ?>
+        <details class="razmak-dole">
+            <summary class="btn btn-mali"><?= ikona('olovka') ?> Izmeni datum, vozilo, vozača</summary>
+            <form method="post" autocomplete="off" class="razmak-gore" action="<?= e(url('admin/spisak.php')) ?>">
+                <?= csrf_polje() ?>
+                <input type="hidden" name="akcija" value="zaglavlje">
+                <input type="hidden" name="id" value="<?= $id ?>">
+                <div class="red-polja">
+                    <label for="datum">Datum utovara</label>
+                    <input class="polje" id="datum" name="datum" type="date" required value="<?= e((string)$sp['datum']) ?>">
+                </div>
+                <div class="red-polja-2 red-polja">
+                    <div><label for="vozilo">Vozilo</label><input class="polje" id="vozilo" name="vozilo" type="text" maxlength="60" value="<?= e($sp['vozilo'] ?? '') ?>"></div>
+                    <div><label for="vozac">Vozač</label><input class="polje" id="vozac" name="vozac" type="text" maxlength="60" value="<?= e($sp['vozac'] ?? '') ?>"></div>
+                </div>
+                <div class="red-polja">
+                    <label for="napomena">Napomena</label>
+                    <input class="polje" id="napomena" name="napomena" type="text" maxlength="255" value="<?= e($sp['napomena'] ?? '') ?>">
+                </div>
+                <button class="btn btn-primary btn-blok" type="submit">Sačuvaj podatke</button>
+            </form>
+        </details>
+    <?php endif; ?>
+    <?php if ($dugmad): ?>
+        <div class="grupa-dugmica"><?php foreach ($dugmad as $d) { $dugme_statusa($d); } ?></div>
+    <?php endif; ?>
+<section class="vise-deo" id="brisanje" aria-labelledby="brisanje-naslov">
+    <div class="kartica-naslov"><h3 id="brisanje-naslov"><?= ikona('kanta') ?> Brisanje</h3></div>
     <?php
     $oznaka = spisak_oznaka($sp);
     $brisanje = $sp['status'] === 'utovareno'
@@ -916,5 +933,6 @@ foreach ($po_mestima as $mid => $grupa):
         <?php endforeach; ?>
     </div>
 </section>
+</details>
 <?php
 ui_end();

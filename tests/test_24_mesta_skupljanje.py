@@ -126,6 +126,26 @@ try:
     adm.post(SP, {"akcija": "status", "id": sp2, "ocekivan": "nacrt", "novi": "za_utovar"})
     R.provera(otvorena(adm.get(SP + "?id=%d" % sp2)) == [mj], "jedno mesto: otvoreno i kad spisak čeka utovar")
 
+    R.odeljak("Novi utovar jednim dodirom; stranica bez viška")
+    o = adm.post("/admin/utovar.php", {"akcija": "brzo"})
+    sp3 = sql_int("SELECT MAX(id) FROM spiskovi")
+    R.provera(sp3 > sp2 and o.url.endswith(SP + "?id=%d" % sp3) and "je napravljen – upišite robu za Mesto 1" in poruke(o)
+              and sql("SELECT CONCAT(datum, '|', IFNULL(vozilo, ''), '|', status) FROM spiskovi WHERE id=%d" % sp3) == danas_bg() + "||nacrt"
+              and sql("SELECT CONCAT(broj, '|', IFNULL(kupac_id, 'NULL')) FROM spisak_mesta WHERE spisak_id=%d" % sp3) == "1|NULL",
+              "„Novi utovar“: odmah otvoren spisak – današnji datum, Mesto 1, bez kupca i vozila", poruke(o))
+    mq = sql_int("SELECT id FROM spisak_mesta WHERE spisak_id=%d" % sp3)
+    R.provera(otvorena(o) == [mq] and 'name="r_tekst[]"' in o.text, "Mesto 1 je otvoreno, forma za robu je spremna")
+    vise = o.text.split('<details class="kartica vise" id="vise">')[1]
+    gore = o.text.split('<details class="kartica vise" id="vise">')[0]
+    R.provera("Pošalji na utovar" in gore and "Otkaži spisak" not in gore and "Izmeni datum" not in gore and "Spisak sa papira</a>" not in gore and 'id="brisanje"' not in gore,
+              "vidljivo je samo glavno dugme (Pošalji na utovar)")
+    R.provera("Otkaži spisak" in vise and "Izmeni datum, vozilo, vozača" in vise and "Spisak sa papira" in vise and 'id="brisanje"' in vise and "Napravio:" in vise,
+              "pod „Više“: datum, spisak sa papira, otkazivanje, brisanje")
+    R.provera('name="novo_broj" value="2"' in gore and "Dodaj mesto 2</button>" in gore and '<details class="novo-mesto-vise">' in gore,
+              "„Dodaj mesto 2“ jednim dodirom; forma sa kupcem je skupljena")
+    o = adm.post(SP, {"akcija": "dodaj_mesto", "id": sp3, "novo_broj": "2"})
+    R.provera(mesta(sp3) == "1|,2|" and "Dodaj mesto 3</button>" in o.text, "dodato Mesto 2; sledeće dugme je „Dodaj mesto 3“", mesta(sp3))
+
     R.provera(not site.php_problemi(), "PHP nije prijavio upozorenja ni greške", site.php_problemi()[:3])
 finally:
     site.stop()

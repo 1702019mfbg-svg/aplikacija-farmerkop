@@ -440,8 +440,11 @@ module.exports = {
         await page.getByRole('link', { name: 'Utovar' }).click();
         await page.waitForURL('**/admin/utovar.php');
         await p.slika('70-utovar-prazno');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#kupac', 'Agrocentar Novi Sad');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#vozilo', 'NS 123-AB');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#vozac', 'Pera');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
@@ -552,7 +555,9 @@ module.exports = {
         // Administrator pravi i šalje spisak
         await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
         await page.goto(p.base + '/admin/utovar.php');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#kupac', 'Vrt i bašta Kraljevo');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#vozilo', 'KV 555-XY');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
@@ -645,6 +650,7 @@ module.exports = {
     async zbirna(page, p) {
         await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
         await page.goto(p.base + '/admin/utovar.php');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#kupac', 'Cvećara Flora');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
@@ -724,8 +730,11 @@ module.exports = {
         // Jedan kamion, više mesta istovara (kao zaokruženi brojevi na papiru: 8, 9, 5)
         await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
         await page.goto(p.base + '/admin/utovar.php');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#vozilo', 'NS 100-AA');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#vozac', 'Pera');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#mesto_broj', '8');
         await p.slika('81-mesta-novi-utovar');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
@@ -757,8 +766,10 @@ module.exports = {
 
         // Mesto 9 sa kupcem (čip ranijeg kupca)
         tvrdi((await page.locator('#novo_broj').inputValue()) === '9', 'predložen je sledeći broj: 9');
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.locator('#novo-mesto [data-kupac="Agrocentar Novi Sad"]').click();
         tvrdi((await page.locator('#kupac').inputValue()) === 'Agrocentar Novi Sad', 'kupac izabran čipom');
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForSelector('.poruka-uspeh');
         const m9 = page.locator('.mesto-kartica', { hasText: 'Mesto 9' });
@@ -770,7 +781,9 @@ module.exports = {
         await page.waitForSelector('.poruka-uspeh');
 
         // Mesto 5 bez kupca, pa pomeranje gore
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.fill('#novo_broj', '5');
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForSelector('.poruka-uspeh');
         const m5 = page.locator('.mesto-kartica', { hasText: 'Mesto 5' });
@@ -797,6 +810,7 @@ module.exports = {
         tvrdi((await red.locator('[data-zbir]').innerText()).includes('= 288 kom'), 'zbir izmene uživo: 1 pal + 3 pak = 288');
         let tip = '';
         page.once('dialog', (d) => { tip = d.type(); d.dismiss(); });
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForTimeout(500);
         tvrdi(tip === 'beforeunload', 'upozorenje pre napuštanja stranice sa nesačuvanom izmenom (' + tip + ')');
@@ -847,6 +861,7 @@ module.exports = {
         // Završeno mesto se skuplja (dodir na broj ga otvara); roba van kataloga sa količinom u nazivu; broj mesta i posle slanja
         await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
         await page.goto(p.base + '/admin/utovar.php');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#kupac', 'Agrocentar Novi Sad');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
@@ -863,8 +878,11 @@ module.exports = {
         tvrdi((await page.locator('.poruka-uspeh').first().innerText()).includes('Kesa (ostalo) – 5 kom'), 'sačuvano: Kesa 5 kom');
 
         // novo mesto: prethodno (završeno) se skupi
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.fill('#novo_broj', '2');
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.fill('#novo-mesto [name="novo_kupac"]', 'Cvećara Žika');
+        await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForSelector('.poruka-uspeh');
         const k1 = page.locator('.mesto-kartica', { hasText: 'Agrocentar Novi Sad' });
@@ -909,10 +927,13 @@ module.exports = {
         // Otac piše spisak na papiru; sin ga prepiše (ili izdiktira) i aplikacija ga pretvori u spisak
         await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
         await page.goto(p.base + '/admin/utovar.php');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#vozilo', 'NS 100-AA');
+        await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
         await page.fill('#mesto_broj', '8');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('link', { name: 'Spisak sa papira' }).first().click();
         await page.waitForURL('**/admin/spisak_papir.php?id=*');
         await page.fill('#tekst', '8 Agrocentar\n2 pal humovit 50\nhumovit 10 - 30\n1/2 rizla bela sitna + 1/2 oblutak beli 40-60\n\n9\njedna paleta idea 10\nhumovit\nsaksije 30 kom\nkora 20');
@@ -1050,18 +1071,22 @@ module.exports = {
         await p.slika('97-kupci-po-godini');
         // spisak sa papira: kartica „Slikaj spisak“ (bez ključa – uputstvo)
         await page.goto(p.base + '/admin/utovar.php');
-        await page.getByRole('button', { name: 'Napravi spisak' }).click();
+        tvrdi(!(await page.getByRole('button', { name: 'Napravi spisak' }).isVisible()), 'forma sa datumom i kupcem je skupljena');
+        await page.getByRole('button', { name: 'Novi utovar', exact: true }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('link', { name: 'Spisak sa papira' }).first().click();
         await page.waitForURL('**/admin/spisak_papir.php?id=*');
         tvrdi((await page.locator('#slika').count()) === 0, 'bez ključa: nema kartice za slikanje');
         // otkazan spisak: dugme za brisanje
         await page.goto(page.url().replace('/admin/spisak_papir.php', '/admin/spisak.php'));
         page.once('dialog', (d) => d.accept());
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('button', { name: 'Otkaži spisak' }).click();
         await page.waitForSelector('.status-otkazano');
         let pitanje = '';
         page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('button', { name: 'Obriši Utovar 1' }).click();
         await page.waitForURL('**/admin/utovar.php?f=otkazano');
         tvrdi(pitanje.includes('Obrisati Utovar 1?') && pitanje.includes('Ovo ne može da se vrati'), 'pitanje pre brisanja: ' + pitanje);
@@ -1073,6 +1098,7 @@ module.exports = {
         await p.prijavaAdmin('vlasnik', 'Tajna-lozinka-1');
         for (const kupac of ['Agrocentar Novi Sad', 'Cvećara Žika', 'Vrt i bašta Kraljevo']) {
             await page.goto(p.base + '/admin/utovar.php?novi=1');
+            await page.evaluate(() => { const d = document.querySelector('.novi-sa-podacima'); if (d) { d.open = true; } });
             await page.fill('#kupac', kupac);
             await page.getByRole('button', { name: 'Napravi spisak' }).click();
             await page.waitForURL('**/admin/spisak.php?id=*');
@@ -1091,11 +1117,13 @@ module.exports = {
         await page.waitForURL('**/admin/utovar.php');
         // kanta: potvrda pa brisanje; odustajanje ne briše ništa
         page.once('dialog', (d) => d.dismiss());
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('button', { name: 'Obriši Utovar 1' }).click();
         await page.waitForTimeout(300);
         tvrdi((await brojevi()) === 'Utovar 3,Utovar 2,Utovar 1' && page.url().endsWith('/admin/utovar.php'), 'odustajanje: ništa nije obrisano');
         let pitanje = '';
         page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('button', { name: 'Obriši Utovar 2' }).click();
         await page.waitForSelector('.poruka-uspeh');
         tvrdi(pitanje === 'Obrisati Utovar 2 (Cvećara Žika)? Ovo ne može da se vrati.', 'pitanje: ' + pitanje);
@@ -1125,11 +1153,13 @@ module.exports = {
         await page.goto(p.base + '/admin/utovar.php?f=utovareno');
         await page.getByRole('link', { name: 'Obriši Utovar 2' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*#brisanje');
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         tvrdi(await page.getByRole('button', { name: 'Obriši i vrati robu na stanje' }).isVisible() && await page.getByRole('button', { name: 'Obriši, roba je otišla' }).isVisible(),
             'kanta na utovarenom vodi na izbor: vrati robu / roba je otišla');
         await page.locator('#brisanje').scrollIntoViewIfNeeded();
         await p.slika('73d-brisanje-utovarenog');
         page.once('dialog', (d) => { pitanje = d.message(); d.accept(); });
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('button', { name: 'Obriši i vrati robu na stanje' }).click();
         await page.waitForURL('**/admin/utovar.php?f=utovareno');
         tvrdi(pitanje.includes('vratiti svu utovarenu robu na stanje'), 'pitanje: ' + pitanje);
@@ -1140,6 +1170,7 @@ module.exports = {
         await page.locator('.spisak-kartica', { hasText: 'Agrocentar Novi Sad' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
         page.once('dialog', (d) => d.accept());
+        await page.evaluate(() => { const v = document.getElementById('vise'); if (v) { v.open = true; } });
         await page.getByRole('button', { name: 'Otkaži spisak' }).click();
         await page.waitForSelector('.status-otkazano');
         await page.goto(p.base + '/admin/utovar.php?f=otkazano');
