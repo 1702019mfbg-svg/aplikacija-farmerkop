@@ -66,7 +66,7 @@ arsort($po_boji);
 
 ui_start('Mešalice', ['nav' => 'admin', 'aktivno' => 'radnici']);
 ?>
-<?= period_izbor_html('admin/mesalice.php', $od, $do) ?>
+<?= period_izbor_html('admin/mesalice.php', $od, $do, 'Ova nedelja') ?>
 
 <section class="kartica" aria-labelledby="naslov-ukupno">
     <div class="kartica-naslov"><h2 id="naslov-ukupno">Ukupno: <?= e(mesalice_tekst($ukupno)) ?></h2></div>

@@ -500,7 +500,8 @@
     var brziFokus = document.querySelector('.brzi-unos [autofocus]');
     if (brziFokus) {
         var uPolje = function () {
-            window.setTimeout(function () { if (document.activeElement !== brziFokus) { brziFokus.focus({ preventScroll: true }); } }, 60);
+            window.setTimeout(function () { // samo ako korisnik u međuvremenu nije već dodirnuo neko drugo polje
+                if (!document.activeElement || document.activeElement === document.body) { brziFokus.focus({ preventScroll: true }); } }, 60);
         };
         if (document.readyState === 'complete') { uPolje(); } else { window.addEventListener('load', uPolje); }
     }
