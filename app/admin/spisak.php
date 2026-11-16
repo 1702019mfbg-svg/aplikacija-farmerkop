@@ -13,6 +13,7 @@ require __DIR__ . '/../inc/bootstrap.php';
 require __DIR__ . '/../inc/podesavanja.php';
 require __DIR__ . '/../inc/spiskovi.php';
 require __DIR__ . '/../inc/spisak_izmene.php';
+require __DIR__ . '/../inc/spisak_papir.php';
 
 $admin = zahtevaj_ulogu('admin');
 $id = je_post() ? post_int('id') : get_int('id');
@@ -156,7 +157,7 @@ if (je_post()) {
                 return 'dodato ' . mesto_naslov($broj, $kupac) . ' – sada dodajte robu za to mesto';
             });
             if ($novo > 0) {
-                $posle = $stranica . '&m=' . $novo . '#dodaj-' . $novo;
+                $posle = $stranica . '&m=' . $novo . '#mesto-' . $novo;
             }
         }
     } elseif ($akcija === 'nova_paleta') {
@@ -225,6 +226,24 @@ if (je_post()) {
                 db_run('UPDATE spiskovi SET datum = ?, vozilo = ?, vozac = ?, napomena = ? WHERE id = ?', [...$novo, $id]);
                 return 'izmenjeni podaci (utovar ' . datum_srp($p['datum']) . ')';
             });
+        }
+    } elseif ($akcija === 'brzo_dodaj') {
+        // jedan red kao na papiru: "humovit 50 2 pal" – upisuje se odmah; kad nešto nije jasno, otvara se upis po poljima
+        $mesto_id = max(0, post_int('mesto_id'));
+        $posle = $stranica . '&m=' . $mesto_id . '#mesto-' . $mesto_id;
+        [$redovi, $polja, $greska] = roba_iz_reda(post_str('b_tekst', 500));
+        $ok = false;
+        if ($greska !== null) {
+            flash_dodaj('greska', $greska . ($polja ? ' Dovršite ovde, pa Sačuvaj.' : ''));
+        } else {
+            [$ok, $mid] = dodaj_robu($id, $mesto_id, 0, $redovi);
+            if ($ok) {
+                $posle = $stranica . '&m=' . $mid . '#mesto-' . $mid;
+            }
+        }
+        if (!$ok && $polja) {
+            zapamti_formu($id, 'dodaj', $mesto_id, $polja + ['paleta_id' => 0]);
+            $posle = $stranica . '&m=' . $mesto_id . '#dodaj-' . $mesto_id;
         }
     } elseif ($akcija === 'dodaj' || $akcija === 'dodaj_vise') {
         // "dodaj_vise": više artikala odjednom (r_tekst[], r_id[], r_pal[] …); "dodaj": jedan artikal (starija forma)
@@ -697,14 +716,30 @@ foreach ($po_mestima as $mid => $grupa):
             $pf = $f['polja'];
             $za_dodaj = $f['vrsta'] === 'dodaj';
             $za_zbirnu = $f['vrsta'] === 'zbirna';
-            $otvori_dodaj = $za_dodaj || (!$za_zbirnu && (($aktivno_mesto === (int)$mid && !$otvori_zbirnu) || !$mst));
+            $otvori_dodaj = $za_dodaj || ($aktivno_mesto === (int)$mid && $izabrana_paleta > 0 && !$za_zbirnu);   // i za dodavanje u zbirnu paletu
+            // upis po poljima: samo kad brzi upis nije bio jasan (ili posle greške)
+            // kursor u polje za brzi upis: na mestu na kom se radi (posle dodavanja – da se odmah kuca sledeći artikal)
+            $fokus = !$otvori_dodaj && !$za_zbirnu && !$otvori_zbirnu && $aktivno_mesto === (int)$mid;
             $rr = $za_dodaj ? array_map(null, $pf['r_tekst'] ?? [], $pf['r_id'] ?? [], $pf['r_pal'] ?? [], $pf['r_pak'] ?? [], $pf['r_kom'] ?? []) : [];
             $rr = $redovi_forme($rr, 5, 30);
             $u_paletu = $za_dodaj ? (int)($pf['paleta_id'] ?? 0) : $izabrana_paleta;
             $zr = $za_zbirnu ? array_map(null, $pf['z_artikal'] ?? [], $pf['z_id'] ?? [], $pf['z_kol'] ?? []) : [];
             $zr = $redovi_forme($zr, 3, 20); ?>
+            <form method="post" class="brzi-unos" autocomplete="off" action="<?= e(url('admin/spisak.php')) ?>">
+                <?= csrf_polje() ?>
+                <input type="hidden" name="akcija" value="brzo_dodaj">
+                <input type="hidden" name="id" value="<?= $id ?>">
+                <input type="hidden" name="mesto_id" value="<?= (int)$mid ?>">
+                <label class="skriven-vizuelno" for="b_tekst_<?= (int)$mid ?>">Roba za Mesto <?= (int)$m['broj'] ?></label>
+                <div class="brzi-red">
+                    <input class="polje" id="b_tekst_<?= (int)$mid ?>" name="b_tekst" type="text" maxlength="500" required placeholder="npr. humovit 50 2 pal"
+                           autocapitalize="off" spellcheck="false" enterkeyhint="send"<?= $fokus ? ' autofocus' : '' ?>>
+                    <button class="btn btn-primary" type="submit"><?= ikona('plus') ?><span class="skriven-vizuelno"> Dodaj robu za Mesto <?= (int)$m['broj'] ?></span></button>
+                </div>
+                <?php if (!$mst): ?><p class="pomoc bez-margine">Naziv i količina u jednom redu, pa Enter: <strong>humovit 50 2 pal</strong> · <strong>idea 10 30</strong> · <strong>kese 5</strong></p><?php endif; ?>
+            </form>
             <details class="mesto-dodaj" id="dodaj-<?= (int)$mid ?>"<?= $otvori_dodaj ? ' open' : '' ?>>
-                <summary class="btn btn-blok"><?= ikona('plus') ?> Dodaj robu za Mesto <?= (int)$m['broj'] ?></summary>
+                <summary>Upis po poljima (palete, paketi, komadi)</summary>
                 <div data-poruke></div>
                 <form method="post" autocomplete="off" class="mesto-forma" action="<?= e(url('admin/spisak.php')) ?>" data-dodavanje>
                     <?= csrf_polje() ?>

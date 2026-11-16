@@ -107,14 +107,14 @@ try:
     m8 = mesto_id(sp, 8)
     R.provera("%s je napravljen sa mestom „Mesto 8“" % utovar(sp) in poruke(o) and mesta(sp) == "8||", "utovar je napravljen sa prvim mestom: Mesto 8, bez kupca", poruke(o))
     R.provera(sql("SELECT kupac_id IS NULL FROM spiskovi WHERE id=%d" % sp) == "1", "kupac se vodi na mestu, ne na spisku")
-    R.provera(re.search(r'id="dodaj-%d" open' % m8, o.text) is not None, "prazno mesto ima otvorenu formu za robu")
+    R.provera('id="b_tekst_%d" name="b_tekst"' % m8 in o.text and re.search(r'id="dodaj-%d" open' % m8, o.text) is None, "prazno mesto ima polje za brzi upis robe (upis po poljima je skupljen)")
     R.provera('value="9"' in o.text.split('id="novo_broj"')[1][:200], "Dodaj mesto: predložen je sledeći broj (9)")
 
     R.odeljak("Dodaj mesto: broj po izboru, kupac nije obavezan")
     o = adm.post(SP, {"akcija": "dodaj_mesto", "id": sp, "novo_broj": "9", "novo_kupac": "Agrocentar <b>NS</b>", "novo_adresa": "Novi Sad, Futoški put 12"})
     m9 = mesto_id(sp, 9)
     R.provera("Dodato Mesto 9 · Agrocentar <b>NS</b> – sada dodajte robu za to mesto" in poruke(o), "dodato Mesto 9 sa kupcem i adresom", poruke(o))
-    R.provera(o.url.endswith("&m=%d#dodaj-%d" % (m9, m9)) and re.search(r'id="dodaj-%d" open' % m9, o.text), "posle dodavanja mesta otvara se forma za robu tog mesta", o.url)
+    R.provera(o.url.endswith("&m=%d#mesto-%d" % (m9, m9)) and re.search(r'id="b_tekst_%d" name="b_tekst"[^>]*autofocus' % m9, o.text), "posle dodavanja mesta kursor je u polju za robu tog mesta", o.url)
     R.provera("Agrocentar &lt;b&gt;NS&lt;/b&gt;" in o.text and "<b>NS</b>" not in o.text, "kupac se ispisuje bezbedno")
     adm.post(SP, {"akcija": "dodaj_mesto", "id": sp, "novo_broj": "5", "novo_kupac": "", "novo_adresa": ""})
     m5 = mesto_id(sp, 5)
@@ -162,7 +162,7 @@ try:
     t = tekst(o.text)
     poz = [o.text.index('id="mesto-%d"' % m) for m in (m8, m9, m5)]
     R.provera(poz == sorted(poz) and re.findall(r'class="mesto-krug"[^>]*>(\d+)<', o.text) == ["8", "9", "5"], "kartice mesta redom: 8, 9, 5 (broj u krugu)")
-    R.provera(o.text.count('class="mesto-dodaj"') == 3 and o.text.count('name="mesto_id" value="%d"' % m9) == 2, "svako mesto ima svoje forme (roba i ostalo, zbirna paleta)")
+    R.provera(o.text.count('class="mesto-dodaj"') == 3 and o.text.count('name="mesto_id" value="%d"' % m9) == 3 and o.text.count('name="b_tekst"') == 3, "svako mesto ima svoje forme (brzi upis, upis po poljima, zbirna paleta)")
     R.provera('id="paleta_id_%d"' % m8 in o.text and 'id="paleta_id_%d"' % m9 not in o.text, "„Gde ide“ postoji samo kod mesta koje ima zbirnu paletu")
     R.provera("3 mesta: 8, 9, 5" in t and re.search(r'<span class="broj">3</span><span class="opis">mesta istovara', o.text), "naslov: 3 mesta: 8, 9, 5; zbir: 3 mesta istovara")
     # Mesto 8: Humovit 50 l 40 × 18 kg + rizla 25 × 20 + oblutak 25 × 20 = 720 + 500 + 500 = 1.720 kg; 1 paleta + 1 zbirna

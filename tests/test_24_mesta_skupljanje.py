@@ -129,7 +129,7 @@ try:
     R.odeljak("Novi utovar jednim dodirom; stranica bez viška")
     o = adm.post("/admin/utovar.php", {"akcija": "brzo"})
     sp3 = sql_int("SELECT MAX(id) FROM spiskovi")
-    R.provera(sp3 > sp2 and o.url.endswith(SP + "?id=%d" % sp3) and "je napravljen – upišite robu za Mesto 1" in poruke(o)
+    R.provera(sp3 > sp2 and (SP + "?id=%d&m=" % sp3) in o.url and "je napravljen – upišite robu za Mesto 1" in poruke(o)
               and sql("SELECT CONCAT(datum, '|', IFNULL(vozilo, ''), '|', status) FROM spiskovi WHERE id=%d" % sp3) == danas_bg() + "||nacrt"
               and sql("SELECT CONCAT(broj, '|', IFNULL(kupac_id, 'NULL')) FROM spisak_mesta WHERE spisak_id=%d" % sp3) == "1|NULL",
               "„Novi utovar“: odmah otvoren spisak – današnji datum, Mesto 1, bez kupca i vozila", poruke(o))
@@ -145,6 +145,40 @@ try:
               "„Dodaj mesto 2“ jednim dodirom; forma sa kupcem je skupljena")
     o = adm.post(SP, {"akcija": "dodaj_mesto", "id": sp3, "novo_broj": "2"})
     R.provera(mesta(sp3) == "1|,2|" and "Dodaj mesto 3</button>" in o.text, "dodato Mesto 2; sledeće dugme je „Dodaj mesto 3“", mesta(sp3))
+
+    R.odeljak("Brzi upis robe: naziv i količina u jednom redu")
+    hum50 = sku_id("Humovit", 50)
+
+    def brzo(tekst, mesto=None):
+        return adm.post(SP, {"akcija": "brzo_dodaj", "id": sp3, "mesto_id": mesto or mq, "b_tekst": tekst})
+
+    def roba(mesto):
+        r = sql("SELECT GROUP_CONCAT(CONCAT(IFNULL(sku_id, naziv), ':', kolicina, ':', palete, ':', paketi) ORDER BY id) FROM spisak_stavke WHERE mesto_id=%d" % mesto)
+        return "" if r == "NULL" else r
+
+    o = brzo("humovit 50 2 pal")
+    R.provera(roba(mq) == "%d:80:2:0" % hum50 and "Dodato za Mesto 1: Humovit · 50 l – 80 kom" in poruke(o), "„humovit 50 2 pal“ → 2 palete Humovita 50 l, odmah upisano", (roba(mq), poruke(o)))
+    R.provera(o.url.endswith("&m=%d#mesto-%d" % (mq, mq)) and re.search(r'id="b_tekst_%d" name="b_tekst"[^>]*autofocus' % mq, o.text) and mq in otvorena(o)
+              and re.search(r'id="dodaj-%d" open' % mq, o.text) is None, "posle upisa kursor je opet u polju (za sledeći artikal); upis po poljima je skupljen")
+    o = brzo("humovit 10 3")
+    R.provera(roba(mq).endswith(",%d:18:0:3" % hum10), "„humovit 10 3“ → 3 paketa (10 l se piše u paketima) = 18 kom", (roba(mq), poruke(o)))
+    o = brzo("kese 5, 2 komada folije; humovit 50 - 1 pal")
+    R.provera(roba(mq) == "%d:40:1:0,%d:18:0:3,Kese:5:0:0,Folije:2:0:0" % (hum50, hum10) and "bilo je već na spisku – zamenjena količina" in poruke(o),
+              "više artikala odjednom (zarez ili tačka-zarez): Kese 5, Folije 2; Humovit 50 l je već bio na spisku – nova količina (1 pal), uz poruku", (roba(mq), poruke(o)))
+    pre = roba(mq)
+    o = brzo("humovit 2 pal")
+    forma = o.text.split('id="dodaj-%d"' % mq)[1].split('id="zbirna-%d"' % mq)[0]
+    R.provera("izaberite pakovanje" in poruke(o) and "Dovršite ovde" in poruke(o) and roba(mq) == pre and o.url.endswith("#dodaj-%d" % mq)
+              and re.search(r'id="dodaj-%d" open' % mq, o.text) and 'value="humovit"' in forma and re.search(r'name="r_pal\[\]"[^>]*value="2"', forma),
+              "nejasno („humovit 2 pal“): ništa se ne upisuje, otvara se upis po poljima sa već upisanim „humovit“ i 2 palete", poruke(o))
+    o = brzo("   ")
+    R.provera(roba(mq) == pre and "Upišite robu" in poruke(o), "prazno: poruka", poruke(o))
+    m2q = sql_int("SELECT MAX(id) FROM spisak_mesta WHERE spisak_id=%d" % sp3)
+    o = brzo("rizla bela sitna pola palete", m2q)
+    R.provera(roba(m2q) == "%d:25:0:0" % sku_id("Bela rizla", 20, "kg", "Sitnija") and otvorena(o) == [m2q], "za Mesto 2: „rizla bela sitna pola palete“ → 25 kom", (roba(m2q), poruke(o)))
+    adm.post(SP, {"akcija": "status", "id": sp3, "ocekivan": "nacrt", "novi": "za_utovar"})
+    o = brzo("humovit 50 1 pal")
+    R.provera("samo dok je nacrt" in poruke(o) and 'name="b_tekst"' not in o.text, "poslat spisak: brzi upis se odbija i polja nema", poruke(o))
 
     R.provera(not site.php_problemi(), "PHP nije prijavio upozorenja ni greške", site.php_problemi()[:3])
 finally:

@@ -614,9 +614,12 @@ button.mesto-krug:focus-visible { outline: 3px solid var(--zelena); outline-offs
 .mesto-polja > * { min-width: 0; }
 .mesto-broj-polje label { white-space: nowrap; }
 .mesto-broj-polje .polje { width: 6.5rem; text-align: center; font-weight: 800; font-size: 1.25rem; }
-.mesto-dodaj { margin-top: 12px; }
-.mesto-dodaj > summary { list-style: none; }
-.mesto-dodaj > summary::-webkit-details-marker { display: none; }
+.brzi-unos { margin-top: 12px; display: grid; gap: 6px; }
+.brzi-red { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.brzi-red .polje { min-height: 54px; font-size: 1.1rem; }
+.brzi-red .btn { min-width: 58px; padding: 0 14px; }
+.mesto-dodaj { margin-top: 8px; }
+.mesto-dodaj > summary { color: var(--tekst-bled); font-size: .92rem; cursor: pointer; padding: 4px 0; }
 .mesto-dodaj[open] > summary { margin-bottom: 10px; }
 .mesto-forma .popis-polja { margin-bottom: 6px; }
 .mesto-zbirna { margin-top: 8px; scroll-margin-top: 88px; }

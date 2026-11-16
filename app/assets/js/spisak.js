@@ -495,6 +495,16 @@
         if (pomereno) { cilj.scrollIntoView({ block: 'start' }); }
     }
 
+    /* Brzi upis: kursor se vraća u polje posle svakog upisa. Autofocus ne radi kad adresa ima #mesto-…, a skok na
+     * to mesto (posle učitavanja) skida kursor – zato tek posle njega. */
+    var brziFokus = document.querySelector('.brzi-unos [autofocus]');
+    if (brziFokus) {
+        var uPolje = function () {
+            window.setTimeout(function () { if (document.activeElement !== brziFokus) { brziFokus.focus({ preventScroll: true }); } }, 60);
+        };
+        if (document.readyState === 'complete') { uPolje(); } else { window.addEventListener('load', uPolje); }
+    }
+
     /* Nesačuvane izmene (količine, mesta, palete, upisana roba): upozorenje pre napuštanja stranice. */
     var izmene = document.getElementById('izmene');
     function prati(forma) {

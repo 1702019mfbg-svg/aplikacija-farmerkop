@@ -467,3 +467,37 @@ function papir_proveri(array &$mesta): array
     unset($m);
     return [$plan, $greske];
 }
+
+/**
+ * Brzi upis robe za mesto: jedan red kao na papiru ("humovit 50 2 pal", "idea 10 30", "kese 5"), više artikala
+ * odvojeno zarezom ili tačka-zarezom. Broj bez oznake su komadi (za 5 l i 10 l paketi – kao na papiru).
+ * Vraća [redovi za spisak_upisi_robu(), polja za formu "po poljima" (da se dovrši kad nešto nije jasno), greška|null].
+ */
+function roba_iz_reda(string $tekst): array
+{
+    $delovi = array_values(array_filter(array_map('trim', preg_split('/\s*;\s*|,\s+/u', $tekst) ?: []), static fn(string $d): bool => $d !== ''));
+    $polja = ['r_tekst' => [], 'r_id' => [], 'r_pal' => [], 'r_pak' => [], 'r_kom' => []];
+    if (!$delovi) {
+        return [[], [], 'Upišite robu, npr. „humovit 50 2 pal“.'];
+    }
+    $lista = sku_za_unos();
+    $redovi = [];
+    $greska = null;
+    foreach (array_slice($delovi, 0, 30) as $i => $d) {
+        $p = papir_red_robe($d, papir_cist_red($d), 'kom', $lista);
+        if ($p['id'] === '' && preg_match('/\p{L}{2}/u', $p['tekst']) !== 1) {
+            // "kese 5", "5 kesa": reč koja je na papiru oznaka količine ovde je naziv robe van kataloga
+            $p = ['tekst' => $d, 'id' => '', 'pal' => '', 'pak' => '', 'kom' => ''] + $p;
+        }
+        foreach (['tekst', 'id', 'pal', 'pak', 'kom'] as $k) {
+            $polja['r_' . $k][] = $p[$k];
+        }
+        $r = roba_red((int)$p['id'], $p['tekst'], $p['pal'], $p['pak'], $p['kom'], false);
+        if (isset($r['greska'])) {
+            $greska ??= (count($delovi) > 1 ? 'Artikal ' . ($i + 1) . ' („' . $d . '“): ' : '') . ucfirst((string)$r['greska']);
+            continue;
+        }
+        roba_saberi($redovi, $r);
+    }
+    return [$redovi, $polja, $greska];
+}

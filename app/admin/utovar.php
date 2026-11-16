@@ -69,7 +69,7 @@ if (je_post()) {
     flash_dodaj('uspeh', $akcija === 'brzo'
         ? spisak_oznaka(['id' => $id]) . ' je napravljen – upišite robu za Mesto 1.'
         : spisak_oznaka(['id' => $id]) . ' je napravljen sa mestom „' . $mesto . '“. Dodajte robu za to mesto, pa sledeća mesta (Dodaj mesto).');
-    preusmeri('admin/spisak.php?id=' . $id);
+    preusmeri('admin/spisak.php?id=' . $id . ($akcija === 'brzo' ? '&m=' . (int)db_val('SELECT id FROM spisak_mesta WHERE spisak_id = ?', [$id]) : ''));
 }
 
 $filter = get_str('f', 12);

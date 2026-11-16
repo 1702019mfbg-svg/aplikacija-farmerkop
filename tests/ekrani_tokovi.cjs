@@ -450,6 +450,7 @@ module.exports = {
         await page.waitForURL('**/admin/spisak.php?id=*');
 
         // Dodaj robu: kuca se „humovit“, izađu pakovanja 5 / 10 / 25 / 50 l, dodirom se bira; više redova, jedno čuvanje
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         const redovi = page.locator('.mesto-dodaj [data-roba-red]');
         tvrdi((await redovi.count()) === 2, 'forma počinje sa 2 reda za artikle');
         tvrdi((await page.locator('[data-roba-jos], [data-zbirna-jos]').count()) === 0 && !(await page.locator('main').innerText()).includes('Još jedan artikal'), 'nema dugmeta „Još jedan artikal“');
@@ -498,6 +499,7 @@ module.exports = {
 
         // Ostalo: roba koje nema u katalogu („saksije 30 cm“) ide u iste redove – žuta napomena, samo komadi
         tvrdi((await page.locator('.mesto-ostalo').count()) === 0, 'nema više posebne forme „Ostalo“');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         const ro = page.locator('.mesto-dodaj [data-roba-red]');
         await ro.nth(0).locator('[data-biraj-tekst]').fill('saksije 30 cm');
         const napomena = ro.nth(0).locator('[data-biraj-status]');
@@ -562,6 +564,7 @@ module.exports = {
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
         const adresaSpiska = page.url();
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         const rr = page.locator('.mesto-dodaj [data-roba-red]');
         await biraj(rr.nth(0), 'humovit', 'Humovit · 10 l');
         await rr.nth(0).locator('[data-p="pal"]').fill('1');
@@ -684,6 +687,7 @@ module.exports = {
         await page.locator('.mesto-dodaj > summary').click().catch(() => {});
         if (!(await page.locator('.mesto-dodaj').evaluate((d) => d.open))) { await page.locator('.mesto-dodaj > summary').click(); }
         await page.selectOption('[data-odrediste]', '0');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         const rr = page.locator('.mesto-dodaj [data-roba-red]');
         await rr.nth(0).locator('[data-biraj-tekst]').fill('Idea 10');
         tvrdi(await rr.nth(0).locator('[data-polje-pal]').isVisible(), 'posebna stavka ima palete');
@@ -742,11 +746,13 @@ module.exports = {
         const adresa = page.url().split('#')[0];
         const krugovi = async () => (await page.locator('.mesto-kartica .mesto-krug').allInnerTexts()).join(',');
         tvrdi((await krugovi()) === '8', 'prvo mesto je 8');
-        tvrdi(await page.locator('.mesto-dodaj').evaluate((d) => d.open), 'prazno mesto ima otvorenu formu za robu');
+        tvrdi(await page.locator('.brzi-unos [name="b_tekst"]').isVisible(), 'prazno mesto ima polje za brzi upis robe');
 
         // Mesto 8: paleta Humovita 50 l + zbirna paleta pola rizle, pola oblutka
         const m8 = page.locator('.mesto-kartica', { hasText: 'Mesto 8' });
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await biraj(m8.locator('[data-roba-red]').first(), 'humovit', 'Humovit · 50 l');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await m8.locator('[data-roba-red]').first().locator('[data-p="pal"]').fill('1');
         await m8.getByRole('button', { name: 'Sačuvaj robu za Mesto 8' }).click();
         await page.waitForSelector('.poruka-uspeh');
@@ -773,9 +779,11 @@ module.exports = {
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForSelector('.poruka-uspeh');
         const m9 = page.locator('.mesto-kartica', { hasText: 'Mesto 9' });
-        tvrdi(await m9.locator('.mesto-dodaj .poruka-uspeh').isVisible(), 'poruka o novom mestu je kod njegove forme');
-        tvrdi(await m9.locator('.mesto-dodaj').evaluate((d) => d.open), 'forma za robu novog mesta je otvorena');
+        tvrdi(await m9.locator('.poruka-uspeh').isVisible(), 'poruka o novom mestu je kod njegove forme');
+        tvrdi(await m9.locator('.brzi-unos [name="b_tekst"]').isVisible(), 'polje za robu novog mesta je spremno');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await m9.locator('[data-roba-red] [data-biraj-tekst]').first().fill('humovit 10');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await m9.locator('[data-roba-red] [data-p="pal"]').first().fill('1');
         await m9.getByRole('button', { name: 'Sačuvaj robu za Mesto 9' }).click();
         await page.waitForSelector('.poruka-uspeh');
@@ -787,7 +795,9 @@ module.exports = {
         await page.getByRole('button', { name: 'Dodaj mesto', exact: true }).click();
         await page.waitForSelector('.poruka-uspeh');
         const m5 = page.locator('.mesto-kartica', { hasText: 'Mesto 5' });
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await m5.locator('[data-roba-red] [data-biraj-tekst]').first().fill('humovit 5');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await m5.locator('[data-roba-red] [data-p="pak"]').first().fill('2');
         tvrdi((await m5.locator('[data-roba-red] [data-zbir]').first().innerText()).includes('= 20 kom'), 'zbir: 2 paketa = 20 kom');
         await m5.getByRole('button', { name: 'Sačuvaj robu za Mesto 5' }).click();
@@ -865,6 +875,7 @@ module.exports = {
         await page.fill('#kupac', 'Agrocentar Novi Sad');
         await page.getByRole('button', { name: 'Napravi spisak' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         const redovi = page.locator('.mesto-dodaj [data-roba-red]');
         await biraj(redovi.nth(0), 'humovit', 'Humovit · 10 l');
         await redovi.nth(0).locator('[data-p="pal"]').fill('1');
@@ -876,6 +887,26 @@ module.exports = {
         await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');
         tvrdi((await page.locator('.poruka-uspeh').first().innerText()).includes('Kesa (ostalo) – 5 kom'), 'sačuvano: Kesa 5 kom');
+
+        // brzi upis: naziv i količina u jednom redu, Enter – odmah na spisku, kursor ostaje u polju
+        const brzo = page.locator('.brzi-unos [name="b_tekst"]').first();
+        const uPolju = await page.waitForFunction(() => document.activeElement && document.activeElement.name === 'b_tekst', null, { timeout: 5000 }).then(() => true, () => false);
+        tvrdi(uPolju, 'posle upisa kursor je u polju za brzi upis');
+        await page.keyboard.type('idea 10 2 pal');
+        await page.keyboard.press('Enter');
+        await page.waitForURL('**#mesto-*');
+        await page.waitForSelector('.poruka-uspeh');
+        tvrdi((await page.locator('.poruka-uspeh').first().innerText()).includes('Idea · 10 l'), 'brzi upis: ' + await page.locator('.poruka-uspeh').first().innerText());
+        tvrdi(!(await page.locator('.mesto-dodaj').first().evaluate((d) => d.open)), 'upis po poljima je skupljen');
+        await p.slika('88b-brzi-upis');
+        await page.locator('.brzi-unos [name="b_tekst"]').first().fill('humovit 1 pal');
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('.poruka-greska');
+        tvrdi(await page.locator('.mesto-dodaj').first().evaluate((d) => d.open) && await page.locator('.mesto-dodaj [data-biraj-ponuda]').first().isVisible(),
+            'nejasno („humovit“): otvara se upis po poljima sa ponudom pakovanja');
+        await page.locator('.mesto-dodaj [data-biraj-ponuda] button[aria-label="Humovit · 50 l"]').first().click();
+        await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
+        await page.waitForSelector('.poruka-uspeh');
 
         // novo mesto: prethodno (završeno) se skupi
         await page.evaluate(() => { const d = document.querySelector('#novo-mesto details'); if (d) { d.open = true; } });
@@ -889,9 +920,11 @@ module.exports = {
         const k2 = page.locator('.mesto-kartica', { hasText: 'Cvećara Žika' });
         const otvoreno = (k) => k.locator('.mesto-telo').evaluate((d) => d.open);
         tvrdi(!(await otvoreno(k1)) && await otvoreno(k2), 'Mesto 1 se skupilo, novo Mesto 2 je otvoreno');
-        tvrdi((await k1.locator('.mesto-sazetak').innerText()).includes('2 stavke') && !(await k1.locator('.stavka').first().isVisible()),
-            'skupljeno: vidi se zbir (2 stavke), roba se ne vidi');
+        tvrdi((await k1.locator('.mesto-sazetak').innerText()).includes('4 stavke') && !(await k1.locator('.stavka').first().isVisible()),
+            'skupljeno: vidi se zbir (4 stavke), roba se ne vidi');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await k2.locator('[data-roba-red]').first().locator('[data-biraj-tekst]').fill('kese');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await k2.locator('[data-roba-red]').first().locator('[data-p="kom"]').fill('7');
         await k2.getByRole('button', { name: 'Sačuvaj robu za Mesto 2' }).click();
         await page.waitForSelector('.poruka-uspeh');
@@ -1136,7 +1169,9 @@ module.exports = {
         await page.locator('.spisak-kartica', { hasText: 'Vrt i bašta Kraljevo' }).click();
         await page.waitForURL('**/admin/spisak.php?id=*');
         const adresa = page.url();
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await biraj(page.locator('.mesto-dodaj [data-roba-red]').first(), 'humovit', 'Humovit · 10 l');
+        await page.evaluate(() => { document.querySelectorAll('.mesto-dodaj').forEach((d) => { d.open = true; }); });
         await page.locator('.mesto-dodaj [data-roba-red]').first().locator('[data-p="pal"]').fill('1');
         await page.getByRole('button', { name: 'Sačuvaj robu za Mesto 1' }).click();
         await page.waitForSelector('.poruka-uspeh');

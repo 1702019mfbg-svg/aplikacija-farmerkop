@@ -211,11 +211,14 @@ function period_opis(string $od, string $do): string
 /** Izbor perioda za stranicu $adresa: dugmad (Danas, Juče …) i „Drugi period“ (od–do). */
 function period_izbor_html(string $adresa, string $od, string $do): string
 {
+    $izabran = false;       // ponedeljkom su "Danas" i "Ova nedelja" isti period: označen je samo prvi
     ob_start(); ?>
     <div class="cipovi" role="group" aria-label="Period">
-        <?php foreach (period_opsezi() as $naziv => [$o_od, $o_do]): ?>
+        <?php foreach (period_opsezi() as $naziv => [$o_od, $o_do]):
+            $ovaj = !$izabran && $od === $o_od && $do === $o_do;
+            $izabran = $izabran || $ovaj; ?>
             <a class="cip" href="<?= e(url($adresa . '?' . http_build_query(['od' => $o_od, 'do' => $o_do]))) ?>"
-               <?= $od === $o_od && $do === $o_do ? 'aria-current="true"' : '' ?>><?= e($naziv) ?></a>
+               <?= $ovaj ? 'aria-current="true"' : '' ?>><?= e($naziv) ?></a>
         <?php endforeach; ?>
     </div>
     <details class="kartica">
